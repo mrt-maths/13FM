@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Complex Golf: Transformations on the Argand Plane</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#111a2e;
+      --panel2:#0f1730;
+      --grid:#243252;
+      --axis:#9fb3ff;
+      --text:#e9eeff;
+      --muted:#a7b0d8;
+      --accent:#66e3ff;
+      --good:#6dff9a;
+      --warn:#ffd26d;
+      --bad:#ff6d6d;
+      --btn:#1a2550;
+      --btn2:#22306a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+    }
+    body{
+      margin:0; background: radial-gradient(1200px 700px at 15% 10%, #162046 0%, var(--bg) 55%);
+      color:var(--text);
+      min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      padding:18px;
+    }
+    .wrap{ max-width: 1100px; width:100%; display:grid; grid-template-columns: 560px 1fr; gap:18px; }
+    @media (max-width: 980px){ .wrap{ grid-template-columns: 1fr; } }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .header{
+      padding:14px 16px;
+      background: linear-gradient(90deg, rgba(102,227,255,.14), rgba(102,227,255,.04));
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .header h1{ font-size:16px; margin:0; letter-spacing:.2px;}
+    .pill{
+      font-size:12px; color:var(--muted);
+      background: rgba(0,0,0,.2);
+      border: 1px solid rgba(255,255,255,.10);
+      padding:6px 10px; border-radius: 999px;
+    }
+    canvas{ display:block; background: #071027; }
+    .side{ padding:14px 14px 16px; display:flex; flex-direction:column; gap:12px; }
+    .info{
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding:12px;
+    }
+    .row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }
+    .k{ color:var(--muted); font-size:12px; }
+    .v{ font-weight:700; letter-spacing:.2px; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .btns{
+      display:grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+    button{
+      cursor:pointer;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+      color: var(--text);
+      padding:10px 10px;
+      font-weight:700;
+      letter-spacing:.2px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.22);
+      transition: transform .06s ease, background .18s ease;
+    }
+    button:hover{ background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04)); }
+    button:active{ transform: translateY(1px) scale(.99); }
+    button.secondary{
+      background: rgba(255,255,255,.04);
+      font-weight:650;
+    }
+    button:disabled{
+      opacity:.45; cursor:not-allowed;
+    }
+    .msg{
+      min-height: 20px;
+      font-size:13px;
+      color: var(--muted);
+    }
+    .msg.good{ color: var(--good); }
+    .msg.warn{ color: var(--warn); }
+    .msg.bad{ color: var(--bad); }
+    .codebox{
+      display:flex; gap:10px; align-items:center;
+    }
+    input{
+      flex:1;
+      padding:10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.22);
+      color: var(--text);
+      outline:none;
+      font-weight:700;
+      letter-spacing:.5px;
+    }
+    .small{
+      font-size:12px; color:var(--muted); line-height:1.35;
+    }
+    .footer{
+      margin-top:auto;
+      padding-top:10px;
+      border-top: 1px dashed rgba(255,255,255,.12);
+    }
+    .legend{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      font-size:12px; color: var(--muted);
+    }
+    .dot{ width:10px; height:10px; border-radius: 999px; display:inline-block; }
+    .dot.ball{ background:#ffffff; box-shadow:0 0 0 2px rgba(102,227,255,.35); }
+    .dot.goal{ background:#ff4d4d; }
+    .dot.path{ background:#66e3ff; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <h1>⛳ Complex Golf — Transformations on the Argand Plane</h1>
+        <div class="pill" id="levelPill">Level 1 • Par 2</div>
+      </div>
+      <canvas id="board" width="560" height="560" aria-label="Argand diagram"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="header">
+        <h1>Controls</h1>
+        <div class="pill mono" id="boundsPill">Bounds: −10 ≤ Re, Im ≤ 10</div>
+      </div>
+
+      <div class="side">
+        <div class="info">
+          <div class="row">
+            <div>
+              <div class="k">Start (ball)</div>
+              <div class="v mono" id="startTxt"></div>
+            </div>
+            <div>
+              <div class="k">Goal (hole)</div>
+              <div class="v mono" id="goalTxt"></div>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="row">
+            <div>
+              <div class="k">Current z</div>
+              <div class="v mono" id="curTxt"></div>
+            </div>
+            <div>
+              <div class="k">Strokes</div>
+              <div class="v mono" id="movesTxt">0</div>
+            </div>
+            <div>
+              <div class="k">Par</div>
+              <div class="v mono" id="parTxt">2</div>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="legend">
+            <span><span class="dot ball"></span> Ball</span>
+            <span><span class="dot goal"></span> Hole/Flag</span>
+            <span><span class="dot path"></span> Path</span>
+          </div>
+        </div>
+
+        <div class="btns">
+          <button onclick="doMove('z+1')">z → z + 1</button>
+          <button onclick="doMove('z-1')">z → z − 1</button>
+
+          <button onclick="doMove('z+i')">z → z + i</button>
+          <button onclick="doMove('z-i')">z → z − i</button>
+
+          <button onclick="doMove('-z')">z → −z</button>
+          <button onclick="doMove('z*')">z → z*</button>
+
+          <button onclick="doMove('iz')">z → i z</button>
+          <button onclick="doMove('-iz')">z → −i z</button>
+
+          <button onclick="doMove('2z')">z → 2z</button>
+          <button onclick="doMove('z/2')">z → z/2</button>
+
+          <button class="secondary" onclick="undoMove()">Undo</button>
+          <button class="secondary" onclick="resetLevel()">Reset</button>
+        </div>
+
+        <div class="msg" id="msg"></div>
+
+        <div class="info" id="codePanel" style="display:none;">
+          <div class="row">
+            <div>
+              <div class="k">Hole completed!</div>
+              <div class="v" id="scoreName">Par</div>
+            </div>
+            <div class="pill mono" id="scoreDiff">0</div>
+          </div>
+          <div style="height:10px"></div>
+          <div class="small">
+            To unlock the next hole, enter the <b>codeword</b> your teacher gives you.
+          </div>
+          <div style="height:10px"></div>
+          <div class="codebox">
+            <input id="codeInput" placeholder="CODEWORD" autocomplete="off" />
+            <button onclick="submitCode()">Unlock</button>
+          </div>
+          <div class="msg" id="codeMsg"></div>
+        </div>
+
+        <div class="footer small">
+          <b>Rules:</b> Stay inside the diagram (moves that leave the range are blocked). Try to reach the flag in the fewest strokes. Use complex transformations creatively!
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* -----------------------------
+   Level data (teacher controls codewords)
+   First 4: Par 2
+   Next 4: Par 3
+   Last two: min 4 and min 5
+-------------------------------- */
+const levels = [
+  // Par 2 (min 2)
+  { par:2, start:{re: 0, im:-4}, goal:{re:-1, im:-2}, code:"TEEUP"   },
+  { par:2, start:{re:-5, im:-7}, goal:{re:-6, im: 5}, code:"FAIRWAY" },
+  { par:2, start:{re:-7, im:-2}, goal:{re:-2, im: 6}, code:"BUNKER"  },
+  { par:2, start:{re: 4, im: 7}, goal:{re: 4, im:-8}, code:"GREEN"   },
+
+  // Par 3 (min 3)
+  { par:3, start:{re:-4, im:-6}, goal:{re: 7, im:-3}, code:"DRAW"    },
+  { par:3, start:{re: 6, im: 6}, goal:{re:-6, im: 4}, code:"FADE"    },
+  { par:3, start:{re:-8, im:-3}, goal:{re:-5, im:-1}, code:"SPIN"    },
+  { par:3, start:{re:-4, im: 4}, goal:{re: 5, im: 3}, code:"PUTT"    },
+
+  // Challenge (min 4, then min 5)
+  { par:4, start:{re: 7, im:-4}, goal:{re:-5, im:-5}, code:"EAGLE"   },
+  { par:5, start:{re:-8, im:-8}, goal:{re: 1, im: 4}, code:"CHAMP"   },
+];
+
+const BOUND = 10;
+const EPS = 1e-9;
+
+let levelIndex = 0;
+let z = {re:0, im:0};
+let history = [];
+let moves = 0;
+let completed = false;
+
+// Canvas setup
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const scale = W / (2*BOUND); // pixels per unit
+const cx = W/2, cy = H/2;
+
+function toCanvas(p){
+  return { x: cx + p.re*scale, y: cy - p.im*scale };
+}
+
+function inBounds(p){
+  return Math.abs(p.re) <= BOUND + EPS && Math.abs(p.im) <= BOUND + EPS;
+}
+
+function fmt(n){
+  // show halves nicely; otherwise integers/decimals
+  const rounded = Math.round(n*2)/2;
+  if (Math.abs(n-rounded) < 1e-9) n = rounded;
+  if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+  return n.toFixed(2).replace(/\.00$/,'');
+}
+
+function fmtComplex(p){
+  const a = fmt(p.re);
+  const b = fmt(Math.abs(p.im));
+  if (Math.abs(p.im) < EPS) return `${a}`;
+  const sign = p.im >= 0 ? "+" : "−";
+  if (Math.abs(Math.abs(p.im) - 1) < EPS) return `${a} ${sign} i`;
+  return `${a} ${sign} ${b}i`;
+}
+
+function equal(p,q){
+  return Math.abs(p.re-q.re) < 1e-9 && Math.abs(p.im-q.im) < 1e-9;
+}
+
+function golfName(diff){
+  // diff = strokes - par
+  if (diff === 0) return "Par";
+  if (diff === -1) return "Birdie";
+  if (diff === -2) return "Eagle";
+  if (diff <= -3) return "Albatross";
+  if (diff === 1) return "Bogey";
+  if (diff === 2) return "Double Bogey";
+  if (diff === 3) return "Triple Bogey";
+  if (diff >= 4) return `${diff} over par`;
+  return `${Math.abs(diff)} under par`;
+}
+
+function setMessage(text, kind=""){
+  const el = document.getElementById('msg');
+  el.className = "msg" + (kind ? " " + kind : "");
+  el.textContent = text || "";
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // Background grid
+  ctx.fillStyle = "#071027";
+  ctx.fillRect(0,0,W,H);
+
+  // Grid lines
+  for(let k=-BOUND; k<=BOUND; k++){
+    const x = cx + k*scale;
+    const y = cy - k*scale;
+
+    ctx.lineWidth = (k===0)? 2 : 1;
+    ctx.strokeStyle = (k===0)? "rgba(159,179,255,.85)" : "rgba(36,50,82,.75)";
+
+    // vertical
+    ctx.beginPath();
+    ctx.moveTo(x,0); ctx.lineTo(x,H);
+    ctx.stroke();
+
+    // horizontal
+    ctx.beginPath();
+    ctx.moveTo(0,y); ctx.lineTo(W,y);
+    ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = "rgba(233,238,255,.85)";
+  ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  for(let k=-BOUND; k<=BOUND; k++){
+    if (k===0) continue;
+    ctx.fillStyle = "rgba(167,176,216,.9)";
+    // x labels
+    ctx.fillText(k, cx + k*scale - 4, cy + 14);
+    // y labels
+    ctx.fillText(k, cx + 6, cy - k*scale + 4);
+  }
+  ctx.fillStyle = "rgba(233,238,255,.9)";
+  ctx.fillText("Re", W-26, cy - 6);
+  ctx.fillText("Im", cx + 8, 14);
+
+  // Draw path
+  if(history.length > 0){
+    ctx.strokeStyle = "rgba(102,227,255,.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const p0 = toCanvas(history[0]);
+    ctx.moveTo(p0.x, p0.y);
+    for(const p of history.slice(1)){
+      const pp = toCanvas(p);
+      ctx.lineTo(pp.x, pp.y);
+    }
+    const pc = toCanvas(z);
+    ctx.lineTo(pc.x, pc.y);
+    ctx.stroke();
+  }
+
+  // Draw goal (hole + flag)
+  const goal = levels[levelIndex].goal;
+  const g = toCanvas(goal);
+
+  // hole
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.arc(g.x, g.y, 10, 0, Math.PI*2);
+  ctx.fill();
+
+  // flag pole
+  ctx.strokeStyle = "rgba(233,238,255,.9)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(g.x, g.y-44);
+  ctx.lineTo(g.x, g.y-8);
+  ctx.stroke();
+
+  // flag triangle
+  ctx.fillStyle = "rgba(255,77,77,.95)";
+  ctx.beginPath();
+  ctx.moveTo(g.x, g.y-44);
+  ctx.lineTo(g.x+22, g.y-36);
+  ctx.lineTo(g.x, g.y-28);
+  ctx.closePath();
+  ctx.fill();
+
+  // Draw ball
+  const b = toCanvas(z);
+  // shadow
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(0,0,0,.35)";
+  ctx.ellipse(b.x+2, b.y+4, 10, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+  // ball
+  ctx.beginPath();
+  ctx.fillStyle = "#ffffff";
+  ctx.arc(b.x, b.y, 10, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(102,227,255,.55)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function updateUI(){
+  const L = levels[levelIndex];
+  document.getElementById('levelPill').textContent = `Level ${levelIndex+1} • Par ${L.par}`;
+  document.getElementById('startTxt').textContent = fmtComplex(L.start);
+  document.getElementById('goalTxt').textContent  = fmtComplex(L.goal);
+  document.getElementById('curTxt').textContent   = fmtComplex(z);
+  document.getElementById('movesTxt').textContent = moves;
+  document.getElementById('parTxt').textContent   = L.par;
+  draw();
+}
+
+function loadLevel(i){
+  levelIndex = i;
+  const L = levels[levelIndex];
+  z = { ...L.start };
+  history = [{...z}];
+  moves = 0;
+  completed = false;
+  document.getElementById('codePanel').style.display = "none";
+  document.getElementById('codeInput').value = "";
+  document.getElementById('codeMsg').textContent = "";
+  setMessage("Take your shot! Use the transformations to reach the flag.", "");
+  updateUI();
+}
+
+function applyMove(p, kind){
+  const a = p.re, b = p.im;
+  switch(kind){
+    case "z+1": return {re:a+1, im:b};
+    case "z-1": return {re:a-1, im:b};
+    case "z+i": return {re:a, im:b+1};
+    case "z-i": return {re:a, im:b-1};
+    case "-z":  return {re:-a, im:-b};
+    case "z*":  return {re:a, im:-b};
+    case "iz":  return {re:-b, im:a};
+    case "-iz": return {re:b, im:-a};
+    case "2z":  return {re:2*a, im:2*b};
+    case "z/2": return {re:a/2, im:b/2};
+  }
+  return p;
+}
+
+function doMove(kind){
+  if(completed){
+    setMessage("Hole already completed — enter the codeword to unlock the next level.", "warn");
+    return;
+  }
+  const next = applyMove(z, kind);
+  if(!inBounds(next)){
+    setMessage("Out of bounds! That shot would leave −10 to 10. Try a different move.", "bad");
+    return;
+  }
+  z = next;
+  history.push({...z});
+  moves += 1;
+
+  const goal = levels[levelIndex].goal;
+  if(equal(z, goal)){
+    finishedHole();
+  } else {
+    setMessage(`Move used: ${kind}. Keep going…`, "");
+  }
+  updateUI();
+}
+
+function undoMove(){
+  if(completed){
+    setMessage("Undo is disabled after holing out. Reset the level if needed.", "warn");
+    return;
+  }
+  if(history.length <= 1){
+    setMessage("Nothing to undo.", "warn");
+    return;
+  }
+  history.pop();
+  z = {...history[history.length-1]};
+  moves = Math.max(0, moves-1);
+  setMessage("Undid last move.", "");
+  updateUI();
+}
+
+function resetLevel(){
+  loadLevel(levelIndex);
+}
+
+function finishedHole(){
+  completed = true;
+  const L = levels[levelIndex];
+  const diff = moves - L.par;
+  const name = golfName(diff);
+
+  const scoreName = document.getElementById('scoreName');
+  const scoreDiff = document.getElementById('scoreDiff');
+
+  scoreName.textContent = name;
+  scoreDiff.textContent = (diff===0) ? "E" : (diff>0 ? `+${diff}` : `${diff}`);
+
+  // colour feedback
+  const msgKind = diff <= -1 ? "good" : diff === 0 ? "warn" : "bad";
+  setMessage(`Holed out in ${moves} stroke(s): ${name}! Now enter the codeword to unlock the next hole.`, msgKind);
+
+  document.getElementById('codePanel').style.display = "block";
+  document.getElementById('codeInput').focus();
+}
+
+function submitCode(){
+  if(!completed){
+    setMessage("You need to reach the hole first!", "warn");
+    return;
+  }
+  const input = document.getElementById('codeInput').value.trim().toUpperCase();
+  const expected = levels[levelIndex].code.toUpperCase();
+  const codeMsg = document.getElementById('codeMsg');
+
+  if(input === expected){
+    codeMsg.className = "msg good";
+    if(levelIndex === levels.length - 1){
+      codeMsg.textContent = "Unlocked! You finished the whole course — congratulations! ⛳🎉";
+      setMessage("Course complete. Brilliant work with complex transformations!", "good");
+    } else {
+      codeMsg.textContent = "Unlocked! Loading next hole…";
+      setTimeout(()=> loadLevel(levelIndex+1), 650);
+    }
+  } else {
+    codeMsg.className = "msg bad";
+    codeMsg.textContent = "Incorrect codeword. Ask your teacher for the correct one.";
+  }
+}
+
+// Start game
+loadLevel(0);
+</script>
+</body>
+</html>

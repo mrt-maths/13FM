@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Integral Domino Staircase</title>
+
+<!-- MathJax -->
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(','\\)'], ['$', '$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<style>
+:root{
+  --bg:#0b1220;
+
+  --tile:#ffffff;
+  --tileBorder:#202020;
+  --ink:#0b1220;
+
+  --slotW: 220px;
+  --slotH: 110px;
+
+  --pileW: 200px;
+  --pileH: 100px;
+}
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  font-family:system-ui,Segoe UI,Roboto,Arial;
+  background: radial-gradient(1200px 800px at 20% 10%, #14224a 0%, var(--bg) 45%, #070b14 100%);
+  color:#eaf0ff;
+  overflow:hidden;
+}
+
+/* Top bar */
+header{
+  height:64px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 14px;
+  background:rgba(16,26,47,.88);
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.leftControls, .rightControls{ display:flex; gap:8px; align-items:center; }
+button{
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.08);
+  color:#eaf0ff;
+  padding:8px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:700;
+}
+button:hover{ background:rgba(255,255,255,.16); }
+
+/* Board */
+.board{
+  position:relative;
+  height: calc(100vh - 64px);
+  width: 100vw;
+  overflow:hidden;
+}
+
+/* Pile zones */
+.pileZone{
+  position:absolute;
+  padding:10px;
+  background: transparent;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-start;
+  z-index:5;
+}
+#pileTRZone{
+  right: calc(14px + (var(--pileW) / 2));
+  top: 14px;
+  width: 520px;
+  max-width: 44vw;
+}
+#pileBLZone{
+  left: 14px; bottom: 14px;
+  width: 520px; max-width: 44vw;
+}
+
+/* Triangles */
+.tri{
+  display:grid;
+  grid-template-rows:auto auto auto;
+  gap:12px;
+  width:100%;
+  align-items:start;
+}
+.triRow{ display:grid; gap:12px; align-items:start; }
+.r1{ grid-template-columns: repeat(1, 1fr); }
+.r2{ grid-template-columns: repeat(2, 1fr); }
+.r3{ grid-template-columns: repeat(3, 1fr); }
+
+#pileTR{ width:100%; }
+#pileTR .triRow{ margin-left:auto; }
+#pileTR .r3{ width:100%; }
+#pileTR .r2{ width: calc(100% * 2/3); }
+#pileTR .r1{ width: calc(100% * 1/3); }
+
+#pileBL{ width:100%; }
+#pileBL .triRow{ margin-right:auto; }
+#pileBL .r1{ width: calc(100% * 1/3); }
+#pileBL .r2{ width: calc(100% * 2/3); }
+#pileBL .r3{ width:100%; }
+
+/* Staircase */
+.stairWrap{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:1;
+}
+.stairSlot{
+  position:absolute;
+  width: var(--slotW);
+  height: var(--slotH);
+  border-radius: 18px;
+  border: 5px solid rgba(255,60,60,.78);
+  background: rgba(255,60,60,.06);
+  pointer-events:auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition: 120ms ease;
+}
+.stairSlot.over{
+  border-color: rgba(255,180,60,.95);
+  background: rgba(255,180,60,.08);
+}
+.stairSlot.locked{
+  border-color: rgba(255,60,60,.90);
+  background: rgba(255,60,60,.10);
+}
+
+/* Domino */
+.tile{
+  width:100%;
+  height:100%;
+  background:var(--tile);
+  color:var(--ink);
+  border-radius:14px;
+  border:2px solid var(--tileBorder);
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  overflow:hidden;
+  cursor:grab;
+  user-select:none;
+  touch-action:none;
+  box-shadow: 0 10px 18px rgba(0,0,0,.22);
+}
+.tile:active{ cursor:grabbing; }
+
+.half{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:6px;
+  font-weight:850;
+  line-height:1.05;
+}
+.leftHalf{
+  border-right:2px solid #111;
+  flex-direction:column;
+  gap:4px;
+}
+.mj{ font-size:12px; }
+.num{ font-size:20px; letter-spacing:.2px; }
+
+/* smaller in piles */
+.pileZone .tile{
+  width: var(--pileW);
+  height: var(--pileH);
+  box-shadow: 0 8px 14px rgba(0,0,0,.20);
+}
+.pileZone .mj{ font-size: 11px; }
+.pileZone .num{ font-size: 18px; }
+
+/* Drag ghost */
+.dragGhost{
+  position:fixed;
+  left:0; top:0;
+  z-index:9999;
+  pointer-events:none;
+  opacity:.92;
+}
+
+/* Celebration */
+.celebrate{
+  position:absolute;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background: radial-gradient(circle at 50% 40%, rgba(34,197,94,.22), rgba(0,0,0,.60));
+  z-index:50;
+  pointer-events:none;
+}
+.celebrate.show{ display:flex; }
+.celebrateMark{
+  width: 96px;
+  height: 96px;
+  border-radius: 999px;
+  background: rgba(34,197,94,.22);
+  border: 2px solid rgba(34,197,94,.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 42px;
+  font-weight: 900;
+}
+
+/* Solitaire fly-off layer */
+.winLayer{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:60;
+}
+.flying{
+  position:absolute;
+  transform-origin: 50% 50%;
+}
+
+@media (max-width: 980px){
+  :root{
+    --slotW: 200px;
+    --slotH: 100px;
+    --pileW: 188px;
+    --pileH: 96px;
+  }
+  #pileTRZone, #pileBLZone{ width: 92vw; max-width: 92vw; }
+  #pileTRZone{ right: 14px; }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="leftControls">
+    <button id="checkBtn">Check</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+  <div class="rightControls">
+    <button id="fullscreenBtn">Full Screen</button>
+  </div>
+</header>
+
+<div class="board" id="board">
+  <div class="pileZone" id="pileTRZone"><div id="pileTR"></div></div>
+  <div class="pileZone" id="pileBLZone"><div id="pileBL"></div></div>
+
+  <div class="stairWrap" id="stairWrap"></div>
+  <div class="winLayer" id="winLayer"></div>
+
+  <div class="celebrate" id="celebrate">
+    <div class="celebrateMark">✓</div>
+  </div>
+</div>
+
+<script>
+/* ===== DATA ===== */
+const dominoesBase = [
+  { id:"A", int:"\\(\\int_{0}^{1} \\frac{2}{1+e^x}\\,dx\\)", instr:"\\(\\text{find }S_{6}\\)", key:"frac_S6", val:"2.403808" },
+  { id:"B", int:"\\(\\int_{0}^{1} \\sqrt{1+x^2}\\,dx\\)", instr:"\\(\\text{find }S_{6}\\)", key:"sqrt_S6", val:"1.317053" },
+  { id:"C", int:"\\(\\int_{0}^{2} x\\sin x\\,dx\\)", instr:"\\(\\text{find }S_{4}\\)", key:"xsinx_S4", val:"3.14159" },
+  { id:"D", int:"\\(\\int_{0}^{1} \\sin(x^2)\\,dx\\)", instr:"\\(\\text{find }S_{4}\\)", key:"sinx2_S4", val:"0.75977" },
+  { id:"E", int:"\\(\\int_{1}^{2} \\ln x\\,dx\\)", instr:"\\(\\text{find }S_{2}\\)", key:"ln_S2", val:"1.740893" },
+  { id:"F", int:"\\(\\int_{1}^{2} e^{\\sqrt{x}}\\,dx\\)", instr:"\\(\\text{find }M_{5}\\)", key:"esqrt_M5", val:"1.147791" },
+  { id:"G", int:"\\(\\int_{-1}^{-2} 2^x\\,dx\\)", instr:"\\(\\text{find }M_{4}\\)", key:"2pow_M4", val:"0.309944" },
+  { id:"H", int:"\\(\\int_{4/3}^{5/3} x^e\\,dx\\)", instr:"\\(\\text{find }M_{6}\\)", key:"x^e_M6", val:"0.385835" },
+  { id:"I", int:"\\(\\int_{0}^{\\pi} \\cos(\\sin x)\\,dx\\)", instr:"\\(\\text{find }M_{2}\\)", key:"cos_sinx_M2", val:"3.407369" },
+  { id:"J", int:"\\(\\int_{0}^{3} \\sin^3 x\\,dx\\)", instr:"\\(\\text{find }M_{3}\\)", key:"sin3_M3", val:"2.093754" },
+  { id:"K", int:"\\(\\int_{-1}^{1} \\cos^{-1}(x)\\,dx\\)", instr:"\\(\\text{find }T_{4}\\)", key:"acos_T4", val:"0.360223" },
+  { id:"L", int:"\\(\\int_{4}^{9} \\frac{\\ln x}{x^{0.8}}\\,dx\\)", instr:"\\(\\text{find }T_{5}\\)", key:"ln_over_T5", val:"1.012938" },
+];
+
+/* ===== CORRECT MATCHING (FIXED LAST THREE) ===== */
+const correctMap = {
+  "frac_S6":"0.75977",
+  "sqrt_S6":"1.147791",
+  "xsinx_S4":"1.740893",
+  "sinx2_S4":"0.309944",
+  "ln_S2":"0.385835",
+  "esqrt_M5":"3.407369",
+  "2pow_M4":"0.360223",
+  "x^e_M6":"1.012938",
+  "cos_sinx_M2":"2.403808",
+
+  /* corrected based on your screenshot */
+  "sin3_M3":"1.317053",
+  "acos_T4":"3.14159",
+  "ln_over_T5":"2.093754"
+};
+
+/* ===== DOM ===== */
+const stairWrap = document.getElementById("stairWrap");
+const pileTR = document.getElementById("pileTR");
+const pileBL = document.getElementById("pileBL");
+const celebrate = document.getElementById("celebrate");
+const pileTRZone = document.getElementById("pileTRZone");
+const pileBLZone = document.getElementById("pileBLZone");
+const winLayer = document.getElementById("winLayer");
+
+/* ===== State ===== */
+let dominoes = [];
+const state = {
+  domWhere: {},     // id -> "TR" | "BL" | "S"
+  stair: Array(12).fill(null),
+  lockedId: null,
+  solved: false,
+  animating: false
+};
+
+/* ===== Helpers ===== */
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function inRect(x,y,r){ return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom; }
+function cssPx(name){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)); }
+
+/* ===== Build diagonal slots ===== */
+function buildStairSlots(){
+  stairWrap.innerHTML = "";
+  const W = stairWrap.clientWidth;
+  const H = stairWrap.clientHeight;
+
+  const slotW = cssPx("--slotW");
+  const slotH = cssPx("--slotH");
+
+  // Aim to fill the whole usable space
+  const margin = 8;
+  let x0 = margin, y0 = margin;
+  let x1 = W - slotW - margin;
+  let y1 = H - slotH - margin;
+
+  const overlapT = 0.96;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+
+  for(let i=0;i<12;i++){
+    const t = i/11;
+    const x = x0 + dx * t * overlapT;
+    const y = y0 + dy * t * overlapT;
+
+    const slot = document.createElement("div");
+    slot.className = "stairSlot";
+    slot.dataset.index = String(i);
+    slot.style.left = x + "px";
+    slot.style.top  = y + "px";
+
+    slot.addEventListener("pointerenter", ()=> slot.classList.add("over"));
+    slot.addEventListener("pointerleave", ()=> slot.classList.remove("over"));
+
+    stairWrap.appendChild(slot);
+  }
+}
+
+/* ===== Make tile ===== */
+function makeTile(d){
+  const tile=document.createElement("div");
+  tile.className="tile";
+  tile.dataset.id=d.id;
+
+  tile.innerHTML=`
+    <div class="half leftHalf">
+      <div class="mj">${d.int}</div>
+      <div class="mj">${d.instr}</div>
+    </div>
+    <div class="half"><div class="num">${d.val}</div></div>
+  `;
+
+  tile.addEventListener("pointerdown",(e)=>{
+    if(state.solved || state.animating) return;
+    if(d.id===state.lockedId) return;
+    startDrag(e,tile);
+  });
+
+  return tile;
+}
+
+/* ===== Render piles EXACTLY 6 + 5 tiles ===== */
+function renderPileTR(ids){
+  // TR should always be 6 tiles: 3,2,1
+  pileTR.innerHTML="";
+  const tri=document.createElement("div"); tri.className="tri";
+
+  const r3=document.createElement("div"); r3.className="triRow r3";
+  const r2=document.createElement("div"); r2.className="triRow r2";
+  const r1=document.createElement("div"); r1.className="triRow r1";
+
+  const rows=[r3,r2,r1], sizes=[3,2,1];
+  let k=0;
+  for(let i=0;i<3;i++){
+    for(let j=0;j<sizes[i];j++){
+      const id=ids[k++]; if(!id) continue;
+      r3.parentNode; // noop
+      rows[i].appendChild(makeTile(dominoes.find(d=>d.id===id)));
+    }
+  }
+
+  tri.appendChild(r3); tri.appendChild(r2); tri.appendChild(r1);
+  pileTR.appendChild(tri);
+}
+function renderPileBL(ids){
+  // BL should always be 5 tiles: 1,2,2 (but we want triangle 1,2,3 visually => last row can have 2 if only 5)
+  pileBL.innerHTML="";
+  const tri=document.createElement("div"); tri.className="tri";
+
+  const r1=document.createElement("div"); r1.className="triRow r1";
+  const r2=document.createElement("div"); r2.className="triRow r2";
+  const r3=document.createElement("div"); r3.className="triRow r3";
+
+  const rows=[r1,r2,r3], sizes=[1,2,3];
+  let k=0;
+  for(let i=0;i<3;i++){
+    for(let j=0;j<sizes[i];j++){
+      const id=ids[k++]; if(!id) continue;
+      rows[i].appendChild(makeTile(dominoes.find(d=>d.id===id)));
+    }
+  }
+
+  tri.appendChild(r1); tri.appendChild(r2); tri.appendChild(r3);
+  pileBL.appendChild(tri);
+}
+
+/* ===== Render stair ===== */
+function renderStair(){
+  document.querySelectorAll(".stairSlot").forEach(slot=>{
+    slot.innerHTML="";
+    const idx=+slot.dataset.index;
+    const id=state.stair[idx];
+    if(!id) return;
+
+    if(idx===0) slot.classList.add("locked");
+    else slot.classList.remove("locked");
+
+    slot.appendChild(makeTile(dominoes.find(d=>d.id===id)));
+  });
+}
+
+/* ===== Render all ===== */
+function renderAll(){
+  const idsTR = dominoes.filter(d=>state.domWhere[d.id]==="TR").map(d=>d.id);
+  const idsBL = dominoes.filter(d=>state.domWhere[d.id]==="BL").map(d=>d.id);
+
+  renderPileTR(idsTR);
+  renderPileBL(idsBL);
+  renderStair();
+  MathJax.typesetPromise?.();
+}
+
+/* ===== Dragging ===== */
+let drag=null;
+
+function startDrag(e,tile){
+  e.preventDefault();
+  const id=tile.dataset.id;
+  const r=tile.getBoundingClientRect();
+
+  drag={
+    id,
+    from: state.domWhere[id],
+    offsetX: e.clientX-r.left,
+    offsetY: e.clientY-r.top,
+    ghost: tile.cloneNode(true)
+  };
+
+  drag.ghost.classList.add("dragGhost");
+  drag.ghost.style.width=r.width+"px";
+  drag.ghost.style.height=r.height+"px";
+  document.body.appendChild(drag.ghost);
+  moveGhost(e.clientX,e.clientY);
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp, { once:true });
+}
+
+function moveGhost(x,y){
+  drag.ghost.style.left=(x-drag.offsetX)+"px";
+  drag.ghost.style.top =(y-drag.offsetY)+"px";
+}
+function onMove(e){
+  if(!drag) return;
+  moveGhost(e.clientX,e.clientY);
+}
+function onUp(e){
+  if(!drag) return;
+
+  const x=e.clientX,y=e.clientY;
+
+  const trRect=pileTRZone.getBoundingClientRect();
+  const blRect=pileBLZone.getBoundingClientRect();
+  const stRect=stairWrap.getBoundingClientRect();
+
+  const overTR=inRect(x,y,trRect);
+  const overBL=inRect(x,y,blRect);
+  const overSt=inRect(x,y,stRect);
+
+  let placed=false;
+
+  if(overSt){
+    placed = snapToNearestStairSlot(drag.id, x, y);
+    if(!placed){
+      if(overTR){ moveToPile(drag.id,"TR"); placed=true; }
+      else if(overBL){ moveToPile(drag.id,"BL"); placed=true; }
+    }
+  } else if(overTR){
+    moveToPile(drag.id,"TR"); placed=true;
+  } else if(overBL){
+    moveToPile(drag.id,"BL"); placed=true;
+  }
+
+  if(!placed){
+    moveToPile(drag.id, drag.from==="S" ? "TR" : drag.from);
+  }
+
+  drag.ghost.remove();
+  drag=null;
+  window.removeEventListener("pointermove", onMove);
+
+  renderAll();
+  autoSolveCheck();
+}
+
+/* ===== Placement ===== */
+function removeFromStair(id){
+  for(let i=0;i<state.stair.length;i++){
+    if(state.stair[i]===id) state.stair[i]=null;
+  }
+}
+function moveToPile(id, which){
+  if(id===state.lockedId) return;
+  removeFromStair(id);
+  state.domWhere[id]=which;
+  state.solved=false;
+  celebrate.classList.remove("show");
+}
+function placeOnStair(id, idx){
+  if(idx===0) return false;
+  if(id===state.lockedId) return false;
+  if(state.stair[idx] && state.stair[idx]!==id) return false;
+
+  removeFromStair(id);
+  state.stair[idx]=id;
+  state.domWhere[id]="S";
+  state.solved=false;
+  celebrate.classList.remove("show");
+  return true;
+}
+function snapToNearestStairSlot(id,x,y){
+  const slots=[...document.querySelectorAll(".stairSlot")];
+  let best={idx:-1,d:Infinity};
+  for(const slot of slots){
+    const r=slot.getBoundingClientRect();
+    const cx=r.left+r.width/2, cy=r.top+r.height/2;
+    const dx=cx-x, dy=cy-y;
+    const dist=dx*dx+dy*dy;
+    const idx=+slot.dataset.index;
+    if(dist<best.d) best={idx,d:dist};
+  }
+  return placeOnStair(id,best.idx);
+}
+
+/* ===== Solve ===== */
+function isSolved(){
+  for(let i=0;i<12;i++) if(!state.stair[i]) return false;
+  for(let i=0;i<11;i++){
+    const idA=state.stair[i], idB=state.stair[i+1];
+    const A=dominoes.find(d=>d.id===idA);
+    const B=dominoes.find(d=>d.id===idB);
+    if(correctMap[B.key]!==A.val) return false;
+  }
+  return true;
+}
+function autoSolveCheck(){
+  if(isSolved()){
+    state.solved=true;
+    celebrate.classList.add("show");
+    fanfare();
+    solitaireWinAnimation();
+  }
+}
+
+/* ===== Sounds ===== */
+function beep(freq=220,dur=0.06,vol=0.05){
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const ac=beep._ac||(beep._ac=new AC());
+  const o=ac.createOscillator();
+  const g=ac.createGain();
+  o.type="sine"; o.frequency.value=freq;
+  g.gain.value=vol;
+  o.connect(g); g.connect(ac.destination);
+  o.start(); o.stop(ac.currentTime+dur);
+}
+function fanfare(){
+  const notes=[523.25,659.25,783.99,1046.5,1318.5];
+  notes.forEach((f,i)=>setTimeout(()=>beep(f,0.12,0.08), i*140));
+}
+
+/* ===== Solitaire animation ===== */
+function solitaireWinAnimation(){
+  if(state.animating) return;
+  state.animating = true;
+  winLayer.innerHTML = "";
+
+  const boardRect = document.getElementById("board").getBoundingClientRect();
+  const slots = [...document.querySelectorAll(".stairSlot")];
+
+  const flyers = slots.map((slot, i)=>{
+    const tile = slot.querySelector(".tile");
+    if(!tile) return null;
+
+    const r = tile.getBoundingClientRect();
+    const clone = tile.cloneNode(true);
+    clone.style.width = r.width + "px";
+    clone.style.height = r.height + "px";
+
+    const wrap = document.createElement("div");
+    wrap.className = "flying";
+    wrap.style.left = (r.left - boardRect.left) + "px";
+    wrap.style.top  = (r.top  - boardRect.top)  + "px";
+    wrap.style.width = r.width + "px";
+    wrap.style.height = r.height + "px";
+    wrap.appendChild(clone);
+
+    winLayer.appendChild(wrap);
+    return { wrap, x:(r.left-boardRect.left), y:(r.top-boardRect.top), i };
+  }).filter(Boolean);
+
+  // hide originals
+  slots.forEach(s=>{
+    const t = s.querySelector(".tile");
+    if(t) t.style.visibility = "hidden";
+  });
+
+  const W = boardRect.width;
+  const H = boardRect.height;
+
+  flyers.forEach(({wrap, x, y, i})=>{
+    const delay = i * 120;
+    const dirX = (Math.random() < 0.5 ? -1 : 1);
+    const dirY = (Math.random() < 0.5 ? -1 : 1);
+    const tx = x + dirX * (W * (0.8 + Math.random()*0.6)) + (Math.random()*120 - 60);
+    const ty = y + dirY * (H * (0.8 + Math.random()*0.6)) + (Math.random()*120 - 60);
+    const rot = (Math.random()*720 - 360);
+
+    setTimeout(()=>{
+      wrap.animate(
+        [
+          { transform: `translate(0px,0px) rotate(0deg)` },
+          { transform: `translate(${(tx-x)}px, ${(ty-y)}px) rotate(${rot}deg)` }
+        ],
+        { duration: 2200 + Math.random()*700, easing: "cubic-bezier(.2,.9,.1,1)", fill:"forwards" }
+      );
+    }, delay);
+  });
+}
+
+/* ===== Buttons ===== */
+document.getElementById("resetBtn").addEventListener("click", init);
+document.getElementById("checkBtn").addEventListener("click", ()=>{
+  if(isSolved()){
+    state.solved=true;
+    celebrate.classList.add("show");
+    fanfare();
+    solitaireWinAnimation();
+  } else {
+    beep(220,0.08,0.06);
+    setTimeout(()=>beep(170,0.10,0.06),120);
+  }
+});
+document.getElementById("fullscreenBtn").addEventListener("click", async ()=>{
+  try{
+    if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+  }catch(e){}
+});
+
+/* ===== Init ===== */
+function init(){
+  celebrate.classList.remove("show");
+  winLayer.innerHTML="";
+  state.solved=false;
+  state.animating=false;
+
+  dominoes = shuffle(dominoesBase.map(d=>({ ...d })));
+
+  state.stair = Array(12).fill(null);
+  state.domWhere = {};
+  state.lockedId = null;
+
+  // Seed one random domino into slot 0
+  const seeded = dominoes[Math.floor(Math.random()*dominoes.length)];
+  state.lockedId = seeded.id;
+  state.stair[0] = seeded.id;
+  state.domWhere[seeded.id] = "S";
+
+  // Remaining 11 in piles: 6 TR, 5 BL
+  const rest = dominoes.filter(d=>d.id!==seeded.id);
+  rest.forEach((d,i)=> state.domWhere[d.id] = (i<6 ? "TR" : "BL"));
+
+  requestAnimationFrame(()=>{
+    buildStairSlots();
+    renderAll();
+  });
+}
+
+window.addEventListener("resize", ()=>{
+  buildStairSlots();
+  renderAll();
+});
+
+init();
+</script>
+</body>
+</html>
