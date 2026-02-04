@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>3-Set Venn Probability Drag & Drop</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --ink:#e8ecff;
+      --muted:#b7c0ff;
+      --line:rgba(255,255,255,.15);
+      --good:#2be39b;
+      --bad:#ff5577;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 700px at 15% 5%, rgba(122,162,255,.20), transparent 55%),
+        radial-gradient(900px 650px at 85% 25%, rgba(43,227,155,.14), transparent 60%),
+        var(--bg);
+      color:var(--ink);
+    }
+    header{
+      padding:18px 18px 10px;
+      display:flex;
+      align-items:flex-end;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    header h1{ margin:0; font-size:18px; letter-spacing:.2px; font-weight:700; }
+    header .sub{ color:var(--muted); font-size:13px; margin-bottom:1px; line-height:1.25rem; }
+
+    .wrap{
+      display:grid;
+      grid-template-columns: 580px 1fr;
+      gap:14px;
+      padding: 10px 14px 220px;
+      align-items:start;
+    }
+    @media (max-width: 1100px){
+      .wrap{ grid-template-columns: 1fr; padding-bottom:260px; }
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:12px 12px 10px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .card .hd .title{ font-weight:700; font-size:14px; letter-spacing:.2px; }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button{
+      background: rgba(122,162,255,.18);
+      color:var(--ink);
+      border:1px solid rgba(122,162,255,.35);
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:650;
+      font-size:13px;
+    }
+    button:hover{ filter:brightness(1.08); }
+    button.secondary{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.16); }
+    button.hiddenBtn{ display:none; }
+    .pill{
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .body{ padding:12px; }
+
+    .stickyLeft{ position: sticky; top: 10px; align-self:start; }
+    @media (max-width: 1100px){ .stickyLeft{ position: static; } }
+
+    .note{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.25rem;
+    }
+    .svgWrap{
+      background: rgba(0,0,0,.15);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px;
+      margin-top:10px;
+    }
+
+    /* Drop zones & tiles */
+    .drop{
+      width:58px;
+      height:34px;
+      border-radius:10px;
+      border:1px dashed rgba(255,255,255,.28);
+      background: rgba(255,255,255,.04);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:rgba(255,255,255,.65);
+      font-weight:800;
+      user-select:none;
+      position:relative;
+      z-index:3;
+    }
+    .drop.small{ width:50px; height:32px; border-radius:9px; }
+    .drop.filled{
+      border-style:solid;
+      border-color: rgba(255,255,255,.20);
+      background: rgba(255,255,255,.07);
+      color: var(--ink);
+    }
+    .drop.good{ outline:2px solid rgba(43,227,155,.65); }
+    .drop.bad{ outline:2px solid rgba(255,85,119,.65); }
+
+    .tile{
+      width:58px;
+      height:34px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.22);
+      background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+      letter-spacing:.3px;
+      cursor:grab;
+      user-select:none;
+      box-shadow: 0 8px 18px rgba(0,0,0,.25);
+    }
+    .tile:active{ cursor:grabbing; transform: translateY(1px); }
+    .tile.locked{
+      cursor: default;
+      box-shadow:none;
+      border-color: rgba(255,255,255,.16);
+      background: rgba(255,255,255,.10);
+    }
+
+    /* Questions: tighter + bring slots closer to the text */
+    .qGrid{ display:grid; grid-template-columns: 1fr; gap:4px; }
+    .q{
+      background: rgba(0,0,0,.14);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:7px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;   /* was space-between */
+      gap:6px;                      /* smaller gap between label and fraction */
+      flex-wrap:nowrap;
+    }
+    .q .label{
+      font-size:14px;
+      font-weight:700;
+      white-space:nowrap;
+      margin-right:6px;
+    }
+    .frac{ display:flex; align-items:center; gap:8px; }
+    .fracBox{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:5px;
+      min-width:66px;
+    }
+    .bar{
+      height:2px;
+      width:66px;
+      background: rgba(255,255,255,.22);
+      border-radius: 999px;
+    }
+    @media (max-width: 1100px){
+      .q{ flex-wrap:wrap; }
+    }
+
+    /* Pile */
+    .pileDock{
+      position:fixed;
+      left:0; right:0; bottom:0;
+      padding:10px 12px;
+      background: linear-gradient(180deg, rgba(11,16,32,0), rgba(11,16,32,.78) 20%, rgba(11,16,32,.92));
+      backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255,255,255,.12);
+      z-index: 50;
+    }
+    .pileCard{
+      max-width: 1200px;
+      margin:0 auto;
+      background: rgba(18,26,51,.72);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius: 16px;
+      padding:10px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    }
+    .pileTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+    .pileTop .hint{ color:var(--muted); font-size:13px; }
+    .pile{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      min-height:52px;
+      padding:8px;
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+      border:1px dashed rgba(255,255,255,.16);
+    }
+    .okMsg{ color: var(--good); font-weight:800; }
+    .badMsg{ color: var(--bad); font-weight:800; }
+    .svgSmall{ font-size: 13px; font-weight: 800; fill: rgba(255,255,255,.90); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>3-Set Venn: Probability Drag & Drop</h1>
+      <div class="sub">
+        Drag the number tiles into place (8 in the Venn + 20 in the 10 fractions).<br/>
+        <b>Fractions are left unsimplified.</b> No conditional probability.
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Left: Venn (sticky) -->
+    <section class="card stickyLeft">
+      <div class="hd">
+        <div class="title">3-set Venn diagram (Ω)</div>
+        <div class="pill" id="progressPill">Placed: 0 / 28</div>
+      </div>
+
+      <div class="body">
+        <div class="note">Only the sets are labelled: <b>A</b>, <b>B</b>, <b>C</b>.</div>
+
+        <div class="svgWrap">
+          <!-- Larger, and drop zones positioned at region centres -->
+          <svg viewBox="0 0 520 380" width="100%" height="auto" aria-label="3-set Venn diagram">
+            <rect x="10" y="10" width="500" height="360" rx="16"
+              fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+            <text x="22" y="34" class="svgSmall">Ω</text>
+
+            <!-- Circles -->
+            <circle cx="220" cy="175" r="120" fill="rgba(122,162,255,0.14)" stroke="rgba(122,162,255,0.55)" stroke-width="2"/>
+            <circle cx="320" cy="175" r="120" fill="rgba(43,227,155,0.10)" stroke="rgba(43,227,155,0.55)" stroke-width="2"/>
+            <circle cx="270" cy="260" r="120" fill="rgba(255,170,90,0.10)" stroke="rgba(255,170,90,0.55)" stroke-width="2"/>
+
+            <!-- Labels only -->
+            <text x="145" y="78" class="svgSmall">A</text>
+            <text x="385" y="78" class="svgSmall">B</text>
+            <text x="270" y="360" class="svgSmall">C</text>
+
+            <!-- Drop zones: exact size = drop size (58x34), placed at region centres -->
+            <!-- A only (A∩B'∩C') -->
+            <foreignObject x="110" y="165" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_A_Bp_Cp"></div>
+            </foreignObject>
+
+            <!-- B only (A'∩B∩C') -->
+            <foreignObject x="418" y="165" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_Ap_B_Cp"></div>
+            </foreignObject>
+
+            <!-- C only (A'∩B'∩C) -->
+            <foreignObject x="241" y="325" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_Ap_Bp_C"></div>
+            </foreignObject>
+
+            <!-- A∩B only (A∩B∩C') -->
+            <foreignObject x="260" y="118" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_A_B_Cp"></div>
+            </foreignObject>
+
+            <!-- A∩C only (A∩B'∩C) -->
+            <foreignObject x="170" y="248" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_A_Bp_C"></div>
+            </foreignObject>
+
+            <!-- B∩C only (A'∩B∩C) -->
+            <foreignObject x="350" y="248" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_Ap_B_C"></div>
+            </foreignObject>
+
+            <!-- A∩B∩C -->
+            <foreignObject x="260" y="206" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_A_B_C"></div>
+            </foreignObject>
+
+            <!-- Outside (A'∩B'∩C') -->
+            <foreignObject x="455" y="312" width="58" height="34">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="drop" data-zone="v_Ap_Bp_Cp"></div>
+            </foreignObject>
+          </svg>
+        </div>
+
+        <div class="note" id="statusLine" style="margin-top:10px;">
+          One number is already placed for you. (The “Check” button appears after 3 minutes.)
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Questions -->
+    <section class="card">
+      <div class="hd">
+        <div class="title">Probability questions (unsimplified fractions)</div>
+        <div class="controls">
+          <button class="secondary hiddenBtn" id="checkBtn">Check</button>
+          <button class="secondary" id="clearBtn">Clear all</button>
+          <button class="secondary" id="fullscreenBtn">Fullscreen</button>
+          <button id="newBtn">New numbers</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="qGrid" id="qGrid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Pile -->
+  <div class="pileDock">
+    <div class="pileCard">
+      <div class="pileTop">
+        <div class="hint">Number pile (drag from here). Drag a tile back into the pile to undo.</div>
+        <div class="pill" id="resultPill">Not checked yet</div>
+      </div>
+      <div class="pile" id="pile" aria-label="number pile"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const randInt = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+
+  let solution = null;
+  let placedCount = 0;
+  let prefilledZone = null;
+
+  const CHECK_DELAY_MS = 3 * 60 * 1000;
+  let checkTimer = null;
+
+  const QUESTIONS = [
+    { set: "P(A)",                    numZone:"q1_num",  denZone:"q1_den"  },
+    { set: "P(B)",                    numZone:"q2_num",  denZone:"q2_den"  },
+    { set: "P(C)",                    numZone:"q3_num",  denZone:"q3_den"  },
+    { set: "P(A ∩ B)",                numZone:"q4_num",  denZone:"q4_den"  },
+    { set: "P(B ∩ C')",               numZone:"q5_num",  denZone:"q5_den"  },
+    { set: "P(A ∪ C')",               numZone:"q6_num",  denZone:"q6_den"  },
+    { set: "P(A' ∩ (B ∪ C'))",        numZone:"q7_num",  denZone:"q7_den"  },
+    { set: "P((A ∪ B)')",             numZone:"q8_num",  denZone:"q8_den"  },
+    { set: "P((A ∩ B) ∪ C)",          numZone:"q9_num",  denZone:"q9_den"  },
+    { set: "P(A △ B)",                numZone:"q10_num", denZone:"q10_den" }
+  ];
+
+  function buildQuestions(){
+    const grid = $("#qGrid");
+    grid.innerHTML = "";
+    for (const q of QUESTIONS){
+      const row = document.createElement("div");
+      row.className = "q";
+      row.innerHTML = `
+        <div class="label">${q.set}</div>
+        <div class="frac">
+          <div class="fracBox">
+            <div class="drop small" data-zone="${q.numZone}" aria-label="${q.set} numerator"></div>
+            <div class="bar"></div>
+            <div class="drop small" data-zone="${q.denZone}" aria-label="${q.set} denominator"></div>
+          </div>
+        </div>
+      `;
+      grid.appendChild(row);
+    }
+  }
+
+  function makeTile(tileData){
+    const div = document.createElement("div");
+    div.className = "tile";
+    div.textContent = tileData.value;
+    div.draggable = true;
+    div.dataset.tileId = tileData.id;
+    div.dataset.value = String(tileData.value);
+    div.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/tileId", tileData.id);
+      const fromZone = div.closest(".drop")?.dataset.zone || "";
+      e.dataTransfer.setData("text/fromZone", fromZone);
+      e.dataTransfer.effectAllowed = "move";
+      requestAnimationFrame(()=> div.style.opacity="0.55");
+    });
+    div.addEventListener("dragend", () => div.style.opacity="1");
+    return div;
+  }
+  function makeLockedTile(value){
+    const div = document.createElement("div");
+    div.className = "tile locked";
+    div.textContent = value;
+    div.draggable = false;
+    div.dataset.value = String(value);
+    return div;
+  }
+
+  function countPlacedTiles(){ return $$(".drop .tile").length; }
+  function updateProgress(){ $("#progressPill").textContent = `Placed: ${placedCount} / 28`; }
+
+  function setResult(text, kind){
+    const pill = $("#resultPill");
+    pill.textContent = text;
+    pill.classList.remove("okMsg","badMsg");
+    if (kind === "good") pill.classList.add("okMsg");
+    if (kind === "bad") pill.classList.add("badMsg");
+  }
+
+  function clearZone(zoneEl, {silent=false} = {}){
+    if (prefilledZone && zoneEl.dataset.zone === prefilledZone) return;
+    const tile = zoneEl.querySelector(".tile");
+    if (tile) $("#pile").appendChild(tile);
+    zoneEl.classList.remove("filled","good","bad");
+    if (!silent){
+      placedCount = countPlacedTiles();
+      updateProgress();
+      setResult("Not checked yet", null);
+    }
+  }
+  function clearAll(){
+    $$(".drop").forEach(z => clearZone(z, {silent:true}));
+    placedCount = countPlacedTiles();
+    updateProgress();
+    setResult("Not checked yet", null);
+    $("#statusLine").textContent = "Cleared (starter tile kept). Drag the tiles again.";
+  }
+
+  function wireDnD(){
+    $$(".drop").forEach(zone => {
+      zone.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const tileId = e.dataTransfer.getData("text/tileId");
+        if (!tileId) return;
+
+        if (prefilledZone && zone.dataset.zone === prefilledZone) return;
+        if (zone.querySelector(".tile")) return;
+
+        const tileEl = document.querySelector(`.tile[data-tile-id="${CSS.escape(tileId)}"]`);
+        if (!tileEl) return;
+
+        zone.appendChild(tileEl);
+        zone.classList.add("filled");
+        zone.classList.remove("good","bad");
+        placedCount = countPlacedTiles();
+        updateProgress();
+        setResult("Not checked yet", null);
+      });
+    });
+
+    const pile = $("#pile");
+    pile.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+    pile.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const tileId = e.dataTransfer.getData("text/tileId");
+      if (!tileId) return;
+      const tileEl = document.querySelector(`.tile[data-tile-id="${CSS.escape(tileId)}"]`);
+      if (!tileEl) return;
+
+      pile.appendChild(tileEl);
+
+      const fromZone = e.dataTransfer.getData("text/fromZone");
+      if (fromZone){
+        const z = document.querySelector(`.drop[data-zone="${CSS.escape(fromZone)}"]`);
+        if (z && (!prefilledZone || z.dataset.zone !== prefilledZone) && !z.querySelector(".tile")){
+          z.classList.remove("filled","good","bad");
+        }
+      }
+      placedCount = countPlacedTiles();
+      updateProgress();
+      setResult("Not checked yet", null);
+    });
+  }
+
+  function checkAll(){
+    let correct = 0;
+    let total = 0;
+    $$(".drop").forEach(zone => {
+      total++;
+      const needed = solution.zones[zone.dataset.zone];
+      const tile = zone.querySelector(".tile");
+      if (!tile){
+        zone.classList.remove("good","bad");
+        return;
+      }
+      const v = Number(tile.dataset.value);
+      const ok = (v === needed);
+      zone.classList.toggle("good", ok);
+      zone.classList.toggle("bad", !ok);
+      correct += ok ? 1 : 0;
+    });
+
+    const allPlaced = (placedCount === 28);
+    const allCorrect = (correct === total) && allPlaced;
+
+    if (!allPlaced){
+      setResult(`Placed ${placedCount}/28. Checked: ${correct}/${total} correct.`, null);
+      $("#statusLine").textContent = "Keep going — you haven't placed all tiles yet.";
+    } else if (allCorrect){
+      setResult("Perfect! All tiles are correct ✅", "good");
+      $("#statusLine").textContent = "Well done — everything matches the Venn diagram and the probabilities.";
+    } else {
+      setResult(`Checked: ${correct}/${total} correct. Fix the red boxes.`, "bad");
+      $("#statusLine").textContent = "Some tiles are incorrect — swap them until all boxes are green.";
+    }
+
+    hideCheckAndReschedule();
+  }
+
+  function scheduleCheckButton(){
+    const btn = $("#checkBtn");
+    btn.classList.add("hiddenBtn");
+    if (checkTimer) clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => {
+      btn.classList.remove("hiddenBtn");
+      $("#statusLine").textContent = "You can use “Check” now.";
+    }, CHECK_DELAY_MS);
+  }
+  function hideCheckAndReschedule(){
+    const btn = $("#checkBtn");
+    btn.classList.add("hiddenBtn");
+    $("#statusLine").textContent = "Check used. It will reappear in 3 minutes.";
+    if (checkTimer) clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => {
+      btn.classList.remove("hiddenBtn");
+      $("#statusLine").textContent = "You can use “Check” now.";
+    }, CHECK_DELAY_MS);
+  }
+
+  function generatePuzzle(){
+    // Region counts by membership pattern (A,B,C):
+    const r100 = randInt(1,9);
+    const r010 = randInt(1,9);
+    const r001 = randInt(1,9);
+    const r110 = randInt(1,9);
+    const r101 = randInt(1,9);
+    const r011 = randInt(1,9);
+    const r111 = randInt(1,9);
+    const r000 = randInt(1,9);
+
+    const N = r000+r100+r010+r001+r110+r101+r011+r111;
+
+    const A = r100+r110+r101+r111;
+    const B = r010+r110+r011+r111;
+    const C = r001+r101+r011+r111;
+
+    const AcapB = r110+r111;
+    const BcapCprime = r010+r110;
+
+    // A ∪ C' = complement of (A' ∩ C) => A'=0 and C=1 => r001+r011
+    const AunionCprime = N - (r001 + r011);
+
+    // A' ∩ (B ∪ C') : not A and (B or not C)
+    // not A: r000,r010,r001,r011 ; exclude (not B and C) => exclude r001
+    const Abar_and_BorCbar = (r000 + r010 + r011);
+
+    // (A ∪ B)' : A=0,B=0 => r000 + r001
+    const AunionB_comp = r000 + r001;
+
+    // (A ∩ B) ∪ C : C + (A∩B outside C) => C + r110
+    const AcapB_union_C = C + r110;
+
+    // A △ B = (A∩B') ∪ (A'∩B) => (r100+r101) + (r010+r011)
+    const AtriB = (r100 + r101) + (r010 + r011);
+
+    const zones = {
+      // Venn 8
+      v_A_Bp_Cp: r100,
+      v_Ap_B_Cp: r010,
+      v_Ap_Bp_C: r001,
+      v_A_B_Cp:  r110,
+      v_A_Bp_C:  r101,
+      v_Ap_B_C:  r011,
+      v_A_B_C:   r111,
+      v_Ap_Bp_Cp:r000,
+
+      // Questions 20
+      q1_num: A,                  q1_den: N,
+      q2_num: B,                  q2_den: N,
+      q3_num: C,                  q3_den: N,
+      q4_num: AcapB,              q4_den: N,
+      q5_num: BcapCprime,         q5_den: N,
+      q6_num: AunionCprime,       q6_den: N,
+      q7_num: Abar_and_BorCbar,   q7_den: N,
+      q8_num: AunionB_comp,       q8_den: N,
+      q9_num: AcapB_union_C,      q9_den: N,
+      q10_num: AtriB,             q10_den: N
+    };
+
+    solution = { zones };
+
+    // Reset all zones
+    $$(".drop").forEach(z => { z.classList.remove("filled","good","bad"); z.innerHTML=""; });
+    prefilledZone = null;
+
+    // Starter: Venn region OR numerator only
+    const starterCandidates = [
+      "v_A_Bp_Cp","v_Ap_B_Cp","v_Ap_Bp_C","v_A_B_Cp","v_A_Bp_C","v_Ap_B_C","v_A_B_C","v_Ap_Bp_Cp",
+      "q1_num","q2_num","q3_num","q4_num","q5_num","q6_num","q7_num","q8_num","q9_num","q10_num"
+    ];
+    prefilledZone = starterCandidates[Math.floor(Math.random()*starterCandidates.length)];
+    const starterZoneEl = document.querySelector(`.drop[data-zone="${prefilledZone}"]`);
+    if (starterZoneEl){
+      starterZoneEl.appendChild(makeLockedTile(zones[prefilledZone]));
+      starterZoneEl.classList.add("filled");
+    }
+
+    // Tiles for remaining zones
+    const zoneOrder = Object.keys(zones).filter(z => z !== prefilledZone);
+    const tiles = zoneOrder.map((zone, idx) => ({
+      id: `t_${Date.now()}_${idx}_${Math.random().toString(16).slice(2)}`,
+      value: zones[zone]
+    }));
+
+    // Shuffle
+    for (let k=tiles.length-1;k>0;k--){
+      const r = Math.floor(Math.random()*(k+1));
+      [tiles[k], tiles[r]] = [tiles[r], tiles[k]];
+    }
+
+    const pile = $("#pile");
+    pile.innerHTML = "";
+    tiles.forEach(t => pile.appendChild(makeTile(t)));
+
+    placedCount = countPlacedTiles(); // starter = 1
+    updateProgress();
+    setResult("Not checked yet", null);
+    $("#statusLine").textContent = "One number is already placed for you. (The “Check” button appears after 3 minutes.)";
+    scheduleCheckButton();
+  }
+
+  async function toggleFullscreen(){
+    try{
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch(e){}
+  }
+
+  // Init
+  buildQuestions();
+  wireDnD();
+  generatePuzzle();
+
+  $("#checkBtn").addEventListener("click", checkAll);
+  $("#clearBtn").addEventListener("click", clearAll);
+  $("#newBtn").addEventListener("click", generatePuzzle);
+  $("#fullscreenBtn").addEventListener("click", toggleFullscreen);
+})();
+</script>
+</body>
+</html>
