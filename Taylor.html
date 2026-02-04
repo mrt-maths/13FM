@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Taylor Coeff Drag-and-Drop (stable + levels)</title>
+
+  <!-- MathJax -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(','\\)'], ['$', '$']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020;
+      --ink:#e8eeff;
+      --muted:#a8b3da;
+      --accent:#7aa2ff;
+      --good:#23c55e;
+      --bad:#ef4444;
+      --shadow: 0 10px 24px rgba(0,0,0,.35);
+      --radius:16px;
+      --panelBorder: rgba(255,255,255,.08);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 20% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--ink);
+    }
+    header{
+      padding: 18px 16px 8px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    h1{ margin:0 0 6px; font-size: 20px; font-weight: 900; letter-spacing: .2px; }
+    .sub{ color: var(--muted); font-size: 14px; line-height: 1.35; }
+    .tiny{ font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+
+    .wrap{
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 12px 16px 18px;
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 14px;
+    }
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+    }
+
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--panelBorder);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .panelHead{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--panelBorder);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.02);
+      flex-wrap: wrap;
+    }
+    .panelHead .title{ font-weight: 900; font-size: 14px; letter-spacing: .2px; }
+    .panelHead .mini{ color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    .problems{
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 980px){
+      .problems{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: rgba(0,0,0,.18);
+      border: 1px solid var(--panelBorder);
+      border-radius: 14px;
+      padding: 12px;
+      min-height: 170px;
+    }
+    .cardTop{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .qid{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing:.2px;
+      color:#dbe7ff;
+      flex-wrap: wrap;
+    }
+    .qid .pill{
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(122,162,255,.14);
+      border: 1px solid rgba(122,162,255,.28);
+      font-weight: 900;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .fx{
+      color: #dbe7ff;
+      font-weight: 900;
+      font-size: 12px;
+      opacity: .95;
+      white-space: nowrap;
+    }
+
+    .equation{
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.35;
+      margin: 6px 0 10px;
+      min-height: 52px;
+    }
+
+    .slots{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(68px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .slot{
+      background: rgba(27,39,80,.75);
+      border: 1px dashed rgba(255,255,255,.22);
+      border-radius: 12px;
+      padding: 10px 8px;
+      min-height: 44px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      position: relative;
+    }
+    .slot .hint{
+      color: rgba(232,238,255,.7);
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing:.5px;
+      user-select:none;
+    }
+    .slot.filled{
+      border-style: solid;
+      border-color: rgba(255,255,255,.18);
+    }
+    .slot.good{ outline: 2px solid rgba(35,197,94,.7); background: rgba(35,197,94,.12); }
+    .slot.bad{ outline: 2px solid rgba(239,68,68,.7); background: rgba(239,68,68,.10); }
+
+    .tileBank{ padding: 12px; display:flex; flex-direction: column; gap: 10px; }
+    .bankNote{ color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .bankGrid{ display:grid; grid-template-columns: 1fr; gap: 10px; }
+
+    .bankCard{
+      background: rgba(0,0,0,.18);
+      border: 1px solid var(--panelBorder);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .bankCardHead{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .bankCardHead .smallTitle{
+      font-weight: 900;
+      font-size: 12px;
+      color: #dbe7ff;
+    }
+
+    .tiles{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 48px;
+    }
+    .tile{
+      background: rgba(22,34,74,.9);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 9px 10px;
+      min-height: 38px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor: grab;
+      user-select:none;
+      touch-action:none;
+      box-shadow: 0 6px 14px rgba(0,0,0,.25);
+      font-weight: 800;
+    }
+    .tile:active{ cursor: grabbing; transform: translateY(1px); }
+
+    .controls{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 12px;
+      border-top: 1px solid var(--panelBorder);
+      background: rgba(255,255,255,.02);
+      align-items:center;
+    }
+    button, select{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(122,162,255,.16);
+      color: var(--ink);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      letter-spacing:.2px;
+      font-size: 13px;
+    }
+    select{ background: rgba(255,255,255,.06); cursor: pointer; }
+    button.secondary{ background: rgba(255,255,255,.06); }
+    button:disabled{
+      opacity: .45;
+      cursor:not-allowed;
+      filter: grayscale(0.35);
+    }
+    .status{
+      margin-left:auto;
+      color: var(--muted);
+      font-size: 13px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      white-space: nowrap;
+    }
+    .status strong{ color: var(--ink); }
+
+    .ghost{
+      position: fixed;
+      left: 0;
+      top: 0;
+      transform: translate(-9999px,-9999px);
+      pointer-events:none;
+      z-index: 9999;
+      opacity: .95;
+      filter: drop-shadow(0 12px 22px rgba(0,0,0,.45));
+    }
+
+    /* Extension modal */
+    .modal{
+      position: fixed;
+      inset: 0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+      background: rgba(0,0,0,.62);
+      z-index: 10000;
+    }
+    .modal.show{ display:flex; }
+    .modalCard{
+      width: min(980px, 100%);
+      background: rgba(12,18,40,.98);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 18px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.55);
+      overflow:hidden;
+    }
+    .modalHead{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.03);
+    }
+    .modalHead .mhTitle{ font-weight: 950; letter-spacing:.2px; }
+    .modalBody{ padding: 14px; color: var(--ink); }
+    .extQ{
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      padding: 12px;
+      line-height: 1.5;
+    }
+    .extQ .part{
+      display:flex;
+      gap: 10px;
+      margin: 10px 0;
+      align-items:flex-start;
+    }
+    .extQ .lab{
+      width: 22px;
+      font-weight: 900;
+      color: #dbe7ff;
+    }
+    .marks{
+      margin-left:auto;
+      color: var(--muted);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Taylor Series Coefficients (up to cubic)</h1>
+  <div class="sub">
+    Drag coefficients into \(\;A + B(\,x-a\,) + C(\,x-a\,)^2 + D(\,x-a\,)^3\;\).
+    <div class="tiny">
+      Tiles disappear from the bank when placed. Double-click a slot to return the tile.
+      Check unlocks after 3 minutes, then locks again for 3 minutes after checking.
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="panel">
+    <div class="panelHead">
+      <div class="title">Problems</div>
+      <div class="mini" id="modeSummary">Loading…</div>
+    </div>
+    <div class="problems" id="problems"></div>
+
+    <div class="controls">
+      <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:800;">
+        Mode
+        <select id="modeSel" aria-label="Mode">
+          <option value="regular" selected>Regular (6, mixed tiles)</option>
+          <option value="easy">Easy (3, grouped tiles)</option>
+        </select>
+      </label>
+
+      <button id="checkBtn" disabled title="Available after 3 minutes">Check (3:00)</button>
+      <button class="secondary" id="newBtn">New set</button>
+      <button class="secondary" id="clearBtn">Clear all</button>
+
+      <div class="status" id="status">Score: <strong>0</strong></div>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="panelHead">
+      <div class="title">Coefficient Tiles</div>
+      <div class="mini" id="bankMini">Drag → drop into A, B, C, D</div>
+    </div>
+    <div class="tileBank">
+      <div class="bankNote" id="bankNote">Loading…</div>
+      <div class="bankGrid" id="banks"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="ghost" id="ghost"></div>
+
+<!-- Extension modal -->
+<div class="modal" id="extModal" role="dialog" aria-modal="true" aria-label="Extension question">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div class="mhTitle">Extension question</div>
+      <button class="secondary" id="closeExtBtn">Close</button>
+    </div>
+    <div class="modalBody">
+      <div class="extQ" id="extQ">
+        <div class="part">
+          <div class="lab">a</div>
+          <div style="flex:1">
+            Given that the coefficient of \(\,(x-\ln 2)\,\) in the Taylor series expansion of
+            \(\,\sinh(ax)\,\) about \(\,\ln 2\,\) is \(\,\frac{17}{4}\), find the value of \(a\).
+          </div>
+          <div class="marks">(3 marks)</div>
+        </div>
+        <div class="part">
+          <div class="lab">b</div>
+          <div style="flex:1">
+            Find the Taylor series of \(\,\sinh(ax)\,\) about \(\,\ln 2\,\) in terms up to the term \(\,(x-\ln 2)^3\).
+          </div>
+          <div class="marks">(3 marks)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* --------------------------
+   MathJax helpers: typeset ONLY targeted nodes
+--------------------------- */
+function texWrap(s){ return `\\(${s}\\)`; }
+
+async function typesetNodes(nodes){
+  if (window.MathJax && MathJax.typesetPromise){
+    await MathJax.typesetPromise(nodes);
+  }
+}
+
+/* Render TeX into a container ONCE and return the resulting HTML string */
+async function renderTexToHTML(tex){
+  const tmp = document.createElement("span");
+  tmp.innerHTML = texWrap(tex);
+  document.body.appendChild(tmp);
+  await typesetNodes([tmp]);
+  const html = tmp.innerHTML;
+  tmp.remove();
+  return html;
+}
+
+/* --------------------------
+   Basic simplification / helpers
+--------------------------- */
+function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a||1; }
+function fracInt(n, d){
+  if (d === 0) return "undefined";
+  if (n === 0) return "0";
+  const sign = (n<0) ^ (d<0) ? "-" : "";
+  n = Math.abs(n); d = Math.abs(d);
+  const g = gcd(n,d);
+  n/=g; d/=g;
+  if (d===1) return sign + String(n);
+  return sign + `\\frac{${n}}{${d}}`;
+}
+function intPow(a, n){
+  let r = 1;
+  for (let i=0;i<n;i++) r *= a;
+  return r;
+}
+function ePow(exp){
+  if (exp === 0) return "1";
+  if (exp === 1) return "\\mathrm{e}";
+  return `\\mathrm{e}^{${exp}}`;
+}
+function simplifyMulNumeric(coeff, expr){
+  if (coeff === 0) return "0";
+  if (coeff === 1) return expr;
+  if (coeff === -1) return `-${expr}`;
+  return `${coeff}\\,${expr}`;
+}
+function paren(s){ return `\\left(${s}\\right)`; }
+function simplifySignedLatex(s){
+  return s.replace(/\s+/g," ").replace(/\+\s*-/g,"- ").replace(/-\s*-/g,"+ ").trim();
+}
+function isPerfectSquare(n){
+  if (n < 0) return false;
+  const r = Math.round(Math.sqrt(n));
+  return r*r === n ? r : false;
+}
+
+/* --------------------------
+   a values
+--------------------------- */
+function randInt(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function pickIntA(){ return {kind:"int", v: randInt(-5,5)}; }
+function pickTrigA(){
+  // a = n*pi/12 with n multiple of 2 or 3 (pi/6 or pi/4 family)
+  const allowed = [];
+  for (let n=-12;n<=12;n++){
+    if (n===0) { allowed.push(n); continue; }
+    if (n%2===0 || n%3===0) allowed.push(n);
+  }
+  return {kind:"angle", n: allowed[randInt(0, allowed.length-1)]};
+}
+function aLatex(aSpec){
+  if (aSpec.kind === "int") return String(aSpec.v);
+  const n = aSpec.n;
+  if (n === 0) return "0";
+  const sign = n < 0 ? "-" : "";
+  const m = Math.abs(n);
+  const g = gcd(m,12);
+  const num = m/g;
+  const den = 12/g;
+  if (den === 1){
+    if (num === 1) return `${sign}\\pi`;
+    return `${sign}${num}\\pi`;
+  }
+  if (num === 1) return `${sign}\\frac{\\pi}{${den}}`;
+  return `${sign}\\frac{${num}\\pi}{${den}}`;
+}
+function xShiftLatex(aSpec){
+  if (aSpec.kind === "int"){
+    const a = aSpec.v;
+    if (a === 0) return "x";
+    if (a > 0) return `x-${a}`;
+    return `x+${Math.abs(a)}`;
+  } else {
+    const n = aSpec.n;
+    if (n === 0) return "x";
+    const abs = aLatex({kind:"angle", n: Math.abs(n)});
+    if (n > 0) return `x-${abs}`;
+    return `x+${abs}`;
+  }
+}
+function taylorTemplateLatex(aSpec){
+  const xs = xShiftLatex(aSpec);
+  const p = paren(xs);
+  return `A + B${p} + C${p}^{2} + D${p}^{3}`;
+}
+
+/* --------------------------
+   Exact trig values for angles n*pi/12
+--------------------------- */
+const SQRT2_OVER_2 = `\\frac{\\sqrt{2}}{2}`;
+const SQRT3_OVER_2 = `\\frac{\\sqrt{3}}{2}`;
+function sinCosForN(n){
+  let k = ((n % 24) + 24) % 24;
+  const sin = [
+    "0",
+    `\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    `\\frac{1}{2}`,
+    SQRT2_OVER_2,
+    SQRT3_OVER_2,
+    `\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    "1",
+    `\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    SQRT3_OVER_2,
+    SQRT2_OVER_2,
+    `\\frac{1}{2}`,
+    `\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    "0",
+    `-\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    `-\\frac{1}{2}`,
+    `-${SQRT2_OVER_2}`,
+    `-${SQRT3_OVER_2}`,
+    `-\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    "-1",
+    `-\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    `-${SQRT3_OVER_2}`,
+    `-${SQRT2_OVER_2}`,
+    `-\\frac{1}{2}`,
+    `-\\frac{\\sqrt{6}-\\sqrt{2}}{4}`
+  ];
+  const cos = [
+    "1",
+    `\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    SQRT3_OVER_2,
+    SQRT2_OVER_2,
+    `\\frac{1}{2}`,
+    `\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    "0",
+    `-\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    `-\\frac{1}{2}`,
+    `-${SQRT2_OVER_2}`,
+    `-${SQRT3_OVER_2}`,
+    `-\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    "-1",
+    `-\\frac{\\sqrt{6}+\\sqrt{2}}{4}`,
+    `-${SQRT3_OVER_2}`,
+    `-${SQRT2_OVER_2}`,
+    `-\\frac{1}{2}`,
+    `-\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    "0",
+    `\\frac{\\sqrt{6}-\\sqrt{2}}{4}`,
+    `\\frac{1}{2}`,
+    SQRT2_OVER_2,
+    SQRT3_OVER_2,
+    `\\frac{\\sqrt{6}+\\sqrt{2}}{4}`
+  ];
+  return { sin: sin[k], cos: cos[k] };
+}
+
+/* --------------------------
+   Library (~20+ functions) with simple transforms
+   (We enforce: no same function latex twice on a page)
+--------------------------- */
+const LIB = [
+  { id:"x2", latex:()=>`f(x)=x^2`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>({ A:String(a.v*a.v), B:String(2*a.v), C:"1", D:"0" }) },
+  { id:"x3", latex:()=>`f(x)=x^3`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>({ A:String(a.v**3), B:String(3*a.v*a.v), C:String(3*a.v), D:"1" }) },
+  { id:"x4", latex:()=>`f(x)=x^4`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>({ A:String(a.v**4), B:String(4*(a.v**3)), C:String(6*(a.v**2)), D:String(4*a.v) }) },
+
+  { id:"ex", latex:()=>`f(x)=\\mathrm{e}^x`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const ea=ePow(a.v); return {A:ea,B:ea,C:(a.v===0)?fracInt(1,2):`\\frac{${ea}}{2}`,D:(a.v===0)?fracInt(1,6):`\\frac{${ea}}{6}`}; } },
+  { id:"e2x", latex:()=>`f(x)=\\mathrm{e}^{2x}`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const e2a=ePow(2*a.v); return {A:e2a,B:(2*a.v===0)?"2":`2\\,${e2a}`,C:(2*a.v===0)?"2":`2\\,${e2a}`,D:(2*a.v===0)?fracInt(4,3):`\\frac{4}{3}\\,${e2a}`}; } },
+
+  { id:"sin", latex:()=>`f(x)=\\sin x`, pickA:pickTrigA, domain:()=>true,
+    coeffs:(a)=>{ const {sin,cos}=sinCosForN(a.n); return {A:sin,B:cos,C:(sin==="0")?"0":`-\\frac{${sin}}{2}`,D:(cos==="0")?"0":`-\\frac{${cos}}{6}`}; } },
+  { id:"cos", latex:()=>`f(x)=\\cos x`, pickA:pickTrigA, domain:()=>true,
+    coeffs:(a)=>{ const {sin,cos}=sinCosForN(a.n); return {A:cos,B:(sin==="0")?"0":`-${sin}`,C:(cos==="0")?"0":`-\\frac{${cos}}{2}`,D:(sin==="0")?"0":`\\frac{${sin}}{6}`}; } },
+
+  { id:"sinh", latex:()=>`f(x)=\\sinh x`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const av=a.v; const sh=(av===0)?"0":`\\sinh(${av})`; const ch=(av===0)?"1":`\\cosh(${av})`;
+      return {A:sh,B:ch,C:(sh==="0")?"0":`\\frac{${sh}}{2}`,D:(ch==="0")?"0":`\\frac{${ch}}{6}`}; } },
+  { id:"cosh", latex:()=>`f(x)=\\cosh x`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const av=a.v; const sh=(av===0)?"0":`\\sinh(${av})`; const ch=(av===0)?"1":`\\cosh(${av})`;
+      return {A:ch,B:sh,C:(ch==="0")?"0":`\\frac{${ch}}{2}`,D:(sh==="0")?"0":`\\frac{${sh}}{6}`}; } },
+
+  { id:"ln1px", latex:()=>`f(x)=\\ln(1+x)`, pickA:pickIntA, domain:(a)=>(1+a.v)>0,
+    coeffs:(a)=>{ const u=1+a.v; return {A:`\\ln(${u})`,B:fracInt(1,u),C:fracInt(-1,u*u),D:fracInt(1,u*u*u)}; } },
+  { id:"ln1px2", latex:()=>`f(x)=\\ln(1+x^2)`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const x=a.v; const g=1+x*x, g2=g*g, g3=g2*g;
+      return {A:`\\ln(${g})`,B:fracInt(2*x,g),C:(g2===1)?String(1-x*x):`\\frac{${1-x*x}}{${g2}}`,D:`\\frac{${2*x*(x*x-3)}}{3\\cdot ${g3}}`}; } },
+  { id:"ln1p2x", latex:()=>`f(x)=\\ln(1+2x)`, pickA:pickIntA, domain:(a)=>(1+2*a.v)>0,
+    coeffs:(a)=>{ const u=1+2*a.v,u2=u*u,u3=u2*u; return {A:`\\ln(${u})`,B:fracInt(2,u),C:fracInt(-2,u2),D:`\\frac{8}{3\\cdot ${u3}}`}; } },
+
+  { id:"one_over_1px", latex:()=>`f(x)=\\frac{1}{1+x}`, pickA:pickIntA, domain:(a)=>a.v!==-1,
+    coeffs:(a)=>{ const d=1+a.v; return {A:fracInt(1,d),B:fracInt(-1,d*d),C:fracInt(1,d*d*d),D:fracInt(-1,d*d*d*d)}; } },
+  { id:"one_over_1p2x", latex:()=>`f(x)=\\frac{1}{1+2x}`, pickA:pickIntA, domain:(a)=>(1+2*a.v)!==0,
+    coeffs:(a)=>{ const d=1+2*a.v,d2=d*d,d3=d2*d,d4=d3*d; return {A:fracInt(1,d),B:fracInt(-2,d2),C:fracInt(4,d3),D:fracInt(-8,d4)}; } },
+  { id:"one_over_1m2x", latex:()=>`f(x)=\\frac{1}{1-2x}`, pickA:pickIntA, domain:(a)=>(1-2*a.v)!==0,
+    coeffs:(a)=>{ const d=1-2*a.v,d2=d*d,d3=d2*d,d4=d3*d; return {A:fracInt(1,d),B:fracInt(2,d2),C:fracInt(4,d3),D:fracInt(8,d4)}; } },
+
+  { id:"one_plus_x_pow5", latex:()=>`f(x)=(1+x)^5`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const u=1+a.v; return {A:String(intPow(u,5)),B:String(5*intPow(u,4)),C:String(10*intPow(u,3)),D:String(10*intPow(u,2))}; } },
+  { id:"two_x_plus1_cubed", latex:()=>`f(x)=(2x+1)^3`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const u=2*a.v+1; return {A:String(intPow(u,3)),B:String(6*intPow(u,2)),C:String(12*u),D:"8"}; } },
+
+  { id:"atanx", latex:()=>`f(x)=\\arctan x`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const x=a.v,den=1+x*x,den2=den*den,den3=den2*den;
+      return {A:`\\arctan(${x})`,B:fracInt(1,den),C:fracInt(-x,den2),D:`\\frac{${3*x*x-1}}{3\\cdot ${den3}}`}; } },
+  { id:"atan3x", latex:()=>`f(x)=\\arctan(3x)`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const k=3,x=a.v,u=k*x,den=1+u*u,den2=den*den,den3=den2*den;
+      return {A:`\\arctan(${u})`,B:fracInt(k,den),C:fracInt(-(k*k*k)*x,den2),D:`\\frac{${(k*k*k)*(3*u*u-1)}}{3\\cdot ${den3}}`}; } },
+
+  { id:"xexp", latex:()=>`f(x)=x\\,\\mathrm{e}^x`, pickA:pickIntA, domain:()=>true,
+    coeffs:(a)=>{ const x=a.v,ea=ePow(x);
+      return {A:(x===0)?"0":simplifyMulNumeric(x,ea),B:simplifyMulNumeric(x+1,ea),C:(x+2===0)?"0":`\\frac{${simplifyMulNumeric(x+2,ea)}}{2}`,D:(x+3===0)?"0":`\\frac{${simplifyMulNumeric(x+3,ea)}}{6}`}; } },
+];
+
+/* --------------------------
+   DOM refs
+--------------------------- */
+const problemsEl = document.getElementById("problems");
+const banksEl = document.getElementById("banks");
+const statusEl = document.getElementById("status");
+const ghostEl = document.getElementById("ghost");
+const modeSel = document.getElementById("modeSel");
+const modeSummary = document.getElementById("modeSummary");
+const checkBtn = document.getElementById("checkBtn");
+const bankNote = document.getElementById("bankNote");
+const bankMini = document.getElementById("bankMini");
+
+const extModal = document.getElementById("extModal");
+const closeExtBtn = document.getElementById("closeExtBtn");
+
+/* --------------------------
+   Game state
+--------------------------- */
+let mode = "regular";
+let problems = [];     // [{f,a,coeffs:{A,B,C,D}, fxLatex, placed:{A,B,C,D}}]
+let tiles = [];        // [{id, tex, renderHTML, homeBankIndex, location:{kind:'bank'|'slot',...}}]
+let tileById = new Map();
+
+let dragging = null;
+
+/* --------------------------
+   Check timer (3 min)
+--------------------------- */
+let checkUnlockAt = 0;
+let checkTicker = null;
+
+function fmtMMSS(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  const mm = String(Math.floor(s/60)).padStart(1,'0');
+  const ss = String(s%60).padStart(2,'0');
+  return `${mm}:${ss}`;
+}
+function startCheckLockout(){
+  clearInterval(checkTicker);
+  checkUnlockAt = Date.now() + 180000;
+  checkBtn.disabled = true;
+  tickCheckButton();
+  checkTicker = setInterval(tickCheckButton, 250);
+}
+function tickCheckButton(){
+  const remaining = checkUnlockAt - Date.now();
+  if (remaining <= 0){
+    checkBtn.disabled = false;
+    checkBtn.textContent = "Check";
+    clearInterval(checkTicker);
+    checkTicker = null;
+    updateModeSummary();
+    return;
+  }
+  checkBtn.textContent = `Check (${fmtMMSS(remaining)})`;
+  updateModeSummary(remaining);
+}
+function updateModeSummary(remainingMs){
+  const rem = (typeof remainingMs === "number") ? remainingMs : (checkBtn.disabled ? (checkUnlockAt - Date.now()) : 0);
+  const lockText = checkBtn.disabled ? `• Check unlocks in ${fmtMMSS(rem)}` : `• Check available`;
+  const m = (mode==="easy") ? "Easy (3 questions)" : "Regular (6 questions)";
+  modeSummary.textContent = `Mode: ${m} ${lockText}`;
+}
+
+/* --------------------------
+   Uniqueness: no same function on page
+--------------------------- */
+function pickProblem(usedFxLatex){
+  for (let tries=0; tries<400; tries++){
+    const f = LIB[randInt(0, LIB.length-1)];
+    const fx = f.latex();
+    if (usedFxLatex.has(fx)) continue;
+
+    const a = f.pickA();
+    if (!f.domain(a)) continue;
+
+    const c = f.coeffs(a);
+    if (Object.values(c).some(v=>v==="undefined")) continue;
+
+    usedFxLatex.add(fx);
+    return { f, a, coeffs: c, fxLatex: fx };
+  }
+  // fallback sequential
+  for (const f of LIB){
+    const fx = f.latex();
+    if (usedFxLatex.has(fx)) continue;
+    const a = f.pickA();
+    if (!f.domain(a)) continue;
+    const c = f.coeffs(a);
+    if (Object.values(c).some(v=>v==="undefined")) continue;
+    usedFxLatex.add(fx);
+    return { f, a, coeffs: c, fxLatex: fx };
+  }
+  // last resort
+  const f = LIB[0];
+  const a = {kind:"int", v:0};
+  const c = f.coeffs(a);
+  return { f, a, coeffs: c, fxLatex: f.latex() };
+}
+
+/* --------------------------
+   Render flow:
+   - Build problems HTML (TeX inside) and typeset ONCE
+   - Build tiles as DOM, typeset EACH tile ONCE, cache its rendered HTML
+   - Thereafter: no MathJax calls during dragging/placing
+--------------------------- */
+function clearMarks(){
+  document.querySelectorAll(".slot").forEach(s=>s.classList.remove("good","bad"));
+}
+
+function computeScore(){
+  let correct = 0;
+  problems.forEach((p, idx)=>{
+    ["A","B","C","D"].forEach(L=>{
+      const placed = p.placed[L];
+      if (!placed) return;
+      if (placed.tex === p.coeffs[L]) correct++;
+    });
+  });
+  return correct;
+}
+function updateScoreText(){
+  const score = computeScore();
+  const total = problems.length * 4;
+  statusEl.innerHTML = `Score: <strong>${score}</strong> / ${total}`;
+}
+
+function paintAllBanks(){
+  document.querySelectorAll(".tiles").forEach(el => el.innerHTML = "");
+  const containers = new Map();
+  document.querySelectorAll(".tiles[id^='bankTiles_']").forEach(el=>{
+    const idx = Number(el.id.split("_")[1]);
+    containers.set(idx, el);
+  });
+
+  const bankTiles = tiles.filter(t=>t.location.kind==="bank");
+  const list = (mode==="regular")
+    ? bankTiles.map(t=>({t,r:Math.random()})).sort((a,b)=>a.r-b.r).map(o=>o.t)
+    : bankTiles;
+
+  for (const t of list){
+    const c = containers.get(t.location.bankIndex);
+    if (!c) continue;
+    c.appendChild(makeTileEl(t.id));
+  }
+}
+
+function makeTileEl(tileId){
+  const t = tileById.get(tileId);
+  const tile = document.createElement("div");
+  tile.className = "tile";
+  tile.dataset.tileId = t.id;
+
+  // use cached rendered HTML
+  tile.innerHTML = t.renderHTML || texWrap(t.tex);
+
+  tile.addEventListener("pointerdown", (e)=>startDrag(e, t.id, tile));
+  return tile;
+}
+
+function removeTileFromAnySlot(tileId){
+  for (let pi=0; pi<problems.length; pi++){
+    const p = problems[pi];
+    for (const L of ["A","B","C","D"]){
+      const placed = p.placed[L];
+      if (placed && placed.tileId === tileId){
+        p.placed[L] = null;
+        const slotEl = document.querySelector(`.slot[data-problem="${pi}"][data-slot="${L}"]`);
+        if (slotEl){
+          slotEl.className = "slot";
+          slotEl.innerHTML = `<span class="hint">${L}</span>`;
+        }
+      }
+    }
+  }
+}
+
+function returnTileToBank(tileId){
+  removeTileFromAnySlot(tileId);
+  const t = tileById.get(tileId);
+  t.location = {kind:"bank", bankIndex: t.homeBankIndex};
+  paintAllBanks();
+}
+
+function placeTileIntoSlot(tileId, slotEl){
+  const pIdx = Number(slotEl.dataset.problem);
+  const letter = slotEl.dataset.slot;
+  const p = problems[pIdx];
+
+  // if slot already filled, return old tile
+  const existing = p.placed[letter];
+  if (existing && existing.tileId){
+    returnTileToBank(existing.tileId);
+  }
+
+  // if tile already placed somewhere else, clear it
+  removeTileFromAnySlot(tileId);
+
+  const t = tileById.get(tileId);
+  t.location = {kind:"slot", problem:pIdx, slot:letter};
+
+  p.placed[letter] = { tileId, tex: t.tex };
+
+  slotEl.className = "slot filled";
+  slotEl.innerHTML = t.renderHTML; // cached HTML
+  paintAllBanks();
+  updateScoreText();
+}
+
+/* --------------------------
+   Drag ghost uses cached HTML (no MathJax)
+--------------------------- */
+function startDrag(e, tileId, sourceEl){
+  e.preventDefault();
+  sourceEl.setPointerCapture(e.pointerId);
+
+  const r = sourceEl.getBoundingClientRect();
+  dragging = { tileId, offsetX: e.clientX - r.left, offsetY: e.clientY - r.top };
+
+  const t = tileById.get(tileId);
+  ghostEl.className = "ghost tile";
+  ghostEl.style.width = `${Math.min(260, r.width)}px`;
+  ghostEl.innerHTML = t.renderHTML; // cached
+  moveGhost(e.clientX, e.clientY);
+
+  window.addEventListener("pointermove", onDragMove, {passive:false});
+  window.addEventListener("pointerup", onDragEnd, {passive:false});
+}
+function moveGhost(x, y){
+  ghostEl.style.transform = `translate(${x - dragging.offsetX}px, ${y - dragging.offsetY}px)`;
+}
+function onDragMove(e){
+  if (!dragging) return;
+  e.preventDefault();
+  moveGhost(e.clientX, e.clientY);
+}
+function onDragEnd(e){
+  if (!dragging) return;
+  e.preventDefault();
+
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const slot = el ? el.closest(".slot") : null;
+  if (slot) placeTileIntoSlot(dragging.tileId, slot);
+
+  ghostEl.style.transform = "translate(-9999px,-9999px)";
+  dragging = null;
+  window.removeEventListener("pointermove", onDragMove);
+  window.removeEventListener("pointerup", onDragEnd);
+}
+
+/* --------------------------
+   Render problems + banks
+--------------------------- */
+async function renderAll(){
+  problemsEl.innerHTML = "";
+  banksEl.innerHTML = "";
+
+  // Problems cards (TeX inside)
+  problems.forEach((p, idx)=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    card.dataset.problem = idx;
+
+    card.innerHTML = `
+      <div class="cardTop">
+        <div class="qid">
+          <span class="pill">#${idx+1}</span>
+          <span class="fx">${texWrap(p.fxLatex)}</span>
+        </div>
+      </div>
+      <div class="equation">${texWrap(`\\text{Fill: } ${taylorTemplateLatex(p.a)}`)}</div>
+      <div class="slots">
+        ${["A","B","C","D"].map(L=>`
+          <div class="slot" data-problem="${idx}" data-slot="${L}">
+            <span class="hint">${L}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+    problemsEl.appendChild(card);
+  });
+
+  // Slot return (double click)
+  problemsEl.querySelectorAll(".slot").forEach(slot=>{
+    slot.addEventListener("dblclick", ()=>{
+      const pIdx = Number(slot.dataset.problem);
+      const L = slot.dataset.slot;
+      const placed = problems[pIdx].placed[L];
+      if (placed && placed.tileId){
+        returnTileToBank(placed.tileId);
+      }
+      problems[pIdx].placed[L] = null;
+      slot.className = "slot";
+      slot.innerHTML = `<span class="hint">${L}</span>`;
+      clearMarks();
+      updateScoreText();
+    });
+  });
+
+  // Banks containers
+  if (mode === "easy"){
+    bankMini.textContent = "Grouped tiles";
+    bankNote.textContent = "Easy mode: tiles are grouped by question (3 questions).";
+    problems.forEach((p, idx)=>{
+      const bankCard = document.createElement("div");
+      bankCard.className = "bankCard";
+      bankCard.innerHTML = `
+        <div class="bankCardHead">
+          <div class="smallTitle">Tiles for #${idx+1}</div>
+          <div class="smallTitle" style="opacity:.7;">A,B,C,D</div>
+        </div>
+        <div class="tiles" id="bankTiles_${idx}"></div>
+      `;
+      banksEl.appendChild(bankCard);
+    });
+  } else {
+    bankMini.textContent = "Mixed tiles";
+    bankNote.textContent = "Regular mode: all tiles mixed together (6 questions).";
+    const bankCard = document.createElement("div");
+    bankCard.className = "bankCard";
+    bankCard.innerHTML = `
+      <div class="bankCardHead">
+        <div class="smallTitle">Mixed tiles</div>
+        <div class="smallTitle" style="opacity:.7;">(all questions)</div>
+      </div>
+      <div class="tiles" id="bankTiles_-1"></div>
+    `;
+    banksEl.appendChild(bankCard);
+  }
+
+  // Typeset only the new problem/bank headers once (not tiles yet)
+  await typesetNodes([problemsEl, banksEl]);
+
+  // Now ensure each tile has cached renderHTML (typeset once per tile)
+  for (const t of tiles){
+    if (!t.renderHTML){
+      t.renderHTML = await renderTexToHTML(t.tex);
+    }
+  }
+
+  paintAllBanks();
+  updateScoreText();
+  updateModeSummary();
+}
+
+/* --------------------------
+   Check / completion / extension
+--------------------------- */
+function isRegularCompleted(){
+  if (mode !== "regular") return false;
+  return computeScore() === (problems.length * 4);
+}
+
+function runCheck(){
+  clearMarks();
+  problems.forEach((p, idx)=>{
+    for (const L of ["A","B","C","D"]){
+      const slot = document.querySelector(`.slot[data-problem="${idx}"][data-slot="${L}"]`);
+      const placed = p.placed[L];
+      if (!placed) continue;
+      if (placed.tex === p.coeffs[L]) slot.classList.add("good");
+      else slot.classList.add("bad");
+    }
+  });
+
+  if (isRegularCompleted()){
+    showExtension();
+  }
+}
+
+/* Extension modal */
+function showExtension(){
+  extModal.classList.add("show");
+  // typeset the modal once when opened (safe; doesn't touch tiles)
+  typesetNodes([document.getElementById("extQ")]).catch(()=>{});
+}
+function hideExtension(){ extModal.classList.remove("show"); }
+
+closeExtBtn.addEventListener("click", hideExtension);
+extModal.addEventListener("click", (e)=>{ if (e.target === extModal) hideExtension(); });
+
+/* --------------------------
+   New game
+--------------------------- */
+async function newGame(){
+  hideExtension();
+  clearMarks();
+
+  const numProblems = (mode === "easy") ? 3 : 6;
+  const usedFx = new Set();
+
+  problems = [];
+  for (let i=0;i<numProblems;i++){
+    const picked = pickProblem(usedFx);
+    problems.push({
+      f: picked.f,
+      a: picked.a,
+      fxLatex: picked.fxLatex,
+      coeffs: {
+        A: simplifySignedLatex(picked.coeffs.A),
+        B: simplifySignedLatex(picked.coeffs.B),
+        C: simplifySignedLatex(picked.coeffs.C),
+        D: simplifySignedLatex(picked.coeffs.D)
+      },
+      placed: {A:null,B:null,C:null,D:null}
+    });
+  }
+
+  // build tiles
+  tiles = [];
+  tileById = new Map();
+  let idCounter = 1;
+
+  problems.forEach((p, pIdx)=>{
+    for (const L of ["A","B","C","D"]){
+      const id = `T${idCounter++}`;
+      const homeBankIndex = (mode === "easy") ? pIdx : -1;
+      const tex = p.coeffs[L]; // duplicates allowed
+      const t = {
+        id,
+        tex,
+        renderHTML: null, // will be cached
+        homeBankIndex,
+        location: {kind:"bank", bankIndex: homeBankIndex}
+      };
+      tiles.push(t);
+      tileById.set(id, t);
+    }
+  });
+
+  // shuffle initial tiles list in regular (visual mix)
+  if (mode === "regular"){
+    tiles = tiles.map(t=>({t,r:Math.random()})).sort((a,b)=>a.r-b.r).map(o=>o.t);
+    tileById = new Map(tiles.map(t=>[t.id,t]));
+  }
+
+  startCheckLockout();
+  await renderAll();
+}
+
+/* --------------------------
+   Buttons / events
+--------------------------- */
+document.getElementById("newBtn").addEventListener("click", ()=>newGame());
+document.getElementById("clearBtn").addEventListener("click", ()=>{
+  // return all tiles to bank
+  for (const t of tiles){
+    t.location = {kind:"bank", bankIndex: t.homeBankIndex};
+  }
+  // clear placed
+  for (const p of problems){
+    p.placed = {A:null,B:null,C:null,D:null};
+  }
+  clearMarks();
+  paintAllBanks();
+  // reset slots UI
+  document.querySelectorAll(".slot").forEach(slot=>{
+    const L = slot.dataset.slot;
+    slot.className = "slot";
+    slot.innerHTML = `<span class="hint">${L}</span>`;
+  });
+  updateScoreText();
+});
+modeSel.addEventListener("change", ()=>{
+  mode = modeSel.value;
+  newGame();
+});
+checkBtn.addEventListener("click", ()=>{
+  if (checkBtn.disabled) return;
+  runCheck();
+  startCheckLockout();
+});
+
+/* --------------------------
+   Init
+--------------------------- */
+mode = modeSel.value;
+updateModeSummary();
+newGame();
+</script>
+</body>
+</html>
