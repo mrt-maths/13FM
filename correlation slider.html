@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Correlation Demo — Fixed Axes, Clamped Moves, Full Screen</title>
+<style>
+  :root {
+    --panel-bg: #fafafa;
+    --ink: #111;
+    --muted: #555;
+    --frame: #ddd;
+    --grid: #f0f0f0;
+    --point: #2a6cdf;
+    --pivot: #ff7f0e;
+  }
+  body { font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; background: var(--panel-bg); color: var(--ink); }
+  h1 { font-size: 1.15rem; margin: 0 0 10px; }
+  .bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .bar label { font-weight: 600; }
+  .stats { margin: 6px 0 12px; font-family: ui-monospace, Consolas, Menlo, monospace; }
+  .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #eef; border: 1px solid #ccd; }
+  button, select {
+    padding: 6px 10px; border: 1px solid #ccc; border-radius: 5px; background: #f2f2f2; cursor: pointer;
+  }
+  button:hover { background: #e9e9e9; }
+  input[type="range"] { width: 320px; }
+  /* Stage contains slider (for FS mode) + canvas */
+  #stage {
+    background: #fff; border: 1px solid var(--frame); border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding: 10px;
+  }
+  #sliderBar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  #sliderBar label { font-weight: 600; }
+  #plot {
+    display: block; width: 100%; height: auto; /* size set via JS for crispness */
+    background: #fff;
+    border: 1px solid var(--frame); border-radius: 6px;
+  }
+  .hint { color: var(--muted); font-size: 0.9rem; margin-top: 10px; }
+
+  /* Fullscreen tweaks: only #stage is sent to fullscreen; outside controls will be hidden automatically */
+  #stage:fullscreen, #stage:-webkit-full-screen {
+    background: #fff; padding: 10px; margin: 0;
+  }
+  /* In fullscreen we keep only the slider and the canvas — #stage only contains those, so good. */
+</style>
+</head>
+<body>
+
+<h1>Correlation by moving one (different) point — vertical or horizontal — with arrow (axes fixed, clamped to −4..4)</h1>
+
+<!-- MAIN CONTROLS (outside stage so they disappear in Full Screen) -->
+<div class="bar">
+  <span class="stats">Actual r: <span id="rNow">0.0000</span></span>
+  <span class="stats">Moved index: <span class="badge" id="pivotIdx">—</span></span>
+  <span class="stats">Axis: <span class="badge" id="axisBadge">—</span></span>
+  <span class="stats">New coord: <span id="coordAdj">—</span></span>
+  <label for="mode">Move axis:</label>
+  <select id="mode" title="How to choose the move axis">
+    <option value="auto" selected>Auto (best fit)</option>
+    <option value="vertical">Vertical (change y)</option>
+    <option value="horizontal">Horizontal (change x)</option>
+    <option value="alternate">Alternate (x, y, x, y...)</option>
+  </select>
+  <button id="newSample">New sample (n=100)</button>
+  <button id="goFullscreen">Full screen</button>
+</div>
+
+<!-- STAGE (this element enters Fullscreen): contains just the slider and the canvas -->
+<div id="stage">
+  <div id="sliderBar">
+    <label for="rho">Correlation (ρ):</label>
+    <input id="rho" type="range" min="-1" max="1" step="0.01" value="0" />
+    <span class="stats">Target ρ: <span id="rhoVal">0.00</span></span>
+  </div>
+  <canvas id="plot" width="900" height="600"></canvas>
+</div>
+
+<p class="hint">
+Axes are fixed at −4 to 4 on both dimensions.  
+On each slider change, a <b>different</b> point is moved either vertically or horizontally (based on the selected mode).  
+The moved coordinate is always <b>clamped</b> to [−4, 4]. An orange arrow shows the start → finish position.
+</p>
+
+<script>
+(function() {
+  // ----------- Randoms & helpers -----------
+  const randn = (() => {
+    // Box–Muller transform
+    let spare = null;
+    return function() {
+      if (spare !== null) { const z = spare; spare = null; return z; }
+      let u = 0, v = 0, s = 0;
+      do {
+        u = Math.random()*2 - 1;
+        v = Math.random()*2 - 1;
+        s = u*u + v*v;
+      } while (s === 0 || s >= 1);
+      const mul = Math.sqrt(-2 * Math.log(s) / s);
+      spare = v * mul;
+      return u * mul;
+    };
+  })();
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const sum = (arr) => arr.reduce((a,b)=>a+b,0);
+
+  // ----------- Constants -----------
+  const N = 100;
+  const BOUNDS = { minX: -4, maxX: 4, minY: -4, maxY: 4 };
+  const ticks = [-4, -2, 0, 2, 4];
+
+  // ----------- Data -----------
+  let x = new Array(N);
+  let y = new Array(N);
+
+  // X stats (must be kept consistent whenever x is changed)
+  let Sx = 0, muX = 0, Sxx = 0;
+
+  // State for pivot selection & arrow
+  let lastPivot = -1;           // ensure different point each move
+  let highlightPivot = -1;      // drawn in orange
+  let lastAxisUsed = 'y';       // for 'alternate' mode
+  let lastArrow = null;         // {x1,y1,x2,y2}
+
+  // UI elements
+  const $rho = document.getElementById('rho');
+  const $rhoVal = document.getElementById('rhoVal');
+  const $rNow = document.getElementById('rNow');
+  const $coordAdj = document.getElementById('coordAdj');
+  const $pivotIdx = document.getElementById('pivotIdx');
+  const $axisBadge = document.getElementById('axisBadge');
+  const $mode = document.getElementById('mode');
+  const $newSample = document.getElementById('newSample');
+  const $goFS = document.getElementById('goFullscreen');
+
+  // Canvas & stage
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('plot');
+  const ctx = canvas.getContext('2d');
+  const margin = {left: 48, right: 20, top: 16, bottom: 36};
+
+  function recomputeXStats() {
+    Sx = sum(x);
+    muX = Sx / N;
+    Sxx = 0;
+    for (let i = 0; i < N; i++) {
+      const dx = x[i] - muX;
+      Sxx += dx*dx;
+    }
+  }
+
+  function newSample() {
+    // Independent standard normals
+    for (let i = 0; i < N; i++) {
+      x[i] = randn();
+      y[i] = randn();
+    }
+    // Keep X stats consistent
+    recomputeXStats();
+    lastPivot = -1;
+    highlightPivot = -1;
+    lastAxisUsed = 'y';
+    lastArrow = null;
+  }
+
+  // Pearson correlation for current arrays
+  function pearson() {
+    const Sy = sum(y);
+    const muY = Sy / N;
+    let Sxy = 0, Syy = 0;
+    for (let i = 0; i < N; i++) {
+      const dx = x[i] - muX;
+      const dy = y[i] - muY;
+      Sxy += dx*dy;
+      Syy += dy*dy;
+    }
+    return (Sxx <= 0 || Syy <= 0) ? 0 : (Sxy / Math.sqrt(Sxx*Syy));
+  }
+
+  // ----------- Solvers (quadratic in t) with clamping -----------
+  // Move vertically (change y_k = t), X fixed
+  function solveForT_Y_clamped(rho, k, tPrev) {
+    const n = N;
+
+    // Precompute sums excluding pivot
+    let Sy0 = 0, T0 = 0, Axy0 = 0;
+    for (let i = 0; i < n; i++) {
+      if (i === k) continue;
+      const yi = y[i];
+      Sy0 += yi;
+      T0  += yi*yi;
+      Axy0 += x[i]*yi;
+    }
+
+    // Constants
+    const B = Axy0 - (Sx * Sy0) / n;
+    const d = (x[k] - muX);
+
+    const alpha = 1 - 1/n;
+    const beta  = -2 * Sy0 / n;
+    const gamma = T0 - (Sy0*Sy0)/n;
+    const C = (rho*rho) * Sxx;
+
+    const A2 = d*d - C*alpha;
+    const A1 = 2*B*d - C*beta;
+    const A0 = B*B - C*gamma;
+
+    // Compute achieved r if we set y[k]=t (with X fixed)
+    function rIf(t) {
+      const muY = (Sy0 + t) / n;
+      const Sxy = (Axy0 + x[k]*t) - n*muX*muY;
+      const Syy = (T0 + t*t) - n*muY*muY;
+      if (Syy <= 0 || Sxx <= 0) return 0;
+      return Sxy / Math.sqrt(Sxx*Syy);
+    }
+
+    // Candidate roots
+    let roots = [];
+    if (Math.abs(A2) < 1e-14) {
+      if (Math.abs(A1) > 1e-14) roots.push(-A0 / A1); else roots.push(tPrev ?? 0);
+    } else {
+      let D = A1*A1 - 4*A2*A0; if (D < 0) D = 0;
+      const sqrtD = Math.sqrt(D);
+      roots.push((-A1 + sqrtD) / (2*A2));
+      roots.push((-A1 - sqrtD) / (2*A2));
+    }
+
+    // Add explicit boundary candidates to respect the clamp
+    roots.push(BOUNDS.minY, BOUNDS.maxY);
+
+    // Pick best AFTER clamping
+    let bestT = y[k], bestScore = Infinity;
+    for (let t of roots) {
+      const tc = clamp(t, BOUNDS.minY, BOUNDS.maxY);
+      const r = rIf(tc);
+      const score = Math.abs(r - rho) + (tPrev != null ? 0.001*Math.abs(tc - tPrev) : 0);
+      if (score < bestScore) { bestScore = score; bestT = tc; }
+    }
+    return bestT;
+  }
+
+  // Move horizontally (change x_k = t), Y fixed
+  function solveForT_X_clamped(rho, k, tPrev) {
+    const n = N;
+
+    // Precompute Y stats (constant for X move)
+    const Sy = sum(y);
+    const muY = Sy / n;
+    let Syy = 0;
+    for (let i = 0; i < n; i++) {
+      const dy = y[i] - muY;
+      Syy += dy*dy;
+    }
+
+    // Precompute X sums excluding pivot
+    let Sx0 = 0, U0 = 0, Axy0 = 0;
+    for (let i = 0; i < n; i++) {
+      if (i === k) continue;
+      const xi = x[i];
+      Sx0 += xi;
+      U0  += xi*xi;
+      Axy0 += xi*y[i];
+    }
+
+    // Sxx(t) = alpha_x t^2 + beta_x t + gamma_x
+    const alpha_x = 1 - 1/n;
+    const beta_x  = -2 * Sx0 / n;
+    const gamma_x = U0 - (Sx0*Sx0)/n;
+
+    // Sxy(t) = (B_x + d_x t), with muY constant
+    const B_x = Axy0 - muY * Sx0;
+    const d_x = y[k] - muY;
+
+    const Cx = (rho*rho) * Syy;
+
+    const A2 = d_x*d_x - Cx*alpha_x;
+    const A1 = 2*B_x*d_x - Cx*beta_x;
+    const A0 = B_x*B_x - Cx*gamma_x;
+
+    // Achieved r if we set x[k]=t
+    function rIf(t) {
+      const muX_t = (Sx0 + t) / n;
+      const Sxx_t = (U0 + t*t) - n*muX_t*muX_t;
+      const Sxy_t = (Axy0 + t*y[k]) - n*muX_t*muY;
+      if (Syy <= 0 || Sxx_t <= 0) return 0;
+      return Sxy_t / Math.sqrt(Sxx_t * Syy);
+    }
+
+    // Candidate roots + boundaries
+    let roots = [];
+    if (Math.abs(A2) < 1e-14) {
+      if (Math.abs(A1) > 1e-14) roots.push(-A0 / A1); else roots.push(tPrev ?? 0);
+    } else {
+      let D = A1*A1 - 4*A2*A0; if (D < 0) D = 0;
+      const sqrtD = Math.sqrt(D);
+      roots.push((-A1 + sqrtD) / (2*A2));
+      roots.push((-A1 - sqrtD) / (2*A2));
+    }
+    roots.push(BOUNDS.minX, BOUNDS.maxX);
+
+    // Pick best AFTER clamping
+    let bestT = x[k], bestScore = Infinity;
+    for (let t of roots) {
+      const tc = clamp(t, BOUNDS.minX, BOUNDS.maxX);
+      const r = rIf(tc);
+      const score = Math.abs(r - rho) + (tPrev != null ? 0.001*Math.abs(tc - tPrev) : 0);
+      if (score < bestScore) { bestScore = score; bestT = tc; }
+    }
+    return bestT;
+  }
+
+  // ----------- Pivot choice & commit (respect clamps) -----------
+  function choosePivotAndAdjust(rho, mode) {
+    // Precompute Y stats for leverage selection
+    const Sy = sum(y);
+    const muY = Sy / N;
+
+    // Build candidate pool (exclude lastPivot)
+    const pool = [];
+    for (let i = 0; i < N; i++) if (i !== lastPivot) pool.push(i);
+
+    // Leverage for vertical ~ |x - muX|; for horizontal ~ |y - muY|
+    const leverageX = [...pool].sort((i,j)=>Math.abs(x[j]-muX)-Math.abs(x[i]-muX));
+    const leverageY = [...pool].sort((i,j)=>Math.abs(y[j]-muY)-Math.abs(y[i]-muY));
+
+    // Select a handful (mix of high leverage and random)
+    const M = Math.min(12, pool.length);
+    const indices = new Set();
+    for (const i of leverageX.slice(0, Math.ceil(M/2))) indices.add(i);
+    for (const i of leverageY.slice(0, Math.floor(M/2))) indices.add(i);
+    // Fill random if needed
+    while (indices.size < M && pool.length) {
+      const idx = Math.floor(Math.random()*pool.length);
+      indices.add(pool[idx]);
+      pool.splice(idx,1);
+    }
+    const cand = [...indices];
+    if (!cand.length) return { k: -1, axis: 'y', t: 0, r: pearson() };
+
+    // Decide axis template for this move
+    let axisForThisMove = 'y';
+    if (mode === 'vertical') axisForThisMove = 'y';
+    else if (mode === 'horizontal') axisForThisMove = 'x';
+    else if (mode === 'alternate') axisForThisMove = (lastAxisUsed === 'y') ? 'x' : 'y';
+    // 'auto' will test both axes per candidate
+
+    // Evaluate candidates under clamping
+    let best = {k: cand[0], axis: axisForThisMove, t: 0, rErr: Infinity, rAch: 0};
+
+    for (const k of cand) {
+      const tryAxes = (mode === 'auto') ? ['y','x'] : [axisForThisMove];
+
+      for (const axis of tryAxes) {
+        const prevT = (axis === 'y') ? y[k] : x[k];
+        const tCand = (axis === 'y')
+          ? solveForT_Y_clamped(rho, k, prevT)
+          : solveForT_X_clamped(rho, k, prevT);
+
+        // Temporarily apply clamped value to score achieved r
+        let oldVal;
+        if (axis === 'y') {
+          oldVal = y[k];
+          y[k] = clamp(tCand, BOUNDS.minY, BOUNDS.maxY);
+        } else {
+          oldVal = x[k];
+          x[k] = clamp(tCand, BOUNDS.minX, BOUNDS.maxX);
+          recomputeXStats();
+        }
+
+        const rAch = pearson();
+        const err = Math.abs(rAch - rho);
+
+        // Revert
+        if (axis === 'y') { y[k] = oldVal; }
+        else { x[k] = oldVal; recomputeXStats(); }
+
+        if (err < best.rErr) best = {k, axis, t: tCand, rErr: err, rAch};
+      }
+    }
+
+    // Commit the best (with clamp) and set arrow
+    const k = best.k;
+    let from = {x: x[k], y: y[k]}, to = {x: x[k], y: y[k]};
+    if (best.axis === 'y') {
+      const tC = clamp(best.t, BOUNDS.minY, BOUNDS.maxY);
+      to.y = tC;
+      y[k] = tC; // move vertically
+      // X stats unchanged
+    } else {
+      const tC = clamp(best.t, BOUNDS.minX, BOUNDS.maxX);
+      to.x = tC;
+      x[k] = tC; // move horizontally
+      recomputeXStats(); // X changed
+    }
+    lastPivot = k;
+    highlightPivot = k;
+    lastAxisUsed = best.axis;
+    lastArrow = { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+
+    // Return achieved correlation based on full arrays
+    return { k, axis: best.axis, t: (best.axis==='y'? to.y : to.x), r: pearson() };
+  }
+
+  // ----------- Rendering (fixed axes −4..4) -----------
+  function drawArrow(sx, sy, ex, ey) {
+    // Draw line
+    ctx.strokeStyle = '#ff7f0e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // Arrowhead
+    const headLen = 10; // pixels
+    const angle = Math.atan2(ey - sy, ex - sx);
+    ctx.fillStyle = '#ff7f0e';
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - headLen * Math.cos(angle - Math.PI/6), ey - headLen * Math.sin(angle - Math.PI/6));
+    ctx.lineTo(ex - headLen * Math.cos(angle + Math.PI/6), ey - headLen * Math.sin(angle + Math.PI/6));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function draw() {
+    // Device pixel ratio scaling for crisp canvas
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const targetW = Math.max(200, Math.floor(rect.width * dpr));
+    const targetH = Math.max(200, Math.floor(rect.height * dpr));
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW; canvas.height = targetH;
+    }
+
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const b = { ...BOUNDS };
+    const plotW = W - (margin.left + margin.right);
+    const plotH = H - (margin.top + margin.bottom);
+
+    const sx = (v) => margin.left + (plotW * (v - b.minX)) / (b.maxX - b.minX || 1);
+    const sy = (v) => margin.top + plotH - (plotH * (v - b.minY)) / (b.maxY - b.minY || 1);
+
+    // Frame
+    ctx.strokeStyle = '#ddd';
+    ctx.strokeRect(margin.left, margin.top, plotW, plotH);
+
+    // Grid at x=0, y=0
+    ctx.strokeStyle = '#e9e9e9';
+    ctx.beginPath();
+    const y0 = (b.minY < 0 && b.maxY > 0) ? sy(0) : null;
+    const x0 = (b.minX < 0 && b.maxX > 0) ? sx(0) : null;
+    if (y0 !== null) { ctx.moveTo(margin.left, y0); ctx.lineTo(margin.left+plotW, y0); }
+    if (x0 !== null) { ctx.moveTo(x0, margin.top); ctx.lineTo(x0, margin.top+plotH); }
+    ctx.stroke();
+
+    // Points
+    for (let i = 0; i < N; i++) {
+      const px = sx(x[i]), py = sy(y[i]);
+      ctx.beginPath();
+      if (i === highlightPivot) {
+        ctx.fillStyle = '#ff7f0e';
+        ctx.arc(px, py, 4, 0, Math.PI*2);
+      } else {
+        ctx.fillStyle = '#2a6cdf';
+        ctx.arc(px, py, 2, 0, Math.PI*2);
+      }
+      ctx.fill();
+    }
+
+    // Arrow for the most recent move
+    if (lastArrow) {
+      drawArrow(sx(lastArrow.x1), sy(lastArrow.y1), sx(lastArrow.x2), sy(lastArrow.y2));
+    }
+
+    // Ticks at −4, −2, 0, 2, 4
+    ctx.fillStyle = '#444';
+    ctx.font = `${Math.max(10, Math.floor(12 * (canvas.width/900)))}px system-ui, Segoe UI, Arial`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const xv of ticks) {
+      const tx = sx(xv), ty = margin.top + plotH + 4 * (window.devicePixelRatio || 1);
+      ctx.fillText(String(xv), tx, ty);
+      ctx.strokeStyle = '#f3f3f3'; ctx.beginPath(); ctx.moveTo(tx, margin.top); ctx.lineTo(tx, margin.top+plotH); ctx.stroke();
+    }
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (const yv of ticks) {
+      const ty = sy(yv);
+      ctx.fillText(String(yv), margin.left - 6 * (window.devicePixelRatio || 1), ty);
+      ctx.strokeStyle = '#f3f3f3'; ctx.beginPath(); ctx.moveTo(margin.left, ty); ctx.lineTo(margin.left+plotW, ty); ctx.stroke();
+    }
+
+    // Axis labels
+    ctx.fillStyle = '#222';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('X', margin.left + plotW - 10, margin.top + plotH + 28 * (window.devicePixelRatio || 1));
+    ctx.save(); ctx.translate(14 * (window.devicePixelRatio || 1), margin.top + 20 * (window.devicePixelRatio || 1)); ctx.rotate(-Math.PI/2); ctx.fillText('Y', 0, 0); ctx.restore();
+  }
+
+  // ----------- Resize / Fullscreen handling -----------
+  function resizeCanvasToLayout() {
+    // In normal mode: make canvas ~3:2 and responsive to stage width.
+    // In fullscreen: canvas fills remaining viewport below slider bar.
+    const isFS = document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
+    const dpr = window.devicePixelRatio || 1;
+
+    if (isFS) {
+      // Use the viewport size (minus slider bar height)
+      const sliderBar = document.getElementById('sliderBar');
+      const availableW = window.innerWidth - 20; // small padding
+      const availableH = window.innerHeight - sliderBar.getBoundingClientRect().height - 30;
+      const widthCSS = Math.max(300, availableW);
+      const heightCSS = Math.max(240, availableH);
+      canvas.style.width = `${widthCSS}px`;
+      canvas.style.height = `${heightCSS}px`;
+    } else {
+      // Normal layout: width fills stage, height ~ 2/3 width (approx 3:2)
+      const stageRect = stage.getBoundingClientRect();
+      const widthCSS = Math.min(1000, Math.max(600, Math.floor(stageRect.width - 20)));
+      const heightCSS = Math.floor(widthCSS * 2 / 3);
+      canvas.style.width = `${widthCSS}px`;
+      canvas.style.height = `${heightCSS}px`;
+    }
+    // Redraw with new pixel size
+    draw();
+  }
+
+  document.addEventListener('fullscreenchange', resizeCanvasToLayout);
+  window.addEventListener('resize', resizeCanvasToLayout);
+
+  // ----------- Interaction -----------
+  function updateFromSlider() {
+    const rho = parseFloat($rho.value);
+    const mode = $mode.value;
+    $rhoVal.textContent = rho.toFixed(2);
+
+    const { k, axis, t, r } = choosePivotAndAdjust(rho, mode);
+
+    $pivotIdx.textContent = (k >= 0) ? String(k) : '—';
+    $axisBadge.textContent = (axis === 'y' ? 'Vertical (y)' : 'Horizontal (x)');
+    $coordAdj.textContent = (axis === 'y' ? `y = ${t.toFixed(3)}` : `x = ${t.toFixed(3)}`);
+    $rNow.textContent = (Math.round(r*10000)/10000).toFixed(4);
+
+    draw();
+  }
+
+  $rho.addEventListener('input', updateFromSlider);
+  $mode.addEventListener('change', () => { /* no reset needed */ });
+
+  $newSample.addEventListener('click', () => {
+    newSample();
+    $rho.value = '0';
+    $rhoVal.textContent = '0.00';
+    $pivotIdx.textContent = '—';
+    $axisBadge.textContent = '—';
+    $coordAdj.textContent = '—';
+    $rNow.textContent = pearson().toFixed(4);
+    draw();
+  });
+
+  // Fullscreen handling — #stage goes fullscreen; only slider+canvas show
+  function enterFullscreen() {
+    if (stage.requestFullscreen) stage.requestFullscreen();
+    else if (stage.webkitRequestFullscreen) stage.webkitRequestFullscreen();
+  }
+  $goFS.addEventListener('click', enterFullscreen);
+
+  // ----------- Init -----------
+  newSample();
+  $rNow.textContent = pearson().toFixed(4);
+  resizeCanvasToLayout();
+})();
+</script>
+</body>
+</html>

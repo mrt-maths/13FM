@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Polar Blaster</title>
+<style>
+    body {
+        background:#050b14;
+        color:white;
+        font-family: system-ui, sans-serif;
+        text-align:center;
+    }
+    h1 { margin-bottom:5px; }
+    canvas {
+        background:#000814;
+        border:1px solid #2a3a5a;
+        border-radius:10px;
+    }
+    .panel {
+        margin-top:10px;
+        display:flex;
+        justify-content:center;
+        gap:20px;
+        flex-wrap:wrap;
+    }
+    .control {
+        background:#0b1628;
+        padding:10px 14px;
+        border-radius:10px;
+        box-shadow:0 0 10px rgba(0,0,0,0.5);
+    }
+    input[type=range] { width:220px; }
+    button {
+        font-size:18px;
+        padding:8px 18px;
+        border-radius:10px;
+        border:none;
+        cursor:pointer;
+        background:#2dd4ff;
+        color:black;
+        font-weight:700;
+    }
+    .stats {
+        margin-top:10px;
+        font-size:18px;
+        display:flex;
+        justify-content:center;
+        gap:40px;
+    }
+</style>
+</head>
+<body>
+
+<h1>🚀 Polar Blaster</h1>
+<p>Adjust radius and angle, then shoot the asteroid before time runs out.</p>
+
+<canvas id="game" width="520" height="520"></canvas>
+
+<div class="panel">
+    <div class="control">
+        <div>Radius (r)</div>
+        <input id="rSlider" type="range" min="0" max="260" value="40">
+        <div id="rVal">r = 40</div>
+    </div>
+
+    <div class="control">
+        <div>Angle (θ)</div>
+        <input id="thetaSlider" type="range" min="-3.1416" max="3.1416" step="0.01" value="0">
+        <div id="thetaVal">θ = 0.00</div>
+    </div>
+
+    <div class="control">
+        <button id="shootBtn">SHOOT</button>
+    </div>
+</div>
+
+<div class="stats">
+    <div id="score">Score: 0</div>
+    <div id="time">Time: 60</div>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const cx = canvas.width/2;
+const cy = canvas.height/2;
+
+const rSlider = document.getElementById("rSlider");
+const thetaSlider = document.getElementById("thetaSlider");
+const rVal = document.getElementById("rVal");
+const thetaVal = document.getElementById("thetaVal");
+
+let score = 0;
+let timeLeft = 60;
+
+let asteroid = newAsteroid();
+let lastTime = performance.now();
+let gameOver = false;
+
+function newAsteroid(){
+    return {
+        angle: (Math.random()*2-1)*Math.PI,
+        r: 10,
+        speed: 25 + Math.random()*20
+    };
+}
+
+function drawGrid(){
+    ctx.strokeStyle="#13233d";
+    ctx.lineWidth=1;
+
+    for(let i=-260;i<=260;i+=40){
+        ctx.beginPath();
+        ctx.moveTo(cx+i,0);
+        ctx.lineTo(cx+i,520);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0,cy+i);
+        ctx.lineTo(520,cy+i);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle="#1f3b70";
+    ctx.beginPath();
+    ctx.moveTo(cx,0);
+    ctx.lineTo(cx,520);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0,cy);
+    ctx.lineTo(520,cy);
+    ctx.stroke();
+
+    ctx.fillStyle="white";
+    ctx.beginPath();
+    ctx.arc(cx,cy,4,0,Math.PI*2);
+    ctx.fill();
+}
+
+function drawAsteroid(){
+    const x = cx + asteroid.r*Math.cos(asteroid.angle);
+    const y = cy - asteroid.r*Math.sin(asteroid.angle);
+
+    ctx.fillStyle="#fca311";
+    ctx.beginPath();
+    ctx.arc(x,y,8,0,Math.PI*2);
+    ctx.fill();
+}
+
+function drawCrosshair(){
+    const r = Number(rSlider.value);
+    const t = Number(thetaSlider.value);
+
+    const x = cx + r*Math.cos(t);
+    const y = cy - r*Math.sin(t);
+
+    ctx.strokeStyle="#2dd4ff";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.arc(x,y,6,0,Math.PI*2);
+    ctx.stroke();
+}
+
+function shoot(){
+    if(gameOver) return;
+
+    const r = Number(rSlider.value);
+    const t = Number(thetaSlider.value);
+
+    const dr = Math.abs(r - asteroid.r);
+    let da = Math.abs(t - asteroid.angle);
+    da = Math.min(da, Math.PI*2 - da);
+
+    if(dr < 12 && da < 0.12){
+        score++;
+        asteroid = newAsteroid();
+    }
+}
+
+document.getElementById("shootBtn").onclick = shoot;
+
+function update(dt){
+    asteroid.r += asteroid.speed*dt;
+    if(asteroid.r > 260){
+        asteroid = newAsteroid();
+    }
+}
+
+function draw(){
+    ctx.clearRect(0,0,520,520);
+    drawGrid();
+    drawAsteroid();
+    drawCrosshair();
+}
+
+function loop(t){
+    const dt = (t-lastTime)/1000;
+    lastTime = t;
+
+    if(!gameOver){
+        update(dt);
+        draw();
+    }
+    requestAnimationFrame(loop);
+}
+
+rSlider.oninput = ()=> rVal.textContent = "r = " + rSlider.value;
+thetaSlider.oninput = ()=> thetaVal.textContent = "θ = " + Number(thetaSlider.value).toFixed(2);
+
+const timer = setInterval(()=>{
+    if(gameOver) return;
+    timeLeft--;
+    document.getElementById("time").textContent = "Time: " + timeLeft;
+    document.getElementById("score").textContent = "Score: " + score;
+    if(timeLeft <= 0){
+        gameOver = true;
+        clearInterval(timer);
+        ctx.fillStyle="rgba(0,0,0,0.7)";
+        ctx.fillRect(0,0,520,520);
+        ctx.fillStyle="white";
+        ctx.font="40px system-ui";
+        ctx.fillText("Time up!",190,240);
+        ctx.font="28px system-ui";
+        ctx.fillText("Final score: " + score,180,290);
+    }
+},1000);
+
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
