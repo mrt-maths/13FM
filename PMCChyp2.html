@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PMCC Hypothesis Test Builder (Drag + Type)</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#121a33;
+      --panel2:#0f1730;
+      --ink:#e9ecff;
+      --muted:#b7c0ffcc;
+      --line:#2a3770;
+      --good:#2ee59d;
+      --bad:#ff4d6d;
+      --warn:#ffd166;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --r: 16px;
+      --pad: 14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 600px at 20% 10%, #1b2a66 0%, rgba(27,42,102,0) 60%),
+                  radial-gradient(900px 500px at 80% 20%, #2a145f 0%, rgba(42,20,95,0) 55%),
+                  var(--bg);
+      color:var(--ink);
+      min-height:100vh;
+      padding:18px;
+    }
+    h1{font-size:20px;margin:0 0 8px 0}
+    .topbar{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      margin-bottom:14px;
+      flex-wrap:wrap;
+    }
+    .btn{
+      background: linear-gradient(180deg,#1e2a5a,#121a33);
+      border:1px solid var(--line);
+      color:var(--ink);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      box-shadow: var(--shadow);
+      font-weight:650;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn.secondary{background: linear-gradient(180deg,#19214a,#101733); font-weight:600; box-shadow:none;}
+    .badge{
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(18,26,51,.6);
+      color: var(--muted);
+      font-size:12px;
+    }
+    .layout{
+      display:grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap:14px;
+      align-items:start;
+    }
+    @media (max-width: 980px){ .layout{grid-template-columns:1fr} }
+
+    .card{
+      background: rgba(18,26,51,.72);
+      border:1px solid rgba(42,55,112,.9);
+      border-radius: var(--r);
+      padding: var(--pad);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+    .card h2{
+      font-size:14px; margin:0 0 10px 0; color: var(--muted);
+      letter-spacing:.2px; font-weight:700; text-transform:uppercase;
+    }
+    .questionText{
+      background: rgba(15,23,48,.65);
+      border:1px dashed rgba(42,55,112,.85);
+      padding:12px;
+      border-radius: 14px;
+      line-height: 1.35;
+      color: #f0f2ff;
+    }
+    .questionText .small{color: var(--muted); font-size:13px}
+    .questionText .claim{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(42,55,112,.8);
+      background: rgba(18,26,51,.45);
+    }
+    .row2{
+      display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;
+    }
+    @media (max-width: 780px){ .row2{grid-template-columns:1fr} }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+      overflow:hidden;
+      border-radius:14px;
+    }
+    th,td{
+      border:1px solid rgba(42,55,112,.85);
+      padding:6px 8px;
+      text-align:center;
+    }
+    th{background: rgba(18,26,51,.7); color: var(--muted); font-weight:800;}
+    td{background: rgba(15,23,48,.55); color: var(--ink);}
+    .tiny{font-size:12px;color: rgba(183,192,255,.78)}
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      background: rgba(0,0,0,.25);
+      padding: 2px 6px;
+      border-radius: 8px;
+      border:1px solid rgba(255,255,255,.12);
+      color: #eef;
+    }
+
+    .banks{display:grid; grid-template-columns: 1fr; gap:14px;}
+    /* Sticky bank: follows scroll down the page */
+    .stickyBank{
+      position: sticky;
+      top: 14px;
+      align-self: start;
+    }
+
+    .bankArea{
+      background: rgba(15,23,48,.55);
+      border:1px solid rgba(42,55,112,.9);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .bankHeader{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+    .bankHeader span{color:var(--muted); font-weight:700; font-size:12px; text-transform:uppercase}
+    .pieces{display:flex; flex-wrap:wrap; gap:10px; min-height: 56px; padding:6px;}
+    .piece{
+      user-select:none; cursor:grab;
+      padding:10px 12px; border-radius: 14px;
+      border:1px solid rgba(42,55,112,.85);
+      background: rgba(18,26,51,.72);
+      color: var(--ink);
+      line-height: 1.25;
+      box-shadow: 0 8px 18px rgba(0,0,0,.25);
+      font-size: 14px;
+      max-width:100%;
+    }
+    .piece:active{cursor:grabbing}
+    .piece.dragging{opacity:.55}
+
+    .slotGrid{display:grid; grid-template-columns: 1fr; gap:10px;}
+    .slot{
+      border-radius: 14px;
+      border:1px solid rgba(42,55,112,.9);
+      background: rgba(15,23,48,.55);
+      padding:10px;
+      display:flex; gap:10px; align-items:flex-start; justify-content:space-between;
+    }
+    .slotLabel{
+      width: 170px; min-width: 170px;
+      color: var(--muted);
+      font-weight:800;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.25px;
+      padding-top:4px;
+    }
+    @media (max-width: 560px){
+      .slot{flex-direction:column; align-items:stretch}
+      .slotLabel{width:auto; min-width:auto}
+    }
+    .dropzone{
+      flex:1;
+      min-height: 44px;
+      border-radius: 12px;
+      border:1px dashed rgba(42,55,112,.9);
+      padding:8px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .dropHint{color: rgba(183,192,255,.75); font-size: 13px;}
+    .slot.correct{outline: 2px solid rgba(46,229,157,.9)}
+    .slot.wrong{outline: 2px solid rgba(255,77,109,.9)}
+    .slot.neutral{outline:none}
+
+    .inputWrap{
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+      width:100%;
+    }
+    input[type="text"]{
+      width: 160px;
+      max-width: 100%;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid rgba(42,55,112,.9);
+      background: rgba(18,26,51,.65);
+      color: var(--ink);
+      outline:none;
+      font-size:14px;
+    }
+    input[type="text"]::placeholder{color: rgba(183,192,255,.55)}
+    .markTag{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:999px;
+      border:1px solid rgba(42,55,112,.85);
+      background: rgba(18,26,51,.5);
+      font-size:13px; color: var(--muted);
+    }
+    .dot{width:10px;height:10px;border-radius:50%;}
+    .dot.good{background:var(--good)}
+    .dot.bad{background:var(--bad)}
+    .dot.warn{background:var(--warn)}
+    .footerRow{
+      margin-top:12px;
+      display:flex; gap:10px; flex-wrap:wrap;
+      align-items:center; justify-content:space-between;
+    }
+    .math i{font-style:italic}
+    .math sub{font-size:.8em}
+    .rho{font-family:"Times New Roman", Times, serif; font-style: italic}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>PMCC Hypothesis Test Builder (Drag & Drop + Type)</h1>
+      <div class="tiny">
+        Drag statements into the structure. Type the <span class="kbd">critical value</span> (and sometimes <span class="kbd">r</span>).
+        Click <span class="kbd">Check</span> for marking.
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <span class="badge" id="qCounter">Question 1 / 10</span>
+      <button class="btn secondary" id="fullscreenBtn">Fullscreen</button>
+      <button class="btn secondary" id="resetBtn">Reset</button>
+      <button class="btn" id="checkBtn">Check</button>
+      <button class="btn" id="nextBtn">New question</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="card">
+      <h2>Question</h2>
+      <div class="questionText math" id="questionArea"></div>
+
+      <div class="row2">
+        <div class="card" style="box-shadow:none; background: rgba(18,26,51,.35);">
+          <h2>Critical values table (embedded)</h2>
+          <div class="tiny" style="margin-bottom:8px; line-height:1.35">
+            Two-tailed at significance level <b>&alpha;</b> uses column <b>&alpha;/2</b> (e.g. 10% two-tailed uses 0.05).
+            One-tailed uses column <b>&alpha;</b>.
+          </div>
+          <div style="max-height:340px; overflow:auto; border-radius:14px;">
+            <table aria-label="PMCC critical values">
+              <thead>
+                <tr>
+                  <th>0.10</th><th>0.05</th><th>0.025</th><th>0.01</th><th>0.005</th>
+                  <th>n</th>
+                </tr>
+              </thead>
+              <tbody id="critTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="box-shadow:none; background: rgba(18,26,51,.35);">
+          <h2>Dataset (only if required)</h2>
+          <div class="tiny" id="datasetHint" style="margin-bottom:8px; line-height:1.35"></div>
+          <div id="datasetArea"></div>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <h2>Build the final solution</h2>
+      <div class="slotGrid" id="slotGrid"></div>
+
+      <div class="footerRow">
+        <div id="scorePill" class="markTag"><span class="dot warn"></span> <b>Score:</b> 0%</div>
+        <div class="markTag"><b>Placed:</b> <span id="placedCount">0</span>/<span id="totalSlots">0</span></div>
+        <div class="tiny">Tip: drag a placed statement to another slot, or back into the bank.</div>
+      </div>
+    </div>
+
+    <!-- Sticky statement bank column -->
+    <div class="banks stickyBank">
+      <div class="card">
+        <h2>Statement bank</h2>
+        <div class="bankArea">
+          <div class="bankHeader">
+            <span>Drag from here</span>
+            <span class="tiny" id="bankCount">0 statements</span>
+          </div>
+          <div class="pieces" id="bankPieces"></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <h2>Rules reminder</h2>
+        <div class="tiny" style="line-height:1.45">
+          • H<sub>0</sub>: <span class="rho">&rho;</span> = 0 (no correlation).<br>
+          • Two-tailed: reject if <span class="kbd">|r| &gt; critical</span> (use α/2 column).<br>
+          • One-tailed (+): reject if <span class="kbd">r &gt; critical</span> (use α column).<br>
+          • One-tailed (−): reject if <span class="kbd">r &lt; −critical</span> (use α column).<br>
+          • Type the critical value with 4 d.p. (e.g. 0.3061).<br>
+          • If calculating <i>r</i>, type to 3 d.p. (tolerance applied).
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---------------- Critical values table (from your image) ----------------
+  const CRIT = {
+    4:  {0.10:0.8000, 0.05:0.9000, 0.025:0.9500, 0.01:0.9800, 0.005:0.9900},
+    5:  {0.10:0.6870, 0.05:0.8054, 0.025:0.8783, 0.01:0.9343, 0.005:0.9587},
+    6:  {0.10:0.6084, 0.05:0.7293, 0.025:0.8114, 0.01:0.8822, 0.005:0.9172},
+    7:  {0.10:0.5509, 0.05:0.6694, 0.025:0.7545, 0.01:0.8329, 0.005:0.8745},
+    8:  {0.10:0.5067, 0.05:0.6215, 0.025:0.7067, 0.01:0.7887, 0.005:0.8343},
+    9:  {0.10:0.4716, 0.05:0.5822, 0.025:0.6664, 0.01:0.7498, 0.005:0.7977},
+    10: {0.10:0.4428, 0.05:0.5494, 0.025:0.6319, 0.01:0.7155, 0.005:0.7646},
+    11: {0.10:0.4187, 0.05:0.5214, 0.025:0.6021, 0.01:0.6851, 0.005:0.7348},
+    12: {0.10:0.3981, 0.05:0.4973, 0.025:0.5760, 0.01:0.6581, 0.005:0.7079},
+    13: {0.10:0.3802, 0.05:0.4762, 0.025:0.5529, 0.01:0.6339, 0.005:0.6835},
+    14: {0.10:0.3646, 0.05:0.4575, 0.025:0.5324, 0.01:0.6120, 0.005:0.6614},
+    15: {0.10:0.3507, 0.05:0.4409, 0.025:0.5140, 0.01:0.5923, 0.005:0.6411},
+    16: {0.10:0.3383, 0.05:0.4259, 0.025:0.4973, 0.01:0.5742, 0.005:0.6226},
+    17: {0.10:0.3271, 0.05:0.4124, 0.025:0.4821, 0.01:0.5577, 0.005:0.6055},
+    18: {0.10:0.3170, 0.05:0.4000, 0.025:0.4683, 0.01:0.5425, 0.005:0.5897},
+    19: {0.10:0.3077, 0.05:0.3887, 0.025:0.4555, 0.01:0.5285, 0.005:0.5751},
+    20: {0.10:0.2992, 0.05:0.3783, 0.025:0.4438, 0.01:0.5155, 0.005:0.5614},
+    21: {0.10:0.2914, 0.05:0.3687, 0.025:0.4329, 0.01:0.5034, 0.005:0.5487},
+    22: {0.10:0.2841, 0.05:0.3598, 0.025:0.4227, 0.01:0.4921, 0.005:0.5368},
+    23: {0.10:0.2774, 0.05:0.3515, 0.025:0.4133, 0.01:0.4815, 0.005:0.5256},
+    24: {0.10:0.2711, 0.05:0.3438, 0.025:0.4044, 0.01:0.4716, 0.005:0.5151},
+    25: {0.10:0.2653, 0.05:0.3365, 0.025:0.3961, 0.01:0.4622, 0.005:0.5052},
+    26: {0.10:0.2598, 0.05:0.3297, 0.025:0.3882, 0.01:0.4534, 0.005:0.4958},
+    27: {0.10:0.2546, 0.05:0.3233, 0.025:0.3809, 0.01:0.4451, 0.005:0.4869},
+    28: {0.10:0.2497, 0.05:0.3172, 0.025:0.3739, 0.01:0.4372, 0.005:0.4785},
+    29: {0.10:0.2451, 0.05:0.3115, 0.025:0.3673, 0.01:0.4297, 0.005:0.4705},
+    30: {0.10:0.2407, 0.05:0.3061, 0.025:0.3610, 0.01:0.4226, 0.005:0.4629},
+    40: {0.10:0.2070, 0.05:0.2638, 0.025:0.3120, 0.01:0.3665, 0.005:0.4026},
+    50: {0.10:0.1843, 0.05:0.2353, 0.025:0.2787, 0.01:0.3281, 0.005:0.3610},
+    60: {0.10:0.1678, 0.05:0.2144, 0.025:0.2542, 0.01:0.2997, 0.005:0.3301},
+    70: {0.10:0.1550, 0.05:0.1982, 0.025:0.2352, 0.01:0.2776, 0.005:0.3060},
+    80: {0.10:0.1448, 0.05:0.1852, 0.025:0.2199, 0.01:0.2597, 0.005:0.2864},
+    90: {0.10:0.1364, 0.05:0.1745, 0.025:0.2072, 0.01:0.2449, 0.005:0.2702},
+    100:{0.10:0.1292, 0.05:0.1654, 0.025:0.1966, 0.01:0.2324, 0.005:0.2565}
+  };
+  const CRIT_COLS = [0.10,0.05,0.025,0.01,0.005];
+
+  // Render table
+  const critBody = document.getElementById("critTableBody");
+  Object.keys(CRIT).map(Number).sort((a,b)=>a-b).forEach(n=>{
+    const tr = document.createElement("tr");
+    CRIT_COLS.forEach(a=>{
+      const td = document.createElement("td");
+      td.textContent = CRIT[n][a].toFixed(4);
+      tr.appendChild(td);
+    });
+    const tdN = document.createElement("td");
+    tdN.textContent = n;
+    tr.appendChild(tdN);
+    critBody.appendChild(tr);
+  });
+
+  // PMCC
+  function pmcc(points){
+    const n = points.length;
+    const xs = points.map(p=>p[0]), ys = points.map(p=>p[1]);
+    const mean = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+    const xbar = mean(xs), ybar = mean(ys);
+    let sxx=0, syy=0, sxy=0;
+    for(let i=0;i<n;i++){
+      const dx = xs[i]-xbar, dy = ys[i]-ybar;
+      sxx += dx*dx; syy += dy*dy; sxy += dx*dy;
+    }
+    return sxy / Math.sqrt(sxx*syy);
+  }
+
+  // Questions
+  const QUESTIONS = [
+    { context:"the masses of two reactants in an experiment", claim:"The scientist claims there is a correlation between the masses of two reactants.", tail:"two", alpha:0.10, n:30, givenR:-0.45 },
+    { context:"daily maximum gust and daily maximum relative humidity", claim:"A meteorologist claims there is a correlation between daily maximum gust and daily maximum relative humidity.", tail:"two", alpha:0.10, n:8, givenR:0.40 },
+    { context:"hours spent revising and exam score", claim:"A teacher claims there is a positive correlation between revision time and exam score.", tail:"pos", alpha:0.10, n:12, givenR:0.53 },
+    { context:"outside temperature and electricity usage", claim:"An analyst claims there is a negative correlation between temperature and electricity usage.", tail:"neg", alpha:0.05, n:22, givenR:-0.39 },
+    { context:"engine size and fuel consumption", claim:"A journalist claims there is a correlation between engine size and fuel consumption.", tail:"two", alpha:0.05, n:14, givenR:0.49 },
+    { context:"number of practice questions completed and test mark", claim:"A tutor claims there is a positive correlation between practice questions completed and test mark.", tail:"pos", alpha:0.10, n:9,
+      dataset:[[2,41],[3,45],[5,52],[6,54],[7,58],[8,62],[9,64],[10,66],[12,70]] },
+    { context:"time on a game and reaction speed score", claim:"A researcher claims there is a correlation between time on a game and reaction speed score.", tail:"two", alpha:0.10, n:10,
+      dataset:[[1,17],[2,18],[3,16],[4,20],[5,19],[6,22],[7,21],[8,23],[9,24],[10,25]] },
+    { context:"sleep duration and reaction time", claim:"A researcher claims there is a negative correlation between sleep duration and reaction time.", tail:"neg", alpha:0.10, n:16, givenR:-0.63 },
+    { context:"age of a machine and monthly faults", claim:"An engineer claims there is a correlation between age of a machine and monthly faults.", tail:"two", alpha:0.01, n:20, givenR:0.58 },
+    { context:"advertising spend and weekly sales", claim:"A manager claims there is a positive correlation between advertising spend and sales.", tail:"pos", alpha:0.05, n:50, givenR:0.24 }
+  ];
+
+  // Slots
+  const SLOT_DEFS = [
+    { key:"H0", label:"Null hypothesis", type:"drag" },
+    { key:"H1", label:"Alternative hypothesis", type:"drag" },
+    { key:"param", label:"Parameter", type:"drag" },
+    { key:"obs", label:"Observed statistic", type:"mixed" },
+    { key:"crit", label:"Critical value", type:"inputCrit" },
+    { key:"comp", label:"Comparison", type:"drag" },
+    { key:"dec", label:"Decision", type:"drag" },
+    { key:"conc", label:"Conclusion", type:"drag" },
+    { key:"claim", label:"Claim check", type:"drag" }
+  ];
+
+  // DOM
+  const questionArea = document.getElementById("questionArea");
+  const slotGrid = document.getElementById("slotGrid");
+  const bankPieces = document.getElementById("bankPieces");
+  const bankCount = document.getElementById("bankCount");
+  const placedCountEl = document.getElementById("placedCount");
+  const totalSlotsEl = document.getElementById("totalSlots");
+  const qCounter = document.getElementById("qCounter");
+  const scorePill = document.getElementById("scorePill");
+  const datasetHint = document.getElementById("datasetHint");
+  const datasetArea = document.getElementById("datasetArea");
+
+  const checkBtn = document.getElementById("checkBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const fullscreenBtn = document.getElementById("fullscreenBtn");
+
+  // State
+  let qIndex = 0;
+  let current = null;
+  let tileMap = new Map();
+  let placed = {};
+  let correct = {};
+  let inputs = { r:null, crit:null };
+
+  // Helpers
+  const alphaLabel = (a)=> (a*100).toFixed(0) + "%";
+  const fmt2 = (x)=> Number(x).toFixed(2);
+
+  function shuffle(arr){
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  function makeTile(id, html){
+    const d = document.createElement("div");
+    d.className = "piece math";
+    d.draggable = true;
+    d.dataset.id = id;
+    d.innerHTML = html;
+    d.addEventListener("dragstart", (e) => {
+      d.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", id);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    d.addEventListener("dragend", () => d.classList.remove("dragging"));
+    return d;
+  }
+
+  function makeDropZone(zoneEl, onDrop){
+    zoneEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      zoneEl.style.borderColor = "rgba(183,192,255,.9)";
+    });
+    zoneEl.addEventListener("dragleave", () => {
+      zoneEl.style.borderColor = "rgba(42,55,112,.9)";
+    });
+    zoneEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zoneEl.style.borderColor = "rgba(42,55,112,.9)";
+      const id = e.dataTransfer.getData("text/plain");
+      onDrop(id);
+    });
+  }
+
+  function tailText(t){ return t==="two" ? "two-tailed" : (t==="pos" ? "one-tailed (+)" : "one-tailed (−)"); }
+  function critColumn(alpha, tail){ return tail==="two" ? alpha/2 : alpha; }
+  function getCritical(n, alpha, tail){
+    const col = critColumn(alpha, tail);
+    return (CRIT[n] && CRIT[n][col] !== undefined) ? CRIT[n][col] : null;
+  }
+
+  function buildDatasetTable(points){
+    const tbl = document.createElement("table");
+    tbl.innerHTML = `<thead><tr><th>x</th><th>y</th></tr></thead><tbody></tbody>`;
+    const tb = tbl.querySelector("tbody");
+    points.forEach(p=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${p[0]}</td><td>${p[1]}</td>`;
+      tb.appendChild(tr);
+    });
+    return tbl;
+  }
+
+  function buildSolutionTiles(q){
+    const rho = '&rho;';
+    const H0 = `H<sub>0</sub>: <span class="rho">${rho}</span> = 0`;
+    let H1 = `H<sub>1</sub>: <span class="rho">${rho}</span> &ne; 0`;
+    if(q.tail==="pos") H1 = `H<sub>1</sub>: <span class="rho">${rho}</span> &gt; 0`;
+    if(q.tail==="neg") H1 = `H<sub>1</sub>: <span class="rho">${rho}</span> &lt; 0`;
+    const param = `Where <span class="rho">${rho}</span> is the population correlation between ${q.context}.`;
+
+    const rTrue = q.dataset ? pmcc(q.dataset) : q.givenR;
+    const crit = getCritical(q.n, q.alpha, q.tail);
+
+    let comp, dec, conc, claimCheck;
+    if(q.tail==="two"){
+      const reject = Math.abs(rTrue) > crit;
+      comp = `Since |<i>r</i>| ${reject ? '&gt;' : '&le;'} critical value, ${reject ? 'reject' : 'do not reject'} H<sub>0</sub>.`;
+      dec  = `${reject ? 'Reject' : 'Do not reject'} H<sub>0</sub>.`;
+      conc = `There is ${reject ? 'evidence' : 'insufficient evidence'}, at the ${alphaLabel(q.alpha)} significance level, of a correlation between ${q.context}.`;
+      claimCheck = `${reject ? 'This supports' : 'This does not support'} the claim.`;
+    }
+    if(q.tail==="pos"){
+      const reject = rTrue > crit;
+      comp = `Since <i>r</i> ${reject ? '&gt;' : '&le;'} critical value, ${reject ? 'reject' : 'do not reject'} H<sub>0</sub>.`;
+      dec  = `${reject ? 'Reject' : 'Do not reject'} H<sub>0</sub>.`;
+      conc = `There is ${reject ? 'evidence' : 'insufficient evidence'}, at the ${alphaLabel(q.alpha)} significance level, of a positive correlation between ${q.context}.`;
+      claimCheck = `${reject ? 'This supports' : 'This does not support'} the claim.`;
+    }
+    if(q.tail==="neg"){
+      const reject = rTrue < -crit;
+      comp = `Since <i>r</i> ${reject ? '&lt;' : '&ge;'} −critical value, ${reject ? 'reject' : 'do not reject'} H<sub>0</sub>.`;
+      dec  = `${reject ? 'Reject' : 'Do not reject'} H<sub>0</sub>.`;
+      conc = `There is ${reject ? 'evidence' : 'insufficient evidence'}, at the ${alphaLabel(q.alpha)} significance level, of a negative correlation between ${q.context}.`;
+      claimCheck = `${reject ? 'This supports' : 'This does not support'} the claim.`;
+    }
+
+    const obsTile = q.dataset ? null : `It is observed that <i>r</i> = ${fmt2(q.givenR)}.`;
+
+    const tiles = [
+      { id:"tile_H0", html:H0, slot:"H0" },
+      { id:"tile_H1", html:H1, slot:"H1" },
+      { id:"tile_param", html:param, slot:"param" },
+      ...(obsTile ? [{ id:"tile_obs", html:obsTile, slot:"obs" }] : []),
+      { id:"tile_comp", html:comp, slot:"comp" },
+      { id:"tile_dec",  html:dec,  slot:"dec" },
+      { id:"tile_conc", html:conc, slot:"conc" },
+      { id:"tile_claim",html:claimCheck, slot:"claim" }
+    ];
+
+    const correctMap = {};
+    tiles.forEach(t => correctMap[t.slot] = t.id);
+
+    return { tiles, correctMap };
+  }
+
+  function renderQuestion(q, idx){
+    qCounter.textContent = `Question ${idx+1} / ${QUESTIONS.length}`;
+    const col = critColumn(q.alpha, q.tail);
+    const colLabel = (Math.round(col*1000)/1000).toString();
+
+    questionArea.innerHTML = `
+      <div class="small">
+        <b>Test:</b> PMCC critical value method, <b>${tailText(q.tail)}</b>
+      </div>
+      <div style="margin-top:10px">
+        A sample of size <b>${q.n}</b> is taken to investigate the relationship between <b>${q.context}</b>.
+      </div>
+      <div style="margin-top:8px">
+        Significance level: <b>${alphaLabel(q.alpha)}</b>.
+        <span class="tiny">${q.tail==="two" ? `Two-tailed ⇒ use column ${colLabel} (α/2).` : `One-tailed ⇒ use column ${colLabel} (α).`}</span>
+      </div>
+      <div style="margin-top:8px">
+        ${q.dataset ? `You must <b>calculate</b> the sample correlation coefficient <b><i>r</i></b> from the dataset.` :
+          `The sample correlation coefficient is <b><i>r</i> = ${fmt2(q.givenR)}</b>.`
+        }
+      </div>
+      <div class="claim"><b>Claim:</b> ${q.claim}</div>
+      <div class="tiny" style="margin-top:10px">
+        Type the critical value (4 d.p.). If required, type <i>r</i> (3 d.p.). Then drag the written steps into place.
+      </div>
+    `;
+
+    datasetArea.innerHTML = "";
+    if(q.dataset){
+      datasetHint.textContent = "Calculate r for the dataset below (n ≤ 10). Then complete the hypothesis test.";
+      datasetArea.appendChild(buildDatasetTable(q.dataset));
+    } else {
+      datasetHint.textContent = "Not required for this question (r is given).";
+      datasetArea.innerHTML = `<div class="tiny">No dataset provided.</div>`;
+    }
+  }
+
+  function renderSlots(q){
+    slotGrid.innerHTML = "";
+    placed = {};
+    inputs = { r:null, crit:null };
+    SLOT_DEFS.forEach(s => placed[s.key] = null);
+
+    SLOT_DEFS.forEach(s=>{
+      const row = document.createElement("div");
+      row.className = "slot neutral";
+      row.dataset.slot = s.key;
+
+      const lab = document.createElement("div");
+      lab.className = "slotLabel";
+      lab.textContent = s.label;
+
+      const dz = document.createElement("div");
+      dz.className = "dropzone";
+      dz.dataset.slot = s.key;
+
+      if(s.type === "inputCrit"){
+        const wrap = document.createElement("div");
+        wrap.className = "inputWrap";
+        wrap.innerHTML = `
+          <span class="dropHint">Type critical value:</span>
+          <input id="critInput" type="text" inputmode="decimal" placeholder="e.g. 0.3061" />
+          <span class="tiny">n=${q.n}, ${tailText(q.tail)}, α=${alphaLabel(q.alpha)}</span>
+        `;
+        dz.appendChild(wrap);
+        inputs.crit = wrap.querySelector("#critInput");
+      } else if(s.type === "mixed"){
+        if(q.dataset){
+          const wrap = document.createElement("div");
+          wrap.className = "inputWrap";
+          wrap.innerHTML = `
+            <span class="dropHint">Type r (3 d.p.):</span>
+            <input id="rInput" type="text" inputmode="decimal" placeholder="e.g. 0.612" />
+            <span class="tiny">Calculated from dataset</span>
+          `;
+          dz.appendChild(wrap);
+          inputs.r = wrap.querySelector("#rInput");
+        } else {
+          dz.innerHTML = `<div class="dropHint">Drop a statement here</div>`;
+          makeDropZone(dz, (tileId)=>{ placeTileInSlot(tileId, s.key); updatePlacedCount(); });
+        }
+      } else {
+        dz.innerHTML = `<div class="dropHint">Drop a statement here</div>`;
+        makeDropZone(dz, (tileId)=>{ placeTileInSlot(tileId, s.key); updatePlacedCount(); });
+      }
+
+      row.appendChild(lab);
+      row.appendChild(dz);
+      slotGrid.appendChild(row);
+    });
+
+    makeDropZone(bankPieces, (tileId)=>{ moveTileToBank(tileId); updatePlacedCount(); });
+    totalSlotsEl.textContent = String(SLOT_DEFS.length);
+  }
+
+  function renderBank(tiles){
+    bankPieces.innerHTML = "";
+    tileMap.clear();
+    shuffle([...tiles]).forEach(t=>{
+      const el = makeTile(t.id, t.html);
+      tileMap.set(t.id, el);
+      bankPieces.appendChild(el);
+    });
+    bankCount.textContent = `${tiles.length} statements`;
+  }
+
+  function placeTileInSlot(tileId, slotKey){
+    if(!tileMap.has(tileId)) return;
+
+    for(const k of Object.keys(placed)){
+      if(placed[k] === tileId) placed[k] = null;
+    }
+
+    const existing = placed[slotKey];
+    if(existing && tileMap.has(existing)) bankPieces.appendChild(tileMap.get(existing));
+
+    placed[slotKey] = tileId;
+
+    const row = slotGrid.querySelector(`.slot[data-slot="${slotKey}"]`);
+    const dz = row.querySelector(".dropzone");
+    dz.innerHTML = "";
+    dz.appendChild(tileMap.get(tileId));
+  }
+
+  function moveTileToBank(tileId){
+    if(!tileMap.has(tileId)) return;
+    for(const k of Object.keys(placed)){
+      if(placed[k] === tileId){
+        placed[k] = null;
+        const row = slotGrid.querySelector(`.slot[data-slot="${k}"]`);
+        const dz = row.querySelector(".dropzone");
+        dz.innerHTML = `<div class="dropHint">Drop a statement here</div>`;
+        const def = SLOT_DEFS.find(s=>s.key===k);
+        if(def && (def.type==="drag" || (def.type==="mixed" && current && !current.dataset))){
+          makeDropZone(dz, (id)=>{ placeTileInSlot(id,k); updatePlacedCount(); });
+        }
+      }
+    }
+    bankPieces.appendChild(tileMap.get(tileId));
+  }
+
+  function updatePlacedCount(){
+    placedCountEl.textContent = String(Object.values(placed).filter(v=>v!==null).length);
+  }
+
+  function clearSlotOutlines(){
+    slotGrid.querySelectorAll(".slot").forEach(s=>{
+      s.classList.remove("correct","wrong");
+      s.classList.add("neutral");
+    });
+  }
+
+  function setScore(pct){
+    const dotClass = pct===100 ? "good" : (pct>=60 ? "warn" : "bad");
+    scorePill.innerHTML = `<span class="dot ${dotClass}"></span> <b>Score:</b> ${pct}%`;
+  }
+
+  function parseNum(str){
+    if(!str) return null;
+    const cleaned = str.trim().replace(/,/g,'');
+    if(cleaned==="") return null;
+    const v = Number(cleaned);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function checkAnswers(){
+    clearSlotOutlines();
+
+    let dragTotal = 0, dragCorrect = 0;
+    SLOT_DEFS.forEach(s=>{
+      if(s.type==="drag" || (s.type==="mixed" && current && !current.dataset)){
+        dragTotal++;
+        const want = correct[s.key];
+        const got = placed[s.key];
+        const row = slotGrid.querySelector(`.slot[data-slot="${s.key}"]`);
+        row.classList.remove("neutral");
+        row.classList.add((got && got===want) ? "correct" : "wrong");
+        if(got && got===want) dragCorrect++;
+      }
+    });
+
+    // typed: critical always
+    let typedTotal = 1, typedCorrect = 0;
+    const critTrue = getCritical(current.n, current.alpha, current.tail);
+    const userCrit = parseNum(inputs.crit ? inputs.crit.value : "");
+    const critOk = (userCrit!==null) && Math.abs(userCrit - critTrue) <= 0.0006;
+    const rowCrit = slotGrid.querySelector(`.slot[data-slot="crit"]`);
+    rowCrit.classList.remove("neutral");
+    rowCrit.classList.add(critOk ? "correct" : "wrong");
+    if(critOk) typedCorrect++;
+
+    // typed: r only if dataset
+    if(current.dataset){
+      typedTotal++;
+      const rTrue = pmcc(current.dataset);
+      const userR = parseNum(inputs.r ? inputs.r.value : "");
+      const rOk = (userR!==null) && Math.abs(userR - rTrue) <= 0.006;
+      const rowObs = slotGrid.querySelector(`.slot[data-slot="obs"]`);
+      rowObs.classList.remove("neutral");
+      rowObs.classList.add(rOk ? "correct" : "wrong");
+      if(rOk) typedCorrect++;
+    }
+
+    const total = dragTotal + typedTotal;
+    const got = dragCorrect + typedCorrect;
+    setScore(Math.round(100 * got / total));
+  }
+
+  function resetBoard(){
+    clearSlotOutlines();
+    Object.keys(placed).forEach(k=>{
+      const id = placed[k];
+      if(id && tileMap.has(id)) bankPieces.appendChild(tileMap.get(id));
+      placed[k] = null;
+    });
+
+    SLOT_DEFS.forEach(s=>{
+      const row = slotGrid.querySelector(`.slot[data-slot="${s.key}"]`);
+      const dz = row.querySelector(".dropzone");
+      if(s.type==="drag" || (s.type==="mixed" && current && !current.dataset)){
+        dz.innerHTML = `<div class="dropHint">Drop a statement here</div>`;
+        makeDropZone(dz, (id)=>{ placeTileInSlot(id,s.key); updatePlacedCount(); });
+      }
+      if(s.type==="inputCrit" && inputs.crit) inputs.crit.value = "";
+      if(s.type==="mixed" && current && current.dataset && inputs.r) inputs.r.value = "";
+    });
+
+    updatePlacedCount();
+    setScore(0);
+  }
+
+  function loadQuestion(i){
+    qIndex = (i + QUESTIONS.length) % QUESTIONS.length;
+    current = QUESTIONS[qIndex];
+
+    const built = buildSolutionTiles(current);
+    correct = built.correctMap;
+
+    renderSlots(current);
+    renderQuestion(current, qIndex);
+    renderBank(built.tiles);
+    updatePlacedCount();
+    setScore(0);
+  }
+
+  // Fullscreen
+  function isFullscreen(){ return !!document.fullscreenElement; }
+  async function toggleFullscreen(){
+    try{
+      if(!isFullscreen()){
+        await document.documentElement.requestFullscreen();
+        fullscreenBtn.textContent = "Exit fullscreen";
+      } else {
+        await document.exitFullscreen();
+        fullscreenBtn.textContent = "Fullscreen";
+      }
+    }catch(e){
+      alert("Fullscreen not available in this browser.");
+    }
+  }
+  document.addEventListener("fullscreenchange", ()=>{
+    fullscreenBtn.textContent = isFullscreen() ? "Exit fullscreen" : "Fullscreen";
+  });
+
+  // Buttons
+  checkBtn.addEventListener("click", checkAnswers);
+  resetBtn.addEventListener("click", resetBoard);
+  nextBtn.addEventListener("click", ()=>{
+    let nxt = Math.floor(Math.random()*QUESTIONS.length);
+    if(nxt===qIndex) nxt = (nxt+1) % QUESTIONS.length;
+    loadQuestion(nxt);
+  });
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+
+  // Init
+  loadQuestion(0);
+})();
+</script>
+</body>
+</html>
