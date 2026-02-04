@@ -1,7 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>13FM Games</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:32px;background:#f5f7fb}
+  h1{margin:0 0 10px}
+  p{margin:0 0 18px;opacity:.75}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+  a.card{display:block;text-decoration:none;color:#111;background:#fff;border:1px solid #ddd;border-radius:14px;padding:16px;transition:.15s}
+  a.card:hover{transform:translateY(-3px);box-shadow:0 10px 18px rgba(0,0,0,.08)}
+  .title{font-weight:700;font-size:18px;margin-bottom:6px}
+  .desc{font-size:13px;opacity:.75;line-height:1.3;word-break:break-word}
+  .error{background:#fff3f3;border:1px solid #ffd0d0;border-radius:12px;padding:12px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin:14px 0 18px;flex-wrap:wrap}
+  input{padding:10px 12px;border:1px solid #ddd;border-radius:10px;min-width:260px}
+  button{padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff;cursor:pointer}
+  button:hover{box-shadow:0 6px 14px rgba(0,0,0,.06)}
+  .small{font-size:12px;opacity:.7}
+</style>
+</head>
+<body>
+  <h1>13FM Games</h1>
+  <p>Auto-generated list of HTML files (newest first).</p>
+
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Search games..." aria-label="Search games">
+    <button id="reload" type="button">Reload</button>
+    <span class="small" id="meta"></span>
+  </div>
+
+  <div id="status"></div>
+  <div class="grid" id="games"></div>
+
 <script>
+/* Site: https://mrt-maths.github.io/13FM/ */
 const OWNER  = "mrt-maths";
 const REPO   = "13FM";
 const BRANCH = "main";
+/* If your games are in a subfolder (e.g. /games), set PATH="games" */
 const PATH   = "";
 
 const statusEl = document.getElementById("status");
@@ -19,13 +57,12 @@ function prettify(filename){
 }
 
 function timeAgo(dateString){
+  if(!dateString) return "unknown";
   const diff = (Date.now() - new Date(dateString)) / 1000;
-
   if(diff < 60) return "just now";
-  if(diff < 3600) return Math.floor(diff/60)+" mins ago";
-  if(diff < 86400) return Math.floor(diff/3600)+" hrs ago";
-  if(diff < 604800) return Math.floor(diff/86400)+" days ago";
-
+  if(diff < 3600) return Math.floor(diff/60) + " mins ago";
+  if(diff < 86400) return Math.floor(diff/3600) + " hrs ago";
+  if(diff < 604800) return Math.floor(diff/86400) + " days ago";
   return new Date(dateString).toLocaleDateString();
 }
 
@@ -44,79 +81,66 @@ function render(list){
   gridEl.innerHTML = list.map(file => `
     <a class="card" href="${base}${encodeURI(file.name)}">
       <div class="title">${prettify(file.name)}</div>
-      <div class="desc">
-        Updated ${timeAgo(file.updated)}
-      </div>
+      <div class="desc">Updated ${timeAgo(file.updated)}</div>
     </a>
   `).join("");
 
   metaEl.textContent = `${list.length} game(s)`;
 }
 
-async function getLastCommit(filename){
-  const path = PATH ? `${PATH}/${filename}` : filename;
-
-  const url = `https://api.github.com/repos/${OWNER}/${REPO}/commits?path=${encodeURIComponent(path)}&page=1&per_page=1`;
-
-  const res = await fetch(url);
-
+async function getLastCommitDate(filename){
+  const fullPath = PATH ? `${PATH}/${filename}` : filename;
+  const url = `https://api.github.com/repos/${OWNER}/${REPO}/commits?path=${encodeURIComponent(fullPath)}&page=1&per_page=1`;
+  const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" }});
   if(!res.ok) return null;
-
   const data = await res.json();
-
-  return data[0]?.commit?.committer?.date ?? null;
+  return data?.[0]?.commit?.committer?.date ?? null;
 }
 
 async function load(){
-
   statusEl.innerHTML = `<div class="small">Loading games…</div>`;
+  gridEl.innerHTML = "";
+  metaEl.textContent = "";
 
   try{
-
-    const api = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`;
-
-    const res = await fetch(api);
+    const api = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${encodeURIComponent(BRANCH)}`;
+    const res = await fetch(api, { headers: { "Accept": "application/vnd.github+json" }});
+    if(!res.ok){
+      throw new Error(`GitHub API error ${res.status}. Check repo/branch/PATH and that the repo is public.`);
+    }
 
     const items = await res.json();
 
-    const htmlFiles = items
+    const htmlItems = items
       .filter(x => x.type === "file" && /\.html$/i.test(x.name))
       .filter(x => x.name.toLowerCase() !== "index.html");
 
-    // Fetch commit dates in parallel
-    const filesWithDates = await Promise.all(
-      htmlFiles.map(async file => ({
-        name: file.name,
-        updated: await getLastCommit(file.name)
+    if(!htmlItems.length){
+      statusEl.innerHTML = `<div class="error">No other .html files found here. If they’re inside a folder, set <b>PATH</b> to that folder name.</div>`;
+      return;
+    }
+
+    // Fetch last commit date per file (newest-first sort)
+    const withDates = await Promise.all(
+      htmlItems.map(async f => ({
+        name: f.name,
+        updated: await getLastCommitDate(f.name) || "1970-01-01T00:00:00Z"
       }))
     );
 
-    // Sort newest first
-    filesWithDates.sort((a,b) =>
-      new Date(b.updated) - new Date(a.updated)
-    );
+    withDates.sort((a,b) => new Date(b.updated) - new Date(a.updated));
 
-    allFiles = filesWithDates;
-
+    allFiles = withDates;
     render(allFiles);
 
   } catch(err){
-
-    statusEl.innerHTML = `
-      <div class="error">
-      Couldn’t load games.<br>${err.message}
-      </div>`;
+    statusEl.innerHTML = `<div class="error"><b>Couldn’t load games.</b><br>${err.message}</div>`;
   }
 }
 
 qEl.addEventListener("input", () => {
-
-  const term = qEl.value.toLowerCase();
-
-  const filtered = allFiles.filter(f =>
-    f.name.toLowerCase().includes(term)
-  );
-
+  const term = qEl.value.trim().toLowerCase();
+  const filtered = allFiles.filter(f => f.name.toLowerCase().includes(term));
   render(filtered);
 });
 
@@ -124,3 +148,5 @@ document.getElementById("reload").addEventListener("click", load);
 
 load();
 </script>
+</body>
+</html>
