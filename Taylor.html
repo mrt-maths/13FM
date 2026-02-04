@@ -856,7 +856,14 @@ function startDrag(e, tileId, sourceEl){
   dragging = { tileId, offsetX: e.clientX - r.left, offsetY: e.clientY - r.top };
 
   const t = tileById.get(tileId);
-  ghostEl.className = "ghost tile";
+ ghostEl.className = "ghost";
+ghostEl.style.background = "rgba(22,34,74,.9)";
+ghostEl.style.border = "1px solid rgba(255,255,255,.12)";
+ghostEl.style.borderRadius = "12px";
+ghostEl.style.padding = "9px 10px";
+ghostEl.style.display = "flex";
+ghostEl.style.alignItems = "center";
+ghostEl.style.justifyContent = "center";
   ghostEl.style.width = `${Math.min(260, r.width)}px`;
   ghostEl.innerHTML = t.renderHTML; // cached
   moveGhost(e.clientX, e.clientY);
@@ -1118,3 +1125,4 @@ newGame();
 </script>
 </body>
 </html>
+
