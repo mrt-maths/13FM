@@ -821,11 +821,10 @@
   // Buttons
   checkBtn.addEventListener("click", checkAnswers);
   resetBtn.addEventListener("click", resetBoard);
-  nextBtn.addEventListener("click", ()=>{
-    let nxt = Math.floor(Math.random()*QUESTIONS.length);
-    if(nxt===qIndex) nxt = (nxt+1) % QUESTIONS.length;
-    loadQuestion(nxt);
-  });
+ nextBtn.addEventListener("click", ()=>{
+  loadQuestion(qIndex + 1); // cycles 0,1,2,3,... and wraps around
+});
+
   fullscreenBtn.addEventListener("click", toggleFullscreen);
 
   // Init
@@ -834,3 +833,4 @@
 </script>
 </body>
 </html>
+
