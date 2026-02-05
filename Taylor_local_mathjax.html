@@ -460,15 +460,13 @@ const texImgCache = new Map();
 function normalizeTex(tex){
   if (!tex) return tex;
 
-  // Convert JS control characters back to their intended TeX beginnings.
-  // In JS string literals, \f, \t, \r become control chars if not escaped.
-  // We turn them back into two-character sequences: backslash + letter.
+  // Repair TeX commands that were broken by JS escapes:
+  // "\\frac" in a JS string can become formfeed + "rac" at runtime.
+  // "\\text" can become tab + "ext"; "\\right" can become carriage-return + "ight".
   tex = tex
-    .replace(/\f/g, "\\f")
-    .replace(/\t/g, "\\t")
-    .replace(/\r/g, "\\r");
-
-  // At this point sequences like "\\f" + "rac" become "\frac" naturally (no further replace needed).
+    .replace(/\f(?=rac\b)/g, "\\frac")       // formfeed + 'rac' -> \frac
+    .replace(/\t(?=ext\b)/g, "\\text")       // tab + 'ext' -> \text
+    .replace(/\r(?=ight\b)/g, "\\right");    // carriage return + 'ight' -> \right
 
   // If the backslash was lost entirely, repair common remnants.
   tex = tex.replace(/(^|[^A-Za-z\\])rac(?=\d|\{|\-)/g, (m,p1)=> p1 + "\\frac");
@@ -482,28 +480,12 @@ function normalizeTex(tex){
     tex = tex.replace(re1, (m,p1,c)=> `${p1}\\${c}`);
   }
 
-  // Special: if we accidentally produced "\\fracrac" etc from previous caches, collapse them.
-  tex = tex.replace(/\\fracrac\b/g, "\\frac");
-  tex = tex.replace(/\\textext\b/g, "\\text");
-  tex = tex.replace(/\\rightight\b/g, "\\right");
-
   // Force \mathrm{e} if "mathrme" shows up without slash
   tex = tex.replace(/(^|[^A-Za-z\\])mathrme\b/g, (m,p1)=> p1 + "\\mathrm{e}");
 
   return tex;
 }
-ommands when they appear bare.
-  const cmds = ["frac","cdot","left","right","mathrm","sqrt","pi","ln","sin","cos","tan","sinh","cosh","arctan"];
-  for (const cmd of cmds){
-    const re1 = new RegExp(`(^|[^\\\\A-Za-z])(${cmd})(?=\\b|\\{)`, "g");
-    tex = tex.replace(re1, (m,p1,c)=> `${p1}\\${c}`);
-  }
 
-  // Force \mathrm{e} if "mathrme" shows up without slash
-  tex = tex.replace(/(^|[^A-Za-z\\])mathrme\b/g, (m,p1)=> p1 + "\\mathrm{e}");
-
-  return tex;
-}
 
 
 
