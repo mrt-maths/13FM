@@ -277,6 +277,53 @@ function frac(n,d){
   if(d===1) return sign + String(n);
   return sign + T`\\frac{${n}}{${d}}`;
 }
+
+// --- TeX coefficient helpers (avoid nested fractions, simplify signs) ---
+function simplifyTex(tex){
+  if (tex==null) return tex;
+  tex = String(tex);
+
+  // Common constant simplifications
+  tex = tex.replace(/\\arctan\(0\)/g, "0");
+
+  // Collapse sign noise
+  for(let k=0;k<6;k++){
+    tex = tex.replace(/\+\+/g, "+")
+             .replace(/--/g, "")
+             .replace(/\+-/g, "-")
+             .replace(/-\+/g, "-");
+  }
+  // Remove leading '+'
+  tex = tex.replace(/^\+/, "");
+
+  // Tidy spaces
+  tex = tex.replace(/\s+/g, " ").trim();
+  return tex;
+}
+function texNeg(tex){
+  tex = simplifyTex(tex);
+  if (tex === "0") return "0";
+  if (tex.startsWith("-")) return tex.slice(1);
+  return "-" + tex;
+}
+function texIsFrac(tex){
+  const m = String(tex).match(/^\\frac\{([\s\S]+)\}\{([\s\S]+)\}$/);
+  return m ? {num:m[1], den:m[2]} : null;
+}
+function texDivInt(tex, k){
+  tex = simplifyTex(tex);
+  if (tex === "0") return "0";
+  if (k === 1) return tex;
+
+  const fr = texIsFrac(tex);
+  if (fr){
+    // \frac{N}{D} / k  ->  \frac{N}{D\cdot k}
+    const den = `${fr.den}\\cdot ${k}`;
+    return simplifyTex(T`\\frac{${fr.num}}{${den}}`);
+  }
+  // tex / k -> \frac{tex}{k}
+  return simplifyTex(T`\\frac{${tex}}{${k}}`);
+}
 function ePowInt(k){
   if(k===0) return "1";
   if(k===1) return T`\\mathrm{e}`;
@@ -364,9 +411,20 @@ const LIB = [
     coeffs:(a)=>{ const e3=ePowInt(3*a.v); return {A:e3,B:T`3\\,${e3}`,C:T`\\frac{9}{2}\\,${e3}`,D:T`\\frac{9}{2}\\,${e3}`}; }},
 
   {id:"sin", latex:()=>T`f(x)=\\sin x`, pickA:pickTrigA, ok:(a)=>true,
-    coeffs:(a)=>{ const {sin,cos}=sinCosForN(a.n); return {A:sin,B:cos,C:(sin==="0")?"0":T`-\\frac{${sin}}{2}`,D:(cos==="0")?"0":T`-\\frac{${cos}}{6}`}; }},
+    coeffs:(a)=>{ const {sin,cos}=sinCosForN(a.n);
+      return {A:simplifyTex(sin),B:simplifyTex(cos),
+        C:(sin==="0")?"0":texDivInt(texNeg(sin),2),
+        D:(cos==="0")?"0":texDivInt(texNeg(cos),6)
+      };
+    }},
   {id:"cos", latex:()=>T`f(x)=\\cos x`, pickA:pickTrigA, ok:(a)=>true,
-    coeffs:(a)=>{ const {sin,cos}=sinCosForN(a.n); return {A:cos,B:(sin==="0")?"0":T`-${sin}`,C:(cos==="0")?"0":T`-\\frac{${cos}}{2}`,D:(sin==="0")?"0":T`\\frac{${sin}}{6}`}; }},
+    coeffs:(a)=>{ const {sin,cos}=sinCosForN(a.n);
+      return {A:simplifyTex(cos),
+        B:(sin==="0")?"0":simplifyTex(texNeg(sin)),
+        C:(cos==="0")?"0":texDivInt(texNeg(cos),2),
+        D:(sin==="0")?"0":texDivInt(sin,6)
+      };
+    }},
 
   {id:"sinh", latex:()=>T`f(x)=\\sinh x`, pickA:pickIntA, ok:(a)=>true,
     coeffs:(a)=>{ const v=a.v; const sh=(v===0)?"0":T`\\sinh(${v})`; const ch=(v===0)?"1":T`\\cosh(${v})`;
@@ -390,10 +448,10 @@ const LIB = [
 
   {id:"atan", latex:()=>T`f(x)=\\arctan x`, pickA:pickIntA, ok:(a)=>true,
     coeffs:(a)=>{ const x=a.v, den=1+x*x, den2=den*den, den3=den2*den;
-      return {A:T`\\arctan(${x})`,B:frac(1,den),C:frac(-x,den2),D:T`\\frac{3x^2-1}{3\\cdot ${den3}}`}; }},
+      return {A:(x===0?"0":T`\\arctan(${x})`),B:frac(1,den),C:frac(-x,den2),D:T`\\frac{3x^2-1}{3\\cdot ${den3}}`}; }},
   {id:"atan3x", latex:()=>T`f(x)=\\arctan(3x)`, pickA:pickIntA, ok:(a)=>true,
     coeffs:(a)=>{ const k=3,x=a.v,u=k*x,den=1+u*u,den2=den*den,den3=den2*den;
-      return {A:T`\\arctan(${u})`,B:frac(k,den),C:frac(-(k*k*k)*x,den2),D:T`\\frac{${k**3}(3u^2-1)}{3\\cdot ${den3}}`}; }},
+      return {A:(u===0?"0":T`\\arctan(${u})`),B:frac(k,den),C:frac(-(k*k*k)*x,den2),D:T`\\frac{${k**3}(3u^2-1)}{3\\cdot ${den3}}`}; }},
 
   {id:"xex", latex:()=>T`f(x)=x\\,\\mathrm{e}^x`, pickA:pickIntA, ok:(a)=>true,
     coeffs:(a)=>{ const x=a.v, ea=ePowInt(x);
@@ -722,7 +780,7 @@ async function newGame(){
     problems.push({
       a: pick.a,
       fxLatex: pick.fxLatex,
-      coeffs: {A:pick.coeffs.A,B:pick.coeffs.B,C:pick.coeffs.C,D:pick.coeffs.D},
+      coeffs: {A:simplifyTex(pick.coeffs.A),B:simplifyTex(pick.coeffs.B),C:simplifyTex(pick.coeffs.C),D:simplifyTex(pick.coeffs.D)},
       placed:{A:null,B:null,C:null,D:null}
     });
   }
@@ -733,7 +791,7 @@ async function newGame(){
     for(const L of ["A","B","C","D"]){
       const id=`T${idCounter++}`;
       const home = (mode==="easy")?pIdx:-1;
-      const tex=p.coeffs[L];
+      const tex=simplifyTex(p.coeffs[L]);
       const t={id, tex, renderHTML:null, homeBankIndex:home, location:{kind:"bank", bankIndex:home}};
       tiles.push(t); tileById.set(id,t);
     }
