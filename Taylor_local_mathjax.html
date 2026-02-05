@@ -460,25 +460,38 @@ const texImgCache = new Map();
 function normalizeTex(tex){
   if (!tex) return tex;
 
-  // Undo control-character escapes produced by JS string parsing
+  // 1) Undo control-character escapes produced by JS string parsing:
+  // \f -> formfeed, \t -> tab, \r -> carriage return, etc.
   tex = tex
-    .replace(/\f(?=rac\b)/g, "\\\\f")   // \frac
-    .replace(/\t(?=ext\b)/g, "\\\\t")  // \text
-    .replace(/\r(?=ight\b)/g, "\\\\r") // \right
-    .replace(/\n(?=ewline\b)/g, "\\\\n"); // \newline (rare)
+    .replace(/\f/g, "\\f")
+    .replace(/\t/g, "\\t")
+    .replace(/\r/g, "\\r");
 
-  // The above replacements created sequences like "\\f" + "rac" => "\frac" etc.
+  // Reconstitute the most common TeX commands that are affected:
   tex = tex
-    .replace(/\\\\frac\b/g, "\\\\frac")
-    .replace(/\\\\text\b/g, "\\\\text")
-    .replace(/\\\\right\b/g, "\\\\right");
+    .replace(/\\f(?=rac\b)/g, "\\frac")
+    .replace(/\\t(?=ext\b)/g, "\\text")
+    .replace(/\\r(?=ight\b)/g, "\\right");
 
-  // Add missing backslashes for common TeX commands if they appear bare
-  tex = tex.replace(/(^|[^\\\\])\b(left|right|mathrm|sqrt|pi|ln|cos|sin|tan|sinh|cosh|arctan|cdot|frac)\b/g,
-    (m, p1, cmd) => `${p1}\\\\${cmd}`);
+  // 2) Add missing backslashes before common TeX commands if they appear "bare".
+  const cmds = [
+    "frac","cdot","left","right","mathrm","sqrt","pi","ln",
+    "sin","cos","tan","sinh","cosh","arctan"
+  ];
+  for (const cmd of cmds){
+    const re1 = new RegExp(`(^|[^\\\\A-Za-z])(${cmd})(?=\\b|\\{|\$)`, "g");
+    tex = tex.replace(re1, (m,p1,c)=>`${p1}\\\\${c}`);
+  }
+
+  // 3) Special repair for "rac" remnants (when \frac lost its backslash entirely)
+  tex = tex.replace(/(^|[^A-Za-z\\\\])rac(?=\d|\{|\-)/g, (m,p1)=>`${p1}\\\\frac`);
+
+  // 4) Ensure \cdot is present even in concatenations like "rac43cdot125"
+  tex = tex.replace(/cdot/g, "\\cdot");
 
   return tex;
 }
+
 
 function svgToDataUri(svg){
   if (!svg.getAttribute("xmlns")) svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
