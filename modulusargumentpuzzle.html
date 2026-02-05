@@ -7,8 +7,6 @@
   <style>
     :root{
       --bg:#0f1220;
-      --panel:#171a2b;
-      --panel2:#1e2340;
       --ink:#e9ecff;
       --muted:#b9c0ff;
       --line:rgba(255,255,255,0.12);
@@ -24,6 +22,7 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       background: radial-gradient(1200px 700px at 10% 5%, #1a1f3a 0%, var(--bg) 55%, #0b0d16 100%);
       color:var(--ink);
+      touch-action: manipulation;
     }
     header{
       padding:18px 18px 10px;
@@ -33,7 +32,7 @@
       justify-content:space-between;
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent);
-      position:sticky; top:0; z-index:5;
+      position:sticky; top:0; z-index:10;
       backdrop-filter: blur(6px);
     }
     header .title{display:flex;flex-direction:column;gap:4px;}
@@ -49,6 +48,7 @@
       cursor:pointer;
       font-weight:650;
       transition: transform 0.05s ease, background 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
     }
     button:hover{ background: rgba(255,255,255,0.10); }
     button:active{ transform: translateY(1px); }
@@ -56,13 +56,12 @@
 
     .wrap{
       display:grid;
-      grid-template-columns: 1fr 340px;
+      grid-template-columns: 1fr 380px;
       gap:16px;
       padding:16px;
       max-width: 1200px;
       margin: 0 auto;
     }
-
     .main{display:flex;flex-direction:column;gap:14px;}
 
     .card{
@@ -117,43 +116,46 @@
     .exprhead .label{font-weight:800;letter-spacing:0.2px;font-size:14px;}
     .clue{
       color: var(--muted);
-      font-size:12.5px;
+      font-size:12.8px;
       border-left: 3px solid rgba(185,192,255,0.35);
       padding-left:10px;
       line-height:1.35;
-      max-width: 520px;
+      max-width: 620px;
     }
 
     .mathline{
       font-size:18px;
       display:flex;
       flex-wrap:wrap;
-      gap:8px;
+      gap:10px;
       align-items:center;
-      line-height:1.6;
+      line-height:1.65;
     }
     .sym{opacity:0.95}
     .cis{font-style: italic;opacity:0.95;}
 
+    /* Bigger slots (requested) */
     .slot{
       display:inline-flex;
-      min-width:74px;
+      min-width:92px;
+      min-height:44px;
       justify-content:center;
       align-items:center;
-      padding:6px 10px;
-      border-radius: 12px;
-      border:1.8px dashed rgba(255,255,255,0.28);
+      padding:9px 14px;
+      border-radius: 14px;
+      border:2px dashed rgba(255,255,255,0.28);
       background: rgba(255,255,255,0.05);
-      color: rgba(233,236,255,0.85);
-      font-weight:800;
+      color: rgba(233,236,255,0.90);
+      font-weight:850;
       user-select:none;
       position:relative;
+      -webkit-tap-highlight-color: transparent;
     }
     .slot small{
       position:absolute;
       top:-10px;
-      left:10px;
-      padding:2px 6px;
+      left:12px;
+      padding:2px 7px;
       border-radius:999px;
       background: rgba(0,0,0,0.35);
       border:1px solid var(--line);
@@ -167,10 +169,10 @@
     }
     .slot.filled{
       border-style: solid;
-      border-color: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.18);
     }
     .slot.locked{
-      border-color: rgba(53,208,127,0.65);
+      border-color: rgba(53,208,127,0.70);
       background: rgba(53,208,127,0.14);
       box-shadow: 0 0 0 3px rgba(53,208,127,0.10) inset;
     }
@@ -179,8 +181,8 @@
       display:inline-flex;
       justify-content:center;
       align-items:center;
-      padding:10px 12px;
-      border-radius: 14px;
+      padding:12px 14px;
+      border-radius: 16px;
       background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
       border:1px solid var(--line);
       box-shadow: 0 10px 22px rgba(0,0,0,0.25);
@@ -188,14 +190,23 @@
       letter-spacing:0.2px;
       cursor: grab;
       user-select:none;
-      min-width:86px;
+      min-width:92px;
+      touch-action: none; /* important for iPad dragging */
+      -webkit-tap-highlight-color: transparent;
     }
     .tile:active{ cursor: grabbing; }
-    .tile.locked{
-      cursor:not-allowed;
-      opacity:0.95;
-      border-color: rgba(53,208,127,0.65);
-      background: rgba(53,208,127,0.16);
+    .tile.helpable{
+      outline: 2px solid rgba(255,204,102,0.55);
+      box-shadow: 0 0 0 4px rgba(255,204,102,0.10);
+    }
+
+    /* Floating clone used for pointer-drag */
+    .drag-ghost{
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      opacity: 0.98;
     }
 
     .pile{
@@ -213,7 +224,7 @@
       display:flex;
       flex-wrap:wrap;
       gap:10px;
-      min-height: 160px;
+      min-height: 190px;
       padding:10px;
       border-radius: 14px;
       background: rgba(0,0,0,0.18);
@@ -229,7 +240,11 @@
       color: var(--muted);
       padding-top:6px;
     }
-    .status strong{ color: var(--ink); }
+    .hintline{
+      font-size:12px;
+      color: rgba(233,236,255,0.72);
+      line-height:1.35;
+    }
 
     .extension{display:none;}
     .extension h3{margin:0 0 8px;font-size:15px;font-weight:900;}
@@ -254,10 +269,10 @@
   <header>
     <div class="title">
       <h1>Modulus Argument Form Puzzle</h1>
-      <p class="sub">Drag numbers from the pile to complete: <span class="mono">a + bi = r cis t</span> (t in radians, all values to 2dp).</p>
+      <p class="sub">Drag values to complete: <span class="mono">a + bi = r cis t</span> (t in radians, values to 2dp). Works on iPad (touch-drag).</p>
     </div>
     <div class="btnrow">
-      <button id="randomBtn" title="Generate a new random puzzle (new values + new clues)">Random</button>
+      <button id="randomBtn" title="New values + new clue types each click">Random</button>
       <button id="fsBtn" title="Toggle fullscreen">Fullscreen</button>
       <button id="checkBtn" disabled title="Check correct placements (available after 3 minutes)">Check (unlocks after 3:00)</button>
     </div>
@@ -268,9 +283,9 @@
       <div class="card">
         <div class="instructions">
           <span class="pill"><span class="dot"></span>3 expressions: fill <strong>a</strong>, <strong>b</strong>, <strong>r</strong>, <strong>t</strong></span>
-          <span class="pill">4 extra values not needed</span>
+          <span class="pill">4 red herrings</span>
           <span class="pill">After 3 minutes, <strong>Check</strong> locks correct values (green)</span>
-          <span class="pill">Click a slot to clear it</span>
+          <span class="pill">Tap a slot to clear it</span>
         </div>
       </div>
 
@@ -278,7 +293,7 @@
         <div class="expr" data-expr="E1">
           <div class="exprhead">
             <div class="label">Expression 1</div>
-            <div class="clue" id="clueE1">Clue: has the <strong>smallest positive argument</strong> (closest above 0).</div>
+            <div class="clue" id="clueE1"></div>
           </div>
           <div class="mathline">
             <span class="slot" data-role="a"><small>a</small></span>
@@ -295,7 +310,7 @@
         <div class="expr" data-expr="E2">
           <div class="exprhead">
             <div class="label">Expression 2</div>
-            <div class="clue" id="clueE2">Clue: lies in the <strong>second quadrant</strong> and has <strong>|a| = |b|</strong>.</div>
+            <div class="clue" id="clueE2"></div>
           </div>
           <div class="mathline">
             <span class="slot" data-role="a"><small>a</small></span>
@@ -312,7 +327,7 @@
         <div class="expr" data-expr="E3">
           <div class="exprhead">
             <div class="label">Expression 3</div>
-            <div class="clue" id="clueE3">Clue: has a <strong>negative imaginary part</strong> and the <strong>largest |b|</strong> of the three.</div>
+            <div class="clue" id="clueE3"></div>
           </div>
           <div class="mathline">
             <span class="slot" data-role="a"><small>a</small></span>
@@ -350,13 +365,14 @@
     <aside class="pile">
       <div class="card">
         <h2>Value Pile</h2>
-        <p>Drag these values into the slots. (All numbers are to <strong>2dp</strong>. Angles <strong>t</strong> are in radians with <strong>−π &lt; t &lt; π</strong>.)</p>
+        <p>Drag these values into the slots. (All numbers are to <strong>2dp</strong>. Angles <strong>t</strong> are radians with <strong>−π &lt; t &lt; π</strong>.)</p>
         <div class="tiles" id="pile" aria-label="value pile"></div>
-        <div class="status" id="status">
+        <div class="status">
           <div>Progress: <strong id="progressText">—</strong></div>
           <div>Check button: <strong id="checkStatus">locked</strong></div>
-          <div style="font-size:12px; color:rgba(233,236,255,0.72)">
-            (Progress only updates to a fixed message when you click <strong>Check</strong>.)
+          <div class="hintline">(Progress never shows counts.)</div>
+          <div class="hintline" id="helperLine" style="display:none;">
+            <strong>Helper:</strong> tap one value in the pile to either place it correctly or remove a red herring.
           </div>
         </div>
       </div>
@@ -365,87 +381,124 @@
 
   <script>
     // ============================================================
-    //  Fixed puzzle loads the SAME every time.
-    //  Clicking "Random" generates a new set of values + clues.
+    //  Clue types supported (as requested):
+    //   - Largest/smallest of modulus/argument/real/imag
+    //   - Quadrant I/II/III/IV
+    //   - Distance k from integer point (k < r)
+    //   - Bearing N023 (3-figure bearing clockwise from north) from integer point
+    //   - Inequality like -1<b<r<t<5
+    //   - Equations: a^2+b^2=21, a+r=5.23, a/b=0.34, rcos(t)=-1.23, etc
+    //   - Combined (a) and (b) clue (two clues in one)
+    //
+    //  iPad dragging:
+    //   - Uses Pointer Events + a floating ghost tile (works on iPad Safari).
     // ============================================================
 
-    // ---------- DOM refs ----------
     const pile = document.getElementById("pile");
     const slots = Array.from(document.querySelectorAll(".slot"));
     const checkBtn = document.getElementById("checkBtn");
     const checkStatusEl = document.getElementById("checkStatus");
     const progressTextEl = document.getElementById("progressText");
+    const helperLine = document.getElementById("helperLine");
     const extension = document.getElementById("extension");
     const fsBtn = document.getElementById("fsBtn");
     const randomBtn = document.getElementById("randomBtn");
-
     const clueE1 = document.getElementById("clueE1");
     const clueE2 = document.getElementById("clueE2");
     const clueE3 = document.getElementById("clueE3");
 
     // ---------- State ----------
-    let tileMap = new Map();        // tileId -> {value, locked}
-    let slotMap = new Map();        // slotEl -> tileId (or null)
-    let lockedSlots = new Set();    // slotEls locked correct
+    let tileMap = new Map();   // tileId -> {value, locked}
+    let slotMap = new Map();   // slotEl -> tileId|null
+    let lockedSlots = new Set();
     let checkAvailable = false;
     let cooldownTimer = null;
 
-    // Current solution set
-    let solutions = {};
+    let solutions = {};        // strings "x.xx" for a,b,r,t
     let distractors = [];
+    let neededSet = new Set();
+    let helperActive = false;
 
-    // ---------- Helpers ----------
-    const uid = (() => { let i = 1; return () => "tile_" + (i++); })();
+    // ---------- Utils ----------
+    const uid = (() => { let i=1; return ()=>"tile_"+(i++); })();
+    const PI = Math.PI;
 
     function fmt2(x){
-      // ensure -0.00 doesn't appear
       const v = (Math.abs(x) < 0.0005) ? 0 : x;
       return Number(v).toFixed(2);
     }
-
     function clampAngleToPi(t){
-      // map to (-pi, pi)
-      const pi = Math.PI;
-      while (t <= -pi) t += 2*pi;
-      while (t >  pi)  t -= 2*pi;
-      // ensure not exactly -pi or pi
-      if (t <= -pi) t = -pi + 1e-6;
-      if (t >=  pi) t =  pi - 1e-6;
+      while (t <= -PI) t += 2*PI;
+      while (t >=  PI) t -= 2*PI; // keep strictly less than pi
+      if (t <= -PI) t = -PI + 1e-6;
+      if (t >=  PI) t =  PI - 1e-6;
       return t;
     }
-
-    function computeR(a,b){
-      return Math.sqrt(a*a + b*b);
-    }
-    function computeT(a,b){
-      return clampAngleToPi(Math.atan2(b,a));
-    }
+    function rOf(a,b){ return Math.hypot(a,b); }
+    function tOf(a,b){ return clampAngleToPi(Math.atan2(b,a)); }
+    function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
 
     function shuffle(arr){
-      for (let i = arr.length - 1; i > 0; i--){
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+      for (let i=arr.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [arr[i],arr[j]] = [arr[j],arr[i]];
       }
       return arr;
     }
 
-    // ---------- Tiles / Slots ----------
+    function parseSol(exprKey){
+      const o = solutions[exprKey];
+      return { a:+o.a, b:+o.b, r:+o.r, t:+o.t };
+    }
+
+    // Simplify integer point display like "5i", "-2", "5-3i"
+    function fmtIntPoint(p,q){
+      const a = p, b = q;
+      const parts = [];
+      if (a !== 0) parts.push(String(a));
+      if (b !== 0){
+        const bi = (Math.abs(b)===1) ? "i" : (Math.abs(b) + "i");
+        if (a === 0){
+          parts.push((b<0? "-":"") + bi);
+        } else {
+          parts.push((b<0? " - ":" + ") + bi);
+        }
+      }
+      if (parts.length === 0) return "0";
+      return parts.join("");
+    }
+
+    // Bearing clockwise from north:
+    // dx = x2-x1, dy = y2-y1. bearing = atan2(dx,dy) degrees in [0,360)
+    function bearingFrom(p,q,a,b){
+      const dx = a - p;
+      const dy = b - q;
+      const deg = (Math.atan2(dx, dy) * 180 / PI + 360) % 360;
+      return deg;
+    }
+    function fmtBearing3(deg){
+      const d = Math.round(deg) % 360;
+      return "N" + String(d).padStart(3,"0");
+    }
+
+    // ---------- Tiles ----------
     function makeTile(value){
       const id = uid();
       const el = document.createElement("div");
       el.className = "tile";
-      el.draggable = true;
       el.textContent = value;
       el.dataset.tileId = id;
       el.dataset.value = value;
 
       tileMap.set(id, { value, locked:false });
 
-      el.addEventListener("dragstart", (e) => {
-        const t = tileMap.get(id);
-        if (t.locked) { e.preventDefault(); return; }
-        e.dataTransfer.setData("text/plain", id);
-        e.dataTransfer.effectAllowed = "move";
+      // Pointer-based drag (iPad-safe)
+      el.addEventListener("pointerdown", (e) => startPointerDrag(e, el));
+
+      // Helper click (tap) if enabled
+      el.addEventListener("click", () => {
+        if (!helperActive) return;
+        runHelperOnTile(el);
       });
 
       return el;
@@ -459,14 +512,13 @@
       const tag = document.createElement("small");
       tag.textContent = slotEl.dataset.role;
       slotEl.appendChild(tag);
-      slotEl.classList.remove("filled","locked");
+      slotEl.classList.remove("filled","locked","over");
     }
 
     function clearSlot(slotEl){
       if (isSlotLocked(slotEl)) return;
       const existing = slotMap.get(slotEl);
       if (existing){
-        // recreate a visible tile back into pile
         const val = tileMap.get(existing)?.value;
         const info = tileMap.get(existing);
         if (val && info && !info.locked){
@@ -477,14 +529,16 @@
       updateExtensionVisibility();
     }
 
-    function placeTileInSlot(tileId, slotEl){
-      if (isSlotLocked(slotEl)) return false;
-      const tileInfo = tileMap.get(tileId);
-      if (!tileInfo || tileInfo.locked) return false;
+    function findTileElById(tileId){
+      return document.querySelector(`.tile[data-tile-id="${tileId}"]`);
+    }
 
-      // If slot already has a tile, return it to pile
+    function placeValueStringIntoSlot(valueStr, slotEl, lockNow=false){
+      if (isSlotLocked(slotEl)) return false;
+
+      // If slot has tile, return it
       const existing = slotMap.get(slotEl);
-      if (existing && existing !== tileId){
+      if (existing){
         const val = tileMap.get(existing)?.value;
         const info = tileMap.get(existing);
         if (val && info && !info.locked){
@@ -492,7 +546,43 @@
         }
       }
 
-      // If tile is in another slot, clear that slot
+      // Create a hidden tileId entry to represent this slot fill
+      const tid = uid();
+      tileMap.set(tid, { value: valueStr, locked:false });
+
+      slotEl.classList.add("filled");
+      slotEl.textContent = valueStr;
+      const tag = document.createElement("small");
+      tag.textContent = slotEl.dataset.role;
+      slotEl.appendChild(tag);
+
+      slotMap.set(slotEl, tid);
+
+      if (lockNow) lockSlot(slotEl);
+
+      updateExtensionVisibility();
+      return true;
+    }
+
+    function placeTileElIntoSlot(tileEl, slotEl){
+      if (!tileEl) return false;
+      if (isSlotLocked(slotEl)) return false;
+
+      const tileId = tileEl.dataset.tileId;
+      const tileInfo = tileMap.get(tileId);
+      if (!tileInfo || tileInfo.locked) return false;
+
+      // If slot already has a tile, return it to pile
+      const existing = slotMap.get(slotEl);
+      if (existing){
+        const val = tileMap.get(existing)?.value;
+        const info = tileMap.get(existing);
+        if (val && info && !info.locked){
+          pile.appendChild(makeTile(val));
+        }
+      }
+
+      // If tile was in another slot, clear that slot (shouldn't happen because tiles in slots are not DOM tiles)
       for (const [s, tid] of slotMap.entries()){
         if (tid === tileId && s !== slotEl){
           if (!isSlotLocked(s)) resetSlot(s);
@@ -500,7 +590,7 @@
         }
       }
 
-      // Fill slot
+      // Fill
       slotEl.classList.add("filled");
       slotEl.textContent = tileInfo.value;
       const tag = document.createElement("small");
@@ -508,23 +598,25 @@
       slotEl.appendChild(tag);
 
       slotMap.set(slotEl, tileId);
-
-      // Remove dragged tile element from DOM (it came from pile)
-      const tileEl = document.querySelector(`.tile[data-tile-id="${tileId}"]`);
-      if (tileEl) tileEl.remove();
+      tileEl.remove();
 
       updateExtensionVisibility();
       return true;
     }
 
     function slotCorrect(slotEl){
-      const exprEl = slotEl.closest(".expr");
-      const exprKey = exprEl.dataset.expr;
+      const exprKey = slotEl.closest(".expr").dataset.expr;
       const role = slotEl.dataset.role;
       const tileId = slotMap.get(slotEl);
       if (!tileId) return false;
       const v = tileMap.get(tileId)?.value;
       return v === solutions[exprKey][role];
+    }
+
+    function countCorrectPlaced(){
+      let c=0;
+      for (const s of slots) if (slotCorrect(s)) c++;
+      return c;
     }
 
     function lockSlot(slotEl){
@@ -534,7 +626,6 @@
       if (!info) return;
       info.locked = true;
       tileMap.set(tileId, info);
-
       lockedSlots.add(slotEl);
       slotEl.classList.add("locked");
     }
@@ -547,46 +638,103 @@
     }
 
     function updateExtensionVisibility(){
-      if (allCorrect()){
-        extension.style.display = "block";
+      extension.style.display = allCorrect() ? "block" : "none";
+    }
+
+    // Slots: tap to clear; pointer hover class is managed by pointer-drag logic
+    slots.forEach(s => {
+      slotMap.set(s, null);
+      s.addEventListener("click", () => clearSlot(s));
+    });
+
+    // ---------- Pointer drag (iPad-safe) ----------
+    let dragState = null;
+
+    function startPointerDrag(e, tileEl){
+      // If helper active, single tap is reserved for helper; let click handler do it.
+      if (helperActive) return;
+
+      const tileId = tileEl.dataset.tileId;
+      const info = tileMap.get(tileId);
+      if (!info || info.locked) return;
+
+      e.preventDefault();
+      tileEl.setPointerCapture(e.pointerId);
+
+      const ghost = tileEl.cloneNode(true);
+      ghost.classList.add("drag-ghost");
+      ghost.style.left = e.clientX + "px";
+      ghost.style.top  = e.clientY + "px";
+      document.body.appendChild(ghost);
+
+      // Hide original during drag
+      tileEl.style.visibility = "hidden";
+
+      dragState = { tileEl, tileId, ghost, pointerId: e.pointerId };
+
+      tileEl.addEventListener("pointermove", onPointerMove);
+      tileEl.addEventListener("pointerup", onPointerUp, { once:true });
+      tileEl.addEventListener("pointercancel", onPointerUp, { once:true });
+    }
+
+    function clearOverHighlights(){
+      slots.forEach(s => s.classList.remove("over"));
+      pile.classList.remove("over");
+    }
+
+    function onPointerMove(e){
+      if (!dragState) return;
+      dragState.ghost.style.left = e.clientX + "px";
+      dragState.ghost.style.top  = e.clientY + "px";
+
+      clearOverHighlights();
+      const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+      if (!elUnder) return;
+
+      const slotEl = elUnder.closest?.(".slot");
+      if (slotEl && !isSlotLocked(slotEl)) slotEl.classList.add("over");
+
+      const pileEl = elUnder.closest?.("#pile");
+      if (pileEl) pile.classList.add("over");
+    }
+
+    function onPointerUp(e){
+      if (!dragState) return;
+
+      const { tileEl, ghost } = dragState;
+
+      // Determine drop target
+      clearOverHighlights();
+      const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+      const slotEl = elUnder?.closest?.(".slot");
+      const pileEl = elUnder?.closest?.("#pile");
+
+      let placed = false;
+      if (slotEl && !isSlotLocked(slotEl)){
+        placed = placeTileElIntoSlot(tileEl, slotEl);
+      } else if (pileEl){
+        placed = false; // returning to pile = no-op
       } else {
-        extension.style.display = "none";
+        placed = false;
       }
+
+      // Cleanup
+      ghost.remove();
+      tileEl.style.visibility = placed ? "hidden" : "visible";
+      if (placed) tileEl.remove();
+      else tileEl.style.visibility = "visible";
+
+      tileEl.removeEventListener("pointermove", onPointerMove);
+      dragState = null;
     }
-
-    // ---------- Drag & drop wiring ----------
-    function allowDropOnSlot(slotEl){
-      slotEl.addEventListener("dragover", (e) => {
-        if (isSlotLocked(slotEl)) return;
-        e.preventDefault();
-        slotEl.classList.add("over");
-      });
-      slotEl.addEventListener("dragleave", () => slotEl.classList.remove("over"));
-      slotEl.addEventListener("drop", (e) => {
-        e.preventDefault();
-        slotEl.classList.remove("over");
-        const tileId = e.dataTransfer.getData("text/plain");
-        if (!tileId) return;
-        placeTileInSlot(tileId, slotEl);
-      });
-      slotEl.addEventListener("click", () => clearSlot(slotEl));
-    }
-
-    slots.forEach(s => { slotMap.set(s, null); allowDropOnSlot(s); });
-
-    pile.addEventListener("dragover", (e) => { e.preventDefault(); pile.classList.add("over"); });
-    pile.addEventListener("dragleave", () => pile.classList.remove("over"));
-    pile.addEventListener("drop", (e) => { e.preventDefault(); pile.classList.remove("over"); });
 
     // ---------- Check cooldown ----------
     function startCheckCooldown(seconds){
       checkAvailable = false;
       checkBtn.disabled = true;
       checkStatusEl.textContent = "locked";
-
       let remaining = seconds;
       checkBtn.textContent = `Check (unlocks after ${formatTime(remaining)})`;
-
       if (cooldownTimer) clearInterval(cooldownTimer);
       cooldownTimer = setInterval(() => {
         remaining--;
@@ -606,17 +754,62 @@
       const r = s%60;
       return `${m}:${String(r).padStart(2,"0")}`;
     }
-
-    // ---------- Progress display (does NOT reveal count) ----------
     function setProgressAfterCheck(){
-      // Always show a fixed message (no counts).
       progressTextEl.textContent = allCorrect() ? "All correct ✅" : "Checked ✓";
+    }
+
+    // ---------- Helper (if score zero on check) ----------
+    function enableHelper(){
+      helperActive = true;
+      helperLine.style.display = "block";
+      document.querySelectorAll("#pile .tile").forEach(t => t.classList.add("helpable"));
+    }
+    function disableHelper(){
+      helperActive = false;
+      helperLine.style.display = "none";
+      document.querySelectorAll("#pile .tile").forEach(t => t.classList.remove("helpable"));
+    }
+
+    function isRedHerringValue(value){ return !neededSet.has(value); }
+
+    function findCorrectSlotForValue(value){
+      for (const exprKey of ["E1","E2","E3"]){
+        for (const role of ["a","b","r","t"]){
+          if (solutions[exprKey][role] === value){
+            const exprEl = document.querySelector(`.expr[data-expr="${exprKey}"]`);
+            return exprEl.querySelector(`.slot[data-role="${role}"]`);
+          }
+        }
+      }
+      return null;
+    }
+
+    function runHelperOnTile(tileEl){
+      const value = tileEl.dataset.value;
+
+      if (isRedHerringValue(value)){
+        tileEl.remove(); // remove one red herring
+      } else {
+        const slotEl = findCorrectSlotForValue(value);
+        if (slotEl && !isSlotLocked(slotEl)){
+          // Put value in the right place and lock it
+          placeValueStringIntoSlot(value, slotEl, true);
+          tileEl.remove();
+        }
+      }
+
+      disableHelper();
+      setProgressAfterCheck();
+      updateExtensionVisibility();
+      if (allCorrect()) extension.scrollIntoView({behavior:"smooth", block:"start"});
     }
 
     checkBtn.addEventListener("click", () => {
       if (!checkAvailable) return;
 
-      // Lock any correct values; animate incorrect slots (no scoring)
+      const correctNow = countCorrectPlaced();
+
+      // Lock correct; flash incorrect
       for (const s of slots){
         if (isSlotLocked(s)) continue;
         const tileId = slotMap.get(s);
@@ -636,168 +829,431 @@
 
       setProgressAfterCheck();
       updateExtensionVisibility();
-      if (allCorrect()){
-        extension.scrollIntoView({behavior:"smooth", block:"start"});
-      }
 
-      // re-lock for 3 mins
+      if (correctNow === 0 && !allCorrect()) enableHelper();
+      else disableHelper();
+
       startCheckCooldown(180);
     });
 
     // ---------- Fullscreen ----------
     fsBtn.addEventListener("click", async () => {
       try{
-        if (!document.fullscreenElement){
-          await document.documentElement.requestFullscreen();
-        } else {
-          await document.exitFullscreen();
-        }
+        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        else await document.exitFullscreen();
       } catch(e){
         alert("Fullscreen isn't available in this browser/context.");
       }
     });
 
     // ============================================================
-    //  Puzzle generation
+    //  Puzzle generation (values + clue assignment)
     // ============================================================
 
-    // FIXED puzzle (loads every time)
+    // Fixed start puzzle (same every time)
     const FIXED = {
       solutions: {
-        E1: { a:"4.00",  b:"2.00",  r:"4.47", t:"0.46" },   // (4 + 2i)
-        E2: { a:"-3.00", b:"3.00",  r:"4.24", t:"2.36" },   // (-3 + 3i)
-        E3: { a:"1.00",  b:"-4.00", r:"4.12", t:"-1.33" }   // (1 - 4i)
+        E1: { a:"4.00",  b:"2.00",  r:"4.47", t:"0.46" },
+        E2: { a:"-3.00", b:"3.00",  r:"4.24", t:"2.36" },
+        E3: { a:"1.00",  b:"-4.00", r:"4.12", t:"-1.33" }
       },
       distractors: ["-2.00", "5.50", "-0.79", "3.10"],
       clues: {
-        E1: 'Clue: has the <strong>smallest positive argument</strong> (closest above 0).',
-        E2: 'Clue: lies in the <strong>second quadrant</strong> and has <strong>|a| = |b|</strong>.',
-        E3: 'Clue: has a <strong>negative imaginary part</strong> and the <strong>largest |b|</strong> of the three.'
+        E1: "Clue: has the <strong>largest modulus</strong>.",
+        E2: "Clue: lies in <strong>Quadrant II</strong>.",
+        E3: "Clue: <strong>r sin(t) = -4.00</strong>."
       }
     };
 
-    function chooseDistinctInt(excludeSet){
-      // choose an integer in [-6..6], excluding 0 optional later
-      while(true){
-        const v = Math.floor(Math.random()*13) - 6;
-        if (!excludeSet.has(v)) return v;
+    function random2dp(min, max){
+      const x = min + Math.random()*(max-min);
+      return +fmt2(x);
+    }
+
+    function generateRandomSolutions(){
+      // a,b can be decimals, but ensure r<=6 and not on axes, and avoid ties (to 2dp)
+      const used = new Set();
+      function genOne(){
+        for (let tries=0; tries<5000; tries++){
+          const a = random2dp(-6,6);
+          const b = random2dp(-6,6);
+          if (Math.abs(a) < 0.05 || Math.abs(b) < 0.05) continue; // avoid axes
+          const r = rOf(a,b);
+          if (r <= 0.05 || r > 6.0) continue;
+          const key = `${fmt2(a)},${fmt2(b)}`;
+          if (used.has(key)) continue;
+          used.add(key);
+          return {a,b,r,t:tOf(a,b)};
+        }
+        // fallback
+        return {a:2.10,b:1.70,r:rOf(2.10,1.70),t:tOf(2.10,1.70)};
       }
+
+      const z1 = genOne(), z2 = genOne(), z3 = genOne();
+
+      // avoid equalities in r,t,a,b to 2dp (helps "largest/smallest" clues)
+      function tweakIfTie(){
+        const Z = [z1,z2,z3].map(z=>({
+          a:fmt2(z.a), b:fmt2(z.b), r:fmt2(z.r), t:fmt2(z.t)
+        }));
+        const seen = new Set();
+        for (const val of Z.flatMap(o=>[o.a,o.b,o.r,o.t])){
+          if (seen.has(val)) return true;
+          seen.add(val);
+        }
+        return false;
+      }
+      if (tweakIfTie()) return generateRandomSolutions();
+
+      return {
+        E1: { a:fmt2(z1.a), b:fmt2(z1.b), r:fmt2(z1.r), t:fmt2(z1.t) },
+        E2: { a:fmt2(z2.a), b:fmt2(z2.b), r:fmt2(z2.r), t:fmt2(z2.t) },
+        E3: { a:fmt2(z3.a), b:fmt2(z3.b), r:fmt2(z3.r), t:fmt2(z3.t) }
+      };
+    }
+
+    function buildDistractors(neededVals){
+      const dis = [];
+      while (dis.length < 4){
+        const v = fmt2(random2dp(-6,6));
+        if (!neededVals.has(v) && !dis.includes(v)) dis.push(v);
+      }
+      return dis;
+    }
+
+    // ---------- Clue predicates: each generator returns {html, test(z)} ----------
+    function makeExtremumClue(field, kind, whichExprKey){
+      // field in ["r","t","a","b"], kind "largest"|"smallest"
+      const label = ({
+        r:"modulus", t:"argument", a:"real part", b:"imaginary part"
+      })[field];
+
+      const vals = {
+        E1: parseSol("E1")[field],
+        E2: parseSol("E2")[field],
+        E3: parseSol("E3")[field]
+      };
+
+      const keys = ["E1","E2","E3"];
+      const sorted = keys.slice().sort((k1,k2)=> vals[k1]-vals[k2]);
+      const target = (kind==="smallest") ? sorted[0] : sorted[2];
+
+      const html = `Clue: has the <strong>${kind} ${label}</strong>.`;
+      const test = (k)=> k===target;
+
+      return { html, test };
+    }
+
+    function quadrantOf(a,b){
+      if (a>0 && b>0) return "I";
+      if (a<0 && b>0) return "II";
+      if (a<0 && b<0) return "III";
+      if (a>0 && b<0) return "IV";
+      return null;
+    }
+
+    function makeQuadrantClue(){
+      const qs = {
+        E1: quadrantOf(parseSol("E1").a, parseSol("E1").b),
+        E2: quadrantOf(parseSol("E2").a, parseSol("E2").b),
+        E3: quadrantOf(parseSol("E3").a, parseSol("E3").b)
+      };
+      const keys = ["E1","E2","E3"];
+      // pick a quadrant that is unique among the three
+      const counts = {};
+      keys.forEach(k => counts[qs[k]] = (counts[qs[k]]||0)+1);
+      const uniques = keys.filter(k => counts[qs[k]]===1);
+      if (uniques.length===0) return null;
+      const target = uniques[Math.floor(Math.random()*uniques.length)];
+      const Q = qs[target];
+      return {
+        html: `Clue: lies in <strong>Quadrant ${Q}</strong>.`,
+        test: (k)=> k===target
+      };
+    }
+
+    function makeDistanceClue(){
+      // integer anchor (p,q), k = dist(z, anchor), ensure k<r for that z
+      const anchors = [];
+      for (let p=-6;p<=6;p++){
+        for (let q=-6;q<=6;q++){
+          if (p===0 && q===0) continue;
+          anchors.push({p,q});
+        }
+      }
+      shuffle(anchors);
+
+      const Z = {E1:parseSol("E1"),E2:parseSol("E2"),E3:parseSol("E3")};
+      const keys = ["E1","E2","E3"];
+
+      for (const A of anchors.slice(0,120)){
+        const d = {};
+        keys.forEach(k => d[k] = +fmt2(dist(Z[k].a,Z[k].b,A.p,A.q)));
+        // pick a key where d is unique and d < r
+        for (const target of keys){
+          const unique = keys.filter(k => d[k]===d[target]).length === 1;
+          const ok = (d[target] > 0.05) && (d[target] < Z[target].r - 0.01);
+          if (unique && ok){
+            const kStr = fmt2(d[target]);
+            const anchorText = fmtIntPoint(A.p,A.q);
+            return {
+              html: `Clue: z is <strong>${kStr}</strong> units from <span class="mono">${anchorText}</span> (and <strong>k &lt; r</strong>).`,
+              test: (k)=> k===target
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function makeBearingClue(){
+      // integer anchor, bearing Nxxx (clockwise from north) unique across three
+      const anchors = [];
+      for (let p=-6;p<=6;p++){
+        for (let q=-6;q<=6;q++){
+          if (p===0 && q===0) continue;
+          anchors.push({p,q});
+        }
+      }
+      shuffle(anchors);
+
+      const Z = {E1:parseSol("E1"),E2:parseSol("E2"),E3:parseSol("E3")};
+      const keys = ["E1","E2","E3"];
+
+      for (const A of anchors.slice(0,120)){
+        const b = {};
+        keys.forEach(k => b[k] = Math.round(bearingFrom(A.p,A.q,Z[k].a,Z[k].b)) % 360);
+        for (const target of keys){
+          const unique = keys.filter(k => b[k]===b[target]).length === 1;
+          // avoid degenerate bearing if z == anchor (won't happen) or dx=dy=0
+          if (unique){
+            const bear = fmtBearing3(b[target]);
+            const anchorText = fmtIntPoint(A.p,A.q);
+            return {
+              html: `Clue: z is on a bearing of <strong>${bear}</strong> from <span class="mono">${anchorText}</span> (clockwise from north).`,
+              test: (k)=> k===target
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function makeInequalityClue(){
+      // Try a chain like -1 < b < r < t < 5 (or permutations), uniquely true for one expression
+      const keys = ["E1","E2","E3"];
+      const vars = ["a","b","r","t"];
+
+      const chains = [
+        ["b","r","t"],
+        ["a","r","t"],
+        ["b","r","a"],
+        ["t","b","r"]
+      ];
+
+      function holds(Z, chain, L, U){
+        const vals = chain.map(v=>Z[v]);
+        if (!(L < vals[0] && vals[vals.length-1] < U)) return false;
+        for (let i=0;i<vals.length-1;i++){
+          if (!(vals[i] < vals[i+1])) return false;
+        }
+        return true;
+      }
+
+      const Z = {E1:parseSol("E1"),E2:parseSol("E2"),E3:parseSol("E3")};
+
+      for (let tries=0; tries<200; tries++){
+        const chain = chains[Math.floor(Math.random()*chains.length)];
+        const L = -5 + Math.floor(Math.random()*5); // -5..-1
+        const U =  1 + Math.floor(Math.random()*5); // 1..5
+        const sat = keys.filter(k => holds(Z[k], chain, L, U));
+        if (sat.length === 1){
+          const target = sat[0];
+          const chainStr = `${L}<${chain[0]}<${chain[1]}<${chain[2]}<${U}`;
+          return {
+            html: `Clue: <strong>${chainStr}</strong>.`,
+            test: (k)=> k===target
+          };
+        }
+      }
+      return null;
+    }
+
+    function makeEquationClue(){
+      // Equations that can uniquely identify one expression
+      const keys = ["E1","E2","E3"];
+      const Z = {E1:parseSol("E1"),E2:parseSol("E2"),E3:parseSol("E3")};
+
+      const forms = [
+        {
+          name: (k)=>`a + r = ${fmt2(Z[k].a + Z[k].r)}`,
+          testVal: (k)=>fmt2(Z[k].a + Z[k].r)
+        },
+        {
+          name: (k)=>`a / b = ${fmt2(Z[k].a / Z[k].b)}`,
+          testVal: (k)=>fmt2(Z[k].a / Z[k].b)
+        },
+        {
+          name: (k)=>`a² + b² = ${fmt2(Z[k].a*Z[k].a + Z[k].b*Z[k].b)}`,
+          testVal: (k)=>fmt2(Z[k].a*Z[k].a + Z[k].b*Z[k].b)
+        },
+        {
+          name: (k)=>`r cos(t) = ${fmt2(Z[k].r * Math.cos(Z[k].t))}`,
+          testVal: (k)=>fmt2(Z[k].r * Math.cos(Z[k].t))
+        },
+        {
+          name: (k)=>`r sin(t) = ${fmt2(Z[k].r * Math.sin(Z[k].t))}`,
+          testVal: (k)=>fmt2(Z[k].r * Math.sin(Z[k].t))
+        }
+      ];
+
+      shuffle(forms);
+
+      for (const f of forms){
+        const vals = {};
+        keys.forEach(k => vals[k] = f.testVal(k));
+        // need a unique one
+        for (const target of keys){
+          const unique = keys.filter(k => vals[k]===vals[target]).length === 1;
+          if (unique){
+            // sometimes add “hint for possible value”
+            const maybeHint = Math.random()<0.33 ? ` <span style="opacity:.9">(hint: one of the values is <strong>${solutions[target].a}</strong>)</span>` : "";
+            return {
+              html: `Clue: <strong>${f.name(target)}</strong>.${maybeHint}`,
+              test: (k)=> k===target
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function makeCombinedClue(){
+      // (a) and (b): combine two distinct clue types that still target same expression uniquely
+      const generators = [makeDistanceClue, makeBearingClue, makeEquationClue, makeInequalityClue, makeQuadrantClue];
+      for (let tries=0; tries<40; tries++){
+        const g1 = generators[Math.floor(Math.random()*generators.length)];
+        const g2 = generators[Math.floor(Math.random()*generators.length)];
+        const c1 = g1();
+        const c2 = g2();
+        if (!c1 || !c2) continue;
+
+        // find target keys
+        const keys = ["E1","E2","E3"];
+        const t1 = keys.find(k => c1.test(k));
+        const t2 = keys.find(k => c2.test(k));
+        if (!t1 || !t2) continue;
+        if (t1 !== t2) continue;
+
+        return {
+          html: `<strong>(a)</strong> ${c1.html} <br/><strong>(b)</strong> ${c2.html}`,
+          test: (k)=> k===t1
+        };
+      }
+      return null;
+    }
+
+    function generateCluesForAll(){
+      // Build 3 clues so each expression is uniquely identified.
+      // We mix clue types including (a)(b) sometimes, plus extremum comparisons.
+      const keys = ["E1","E2","E3"];
+      const clueFor = {E1:null,E2:null,E3:null};
+
+      // Step 1: ensure we can allocate at least one extremum clue (easy uniqueness)
+      const fields = shuffle(["r","t","a","b"]);
+      const kinds  = shuffle(["largest","smallest"]);
+
+      // Create 2 extremum clues for two different expressions
+      for (let i=0; i<2; i++){
+        const field = fields[i % fields.length];
+        const kind = kinds[i % kinds.length];
+        const c = makeExtremumClue(field, kind);
+        const target = keys.find(k => c.test(k));
+        if (target && !clueFor[target]){
+          clueFor[target] = c.html;
+        }
+      }
+
+      // Step 2: fill remaining using richer clue types (including combined)
+      const richGenerators = [
+        makeCombinedClue,
+        makeBearingClue,
+        makeDistanceClue,
+        makeQuadrantClue,
+        makeInequalityClue,
+        makeEquationClue
+      ];
+
+      for (let pass=0; pass<30; pass++){
+        for (const k of keys){
+          if (clueFor[k]) continue;
+
+          const gen = richGenerators[Math.floor(Math.random()*richGenerators.length)];
+          const c = gen();
+          if (!c) continue;
+          const target = keys.find(x => c.test(x));
+          if (target === k && !clueFor[k]){
+            clueFor[k] = c.html;
+          }
+        }
+        if (clueFor.E1 && clueFor.E2 && clueFor.E3) break;
+      }
+
+      // Final fallback if anything missing
+      for (const k of keys){
+        if (!clueFor[k]){
+          clueFor[k] = `Clue: <strong>t = ${solutions[k].t}</strong>.`;
+        }
+      }
+
+      return clueFor;
     }
 
     function generateRandomPuzzle(){
-      // Build 3 complex numbers with uniqueness constraints to support clear clues:
-      // - E1: smallest positive argument
-      // - E2: Q2 and |a|=|b|
-      // - E3: negative imaginary part and largest |b| among the three
-
-      // E2: enforce Q2 and |a|=|b| with a<0, b>0
-      const k = 1 + Math.floor(Math.random()*5); // 1..5
-      const a2 = -k;
-      const b2 =  k;
-
-      // E3: b negative, and its |b| largest of all three (choose 4..6)
-      const b3mag = 4 + Math.floor(Math.random()*3); // 4..6
-      const b3 = -b3mag;
-      // choose a3 nonzero integer, avoid making |a|=|b| like E2 and keep within [-6,6]
-      let a3;
-      do {
-        a3 = Math.floor(Math.random()*13) - 6; // -6..6
-      } while (a3 === 0 || Math.abs(a3) === b3mag); // avoid exact |a|=|b|
-
-      // E1: smallest positive argument: ensure b1>0 and angle small.
-      // choose a1 positive and larger than b1 to keep angle small.
-      const b1 = 1 + Math.floor(Math.random()*3); // 1..3
-      const a1 = 3 + Math.floor(Math.random()*4); // 3..6
-
-      // Now ensure E1 arg is positive and less than E2 arg (which is ~3π/4)
-      // and also less than arg of E3 if E3 has positive angle (but E3 b<0 so angle negative).
-      // So E1 will indeed be "smallest positive".
-
-      const r1 = computeR(a1,b1), t1 = computeT(a1,b1);
-      const r2 = computeR(a2,b2), t2 = computeT(a2,b2);
-      const r3 = computeR(a3,b3), t3 = computeT(a3,b3);
-
-      const sols = {
-        E1: { a: fmt2(a1), b: fmt2(b1), r: fmt2(r1), t: fmt2(t1) },
-        E2: { a: fmt2(a2), b: fmt2(b2), r: fmt2(r2), t: fmt2(t2) },
-        E3: { a: fmt2(a3), b: fmt2(b3), r: fmt2(r3), t: fmt2(t3) }
-      };
-
-      // Create 4 distractors (values not equal to any needed value)
+      const sols = generateRandomSolutions();
+      solutions = sols; // so clue builders can read them
       const neededVals = new Set(Object.values(sols).flatMap(o => Object.values(o)));
-      const dis = [];
-      while (dis.length < 4){
-        // make a mix of ints and decimals
-        let v;
-        if (Math.random() < 0.5){
-          v = fmt2((Math.floor(Math.random()*13)-6)); // integer
-        } else {
-          v = fmt2((Math.random()*12 - 6)); // decimal
-        }
-        if (!neededVals.has(v) && !dis.includes(v)) dis.push(v);
-      }
-
-      const clues = {
-        E1: 'Clue: has the <strong>smallest positive argument</strong> (closest above 0).',
-        E2: 'Clue: lies in the <strong>second quadrant</strong> and has <strong>|a| = |b|</strong>.',
-        E3: 'Clue: has a <strong>negative imaginary part</strong> and the <strong>largest |b|</strong> of the three.'
-      };
-
+      const dis = buildDistractors(neededVals);
+      const clues = generateCluesForAll();
       return { solutions: sols, distractors: dis, clues };
     }
 
+    // ---------- Apply puzzle ----------
     function applyPuzzle(puz){
       solutions = puz.solutions;
       distractors = puz.distractors;
+      neededSet = new Set(Object.values(solutions).flatMap(o => Object.values(o)));
 
       clueE1.innerHTML = puz.clues.E1;
       clueE2.innerHTML = puz.clues.E2;
       clueE3.innerHTML = puz.clues.E3;
 
-      // Reset everything (slots, locks, pile, progress, extension, timers)
       lockedSlots = new Set();
       tileMap = new Map();
       slotMap = new Map();
+      disableHelper();
 
       extension.style.display = "none";
       progressTextEl.textContent = "—";
 
-      // Clear pile
       pile.innerHTML = "";
+      slots.forEach(s => resetSlot(s));
 
-      // Reset slots
-      slots.forEach(s => {
-        s.classList.remove("over","filled","locked");
-        slotMap.set(s, null);
-        s.textContent = "";
-        const tag = document.createElement("small");
-        tag.textContent = s.dataset.role;
-        s.appendChild(tag);
-      });
-
-      // Build tiles (always the same set for fixed; shuffled order is fine)
-      const needed = [
+      const values = [
         solutions.E1.a, solutions.E1.b, solutions.E1.r, solutions.E1.t,
         solutions.E2.a, solutions.E2.b, solutions.E2.r, solutions.E2.t,
         solutions.E3.a, solutions.E3.b, solutions.E3.r, solutions.E3.t,
         ...distractors
       ];
 
-      shuffle(needed).forEach(v => pile.appendChild(makeTile(v)));
-
-      // Re-wire slot behaviour (slotMap reset)
-      slots.forEach(s => { allowDropOnSlot(s); });
-
-      // Start new check cooldown
+      shuffle(values).forEach(v => pile.appendChild(makeTile(v)));
       startCheckCooldown(180);
     }
 
-    // Random button: new numbers + new clues
     randomBtn.addEventListener("click", () => {
       applyPuzzle(generateRandomPuzzle());
     });
 
-    // Initial load: fixed puzzle (same values every time)
     applyPuzzle(FIXED);
   </script>
 </body>

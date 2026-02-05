@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Argand Shooter: Products (Levels 1–3)</title>
+  <style>
+    :root{
+      --text:#e9eefc; --muted:#aab5df;
+      --accent:#66e3ff; --ok:#6dff9a; --warn:#ffd36a; --bad:#ff5c7a;
+    }
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 30% 20%, #182454 0%, #0b1020 55%, #050714 100%);
+      color:var(--text);
+      display:flex; min-height:100vh; align-items:center; justify-content:center;
+    }
+    .wrap{ width:min(1220px, 96vw); display:grid; grid-template-columns: 1.45fr 0.95fr; gap:16px; align-items:start; }
+    canvas{
+      width:100%; height:auto;
+      background: linear-gradient(180deg, #06102a 0%, #050816 100%);
+      border-radius:18px;
+      box-shadow: 0 16px 60px rgba(0,0,0,.45);
+      display:block;
+    }
+    .panel{
+      position:relative;
+      background: rgba(17,26,51,.72);
+      border: 1px solid rgba(102,227,255,.18);
+      border-radius:18px;
+      padding:14px 14px 12px;
+      box-shadow: 0 16px 60px rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+    }
+    h1{ margin:6px 0 10px; font-size:18px; letter-spacing:.2px; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+    .stat{
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      padding:8px 10px;
+      border-radius:12px;
+      flex:1; min-width: 140px;
+    }
+    .stat .k{ color:var(--muted); font-size:12px; }
+    .stat .v{ font-size:18px; font-weight:800; margin-top:2px; }
+    label{ font-size:12px; color:var(--muted); }
+    input, select, button{
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color:var(--text);
+      padding:10px 10px;
+      font-size:14px;
+      outline:none;
+    }
+    input{ width: 170px; }
+    input:focus, select:focus{
+      border-color: rgba(102,227,255,.55);
+      box-shadow: 0 0 0 3px rgba(102,227,255,.18);
+    }
+    button{
+      cursor:pointer;
+      font-weight:800;
+      background: linear-gradient(180deg, rgba(102,227,255,.28), rgba(102,227,255,.10));
+      border-color: rgba(102,227,255,.35);
+    }
+    button:hover{ filter: brightness(1.06); }
+    button:disabled{ opacity:.45; cursor:not-allowed; }
+    .btn2{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.14);
+      font-weight:700;
+    }
+    .sep{ height:1px; background: rgba(255,255,255,.10); margin:12px 0; }
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .dot{ width:10px; height:10px; border-radius:999px; background: var(--accent); box-shadow:0 0 18px rgba(102,227,255,.55); }
+    .dot.yellow{ background: var(--warn); box-shadow:0 0 18px rgba(255,211,106,.55); }
+    .dot.green{ background: var(--ok); box-shadow:0 0 18px rgba(109,255,154,.55); }
+    .hint{ font-size:12px; color:var(--muted); line-height:1.35; margin-top:10px; }
+    .modeBadge{
+      margin-left:auto;
+      font-size:12px;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      color: rgba(233,238,252,.9);
+      white-space:nowrap;
+    }
+
+    .overlay{
+      position:absolute; inset:0;
+      display:none;
+      align-items:center; justify-content:center;
+      background: rgba(5,7,20,.66);
+      border-radius:18px;
+      padding:16px;
+      overflow:auto;
+    }
+    .overlay .card{
+      width:min(920px, 96%);
+      border-radius:16px;
+      border:1px solid rgba(102,227,255,.22);
+      background: rgba(17,26,51,.92);
+      box-shadow: 0 16px 60px rgba(0,0,0,.5);
+      padding:14px;
+    }
+    .overlay h2{ margin:6px 0 8px; font-size:18px; }
+    .overlay p{ margin:6px 0; color:var(--muted); font-size:13px; line-height:1.35; white-space:pre-line; }
+    .overlay .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .overlay .actions button{ flex:1; min-width:180px; }
+
+    .stars{
+      font-size:28px;
+      letter-spacing:4px;
+      margin:10px 0 6px;
+      color: rgba(255,211,106,.95);
+      text-shadow: 0 0 18px rgba(255,211,106,.35);
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      margin-top:12px;
+      font-size:13px;
+    }
+    th, td{
+      border:1px solid rgba(255,255,255,.12);
+      padding:8px 10px;
+      vertical-align: top;
+    }
+    th{
+      text-align:left;
+      color: rgba(233,238,252,.92);
+      background: rgba(255,255,255,.06);
+      font-weight:800;
+    }
+    td{
+      color: rgba(233,238,252,.86);
+      background: rgba(255,255,255,.03);
+    }
+    .tagBad{
+      display:inline-block;
+      font-weight:900;
+      color: rgba(255,255,255,.95);
+      background: rgba(255,92,122,.25);
+      border:1px solid rgba(255,92,122,.45);
+      padding:2px 8px;
+      border-radius:999px;
+      margin-left:8px;
+      font-size:12px;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <canvas id="cv" width="920" height="680"></canvas>
+    </div>
+
+    <div class="panel">
+      <h1>Argand Shooter: Complex Products</h1>
+
+      <div class="row">
+        <div class="stat">
+          <div class="k">Time left (active play)</div>
+          <div class="v"><span id="timeLeft">2:00</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Level</div>
+          <div class="v"><span id="level">–</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="stat">
+          <div class="k">Total score</div>
+          <div class="v"><span id="scoreTotal">0</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Shots left (this level)</div>
+          <div class="v"><span id="shotsLeft">–</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="pill"><span class="dot yellow"></span> factors (z₁, z₂, z₃)</span>
+        <span class="pill"><span class="dot green"></span> your shot</span>
+        <span id="stateBadge" class="modeBadge">Not started</span>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <label for="mode">Input mode</label>
+        <select id="mode">
+          <option value="modarg">Modulus &amp; argument</option>
+          <option value="reim">Real &amp; imaginary</option>
+        </select>
+
+        <label for="angleUnit" style="margin-left:6px;">Angle unit</label>
+        <select id="angleUnit">
+          <option value="deg" selected>Degrees</option>
+          <option value="rad">Radians</option>
+        </select>
+      </div>
+
+      <div id="inputsModArg" class="grid2">
+        <div>
+          <label for="modulus">Modulus r</label><br>
+          <input id="modulus" type="number" step="0.1" placeholder="e.g. 5.0" />
+        </div>
+        <div>
+          <label for="argument">Argument θ (<span id="thetaUnit">degrees</span>)</label><br>
+          <input id="argument" type="number" step="0.5" placeholder="e.g. 45 or -120" />
+        </div>
+      </div>
+
+      <div id="inputsReIm" class="grid2" style="display:none;">
+        <div>
+          <label for="re">Real part a</label><br>
+          <input id="re" type="number" step="0.1" placeholder="e.g. 3.0" />
+        </div>
+        <div>
+          <label for="im">Imag part b</label><br>
+          <input id="im" type="number" step="0.1" placeholder="e.g. -2.0" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="shootBtn" disabled>Shoot</button>
+        <button id="resetBtn" class="btn2">Reset</button>
+      </div>
+
+      <div class="hint">
+        • If you score <b>0</b> on a shot, it will be saved and shown in a review table at the end.<br>
+        • Correct answer and all displayed values are shown as <span class="mono">r cis θ</span> in the review.
+      </div>
+
+      <div id="overlay" class="overlay">
+        <div class="card">
+          <h2 id="overlayTitle">Ready?</h2>
+          <div id="overlayStars" class="stars" style="display:none;"></div>
+          <p id="overlayText"></p>
+          <div id="overlayTableWrap"></div>
+          <div class="actions">
+            <button id="overlayPrimaryBtn">Start</button>
+            <button id="overlaySecondaryBtn" class="btn2" style="display:none;">Secondary</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // -------- DOM --------
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  const timeLeftEl = document.getElementById('timeLeft');
+  const levelEl = document.getElementById('level');
+  const scoreTotalEl = document.getElementById('scoreTotal');
+  const shotsLeftEl = document.getElementById('shotsLeft');
+  const stateBadgeEl = document.getElementById('stateBadge');
+
+  const modeEl = document.getElementById('mode');
+  const angleUnitEl = document.getElementById('angleUnit');
+  const thetaUnitEl = document.getElementById('thetaUnit');
+
+  const inputsModArg = document.getElementById('inputsModArg');
+  const inputsReIm = document.getElementById('inputsReIm');
+
+  const modulusEl = document.getElementById('modulus');
+  const argumentEl = document.getElementById('argument');
+  const reEl = document.getElementById('re');
+  const imEl = document.getElementById('im');
+
+  const shootBtn = document.getElementById('shootBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayText = document.getElementById('overlayText');
+  const overlayPrimaryBtn = document.getElementById('overlayPrimaryBtn');
+  const overlaySecondaryBtn = document.getElementById('overlaySecondaryBtn');
+  const overlayStars = document.getElementById('overlayStars');
+  const overlayTableWrap = document.getElementById('overlayTableWrap');
+
+  // -------- Canvas/world --------
+  const W = cv.width, H = cv.height;
+  const center = { x: W*0.5, y: H*0.5 };
+  const BOUND = 12;            // enforce |x|,|y| <= 12 for hidden product
+  const worldRadius = 12;      // draw grid to r=12
+  const pxPerUnit = Math.min(W, H) * 0.42 / worldRadius;
+  const toScreen = (p) => ({ x: center.x + p.x*pxPerUnit, y: center.y - p.y*pxPerUnit });
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+  // -------- Complex helpers --------
+  const C = (re, im) => ({ re, im });
+  const cMul = (z, w) => C(z.re*w.re - z.im*w.im, z.re*w.im + z.im*w.re);
+  const cToPoint = (z) => ({ x: z.re, y: z.im });
+
+  function cisToString(z){
+    // r cis θ, θ in radians in [-pi, pi)
+    const r = Math.hypot(z.re, z.im);
+    let th = Math.atan2(z.im, z.re);
+    // pretty rounding
+    const rStr = (Math.round(r*100)/100).toFixed(2).replace(/\.00$/,'');
+    const thStr = (Math.round(th*100)/100).toFixed(2).replace(/\.00$/,'');
+    return `${rStr} cis ${thStr}`;
+  }
+
+  // -------- Rules --------
+  const TOTAL_ACTIVE_MS = 120000;
+  const SHOTS_PER_LEVEL = 5;
+  const SCORE_MAXDIST = 2.0;
+  const ARROW_DUR = 420;
+
+  function scoreShot(d){
+    if(d > SCORE_MAXDIST) return 0;
+    const s = 10 * (1 - d / SCORE_MAXDIST);
+    return Math.max(0, Math.min(10, Math.round(s)));
+  }
+
+  // -------- State --------
+  const S = {
+    phase: 'start',  // start | playing | pause | ended
+    level: 1,
+    totalScore: 0,
+    shotsLeft: SHOTS_PER_LEVEL,
+    activeMsLeft: TOTAL_ACTIVE_MS,
+    lastTick: performance.now(),
+
+    firstRoundPending: {1:true, 2:true, 3:true},
+
+    factors: [],
+    target: C(0,0),     // hidden product
+    shotPoint: null,
+    arrow: null,
+    popups: [],
+
+    zeroLog: [] // entries when score==0
+  };
+
+  // -------- UI helpers --------
+  function mmss(ms){
+    ms = Math.max(0, ms);
+    const total = Math.ceil(ms/1000);
+    const m = Math.floor(total/60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  function starsForScore(score){
+    if(score < 25) return {stars:0, msg:"Better luck next time"};
+    if(score <= 50) return {stars:1, msg:"Keep trying"};
+    if(score <= 80) return {stars:2, msg:"Good progress"};
+    return {stars:3, msg:"Complex king!"};
+  }
+
+  function setOverlay(show, title, text, primaryText, primaryFn, secondaryText, secondaryFn, starsCount=null, tableHTML=null){
+    overlay.style.display = show ? 'flex' : 'none';
+    overlayTitle.textContent = title || '';
+    overlayText.textContent = text || '';
+
+    overlayPrimaryBtn.textContent = primaryText || 'Continue';
+    overlayPrimaryBtn.onclick = primaryFn || (()=>{});
+
+    if(secondaryText){
+      overlaySecondaryBtn.style.display = '';
+      overlaySecondaryBtn.textContent = secondaryText;
+      overlaySecondaryBtn.onclick = secondaryFn || (()=>{});
+    } else {
+      overlaySecondaryBtn.style.display = 'none';
+    }
+
+    if(starsCount === null){
+      overlayStars.style.display = 'none';
+      overlayStars.textContent = '';
+    } else {
+      overlayStars.style.display = '';
+      overlayStars.textContent = '★'.repeat(starsCount);
+    }
+
+    overlayTableWrap.innerHTML = tableHTML || '';
+  }
+
+  function refreshHUD(){
+    timeLeftEl.textContent = mmss(S.activeMsLeft);
+    levelEl.textContent = String(S.level);
+    scoreTotalEl.textContent = String(S.totalScore);
+    shotsLeftEl.textContent = String(S.shotsLeft);
+
+    if(S.phase === 'playing') stateBadgeEl.textContent = `Playing (Level ${S.level})`;
+    else if(S.phase === 'pause') stateBadgeEl.textContent = `Paused (Level ${S.level})`;
+    else if(S.phase === 'ended') stateBadgeEl.textContent = `Finished`;
+    else stateBadgeEl.textContent = `Not started`;
+
+    shootBtn.disabled = (S.phase !== 'playing') || (S.shotsLeft <= 0) || (S.activeMsLeft <= 0);
+  }
+
+  function clearInputs(){
+    modulusEl.value = '';
+    argumentEl.value = '';
+    reEl.value = '';
+    imEl.value = '';
+  }
+
+  function focusFirstBox(){
+    if(modeEl.value === 'modarg') modulusEl.focus();
+    else reEl.focus();
+  }
+
+  function syncInputsUI(){
+    const mode = modeEl.value;
+    inputsModArg.style.display = (mode === 'modarg') ? '' : 'none';
+    inputsReIm.style.display = (mode === 'reim') ? '' : 'none';
+
+    if(mode === 'modarg'){
+      angleUnitEl.disabled = false;
+      if(angleUnitEl.value === 'deg'){
+        thetaUnitEl.textContent = 'degrees';
+        argumentEl.step = "0.5";
+        argumentEl.placeholder = "e.g. 45 or -120";
+      } else {
+        thetaUnitEl.textContent = 'radians';
+        argumentEl.step = "0.01";
+        argumentEl.placeholder = "e.g. 0.52 or -2.10";
+      }
+    } else {
+      angleUnitEl.disabled = true;
+    }
+
+    clearInputs();
+    focusFirstBox();
+  }
+
+  // -------- Random generation (hidden product within |x|,|y|<=12) --------
+  function randChoice(arr){ return arr[(Math.random()*arr.length)|0]; }
+  function rand(a,b){ return a + Math.random()*(b-a); }
+
+  function polarToComplex(r, th){
+    return C(r*Math.cos(th), r*Math.sin(th));
+  }
+
+  function randomFactor(level, easy){
+    const ranges = {
+      1: easy ? [2,8]   : [0.8, 11.8],
+      2: easy ? [1.5,3] : [0.8, 4.8],
+      3: easy ? [1.2,2] : [0.7, 3.2],
+    };
+    const [rMin, rMax] = ranges[level];
+
+    if(easy){
+      const r = randChoice([1,2,3,4,5,6,7,8,9,10,11].filter(x => x>=rMin && x<=rMax));
+      const deg = randChoice(Array.from({length:24}, (_,i)=>i*15));
+      return polarToComplex(r, deg*Math.PI/180);
+    } else {
+      const r = rand(rMin, rMax);
+      const th = rand(0, Math.PI*2);
+      return polarToComplex(r, th);
+    }
+  }
+
+  function productWithinBounds(prod){
+    return Math.abs(prod.re) <= BOUND && Math.abs(prod.im) <= BOUND;
+  }
+
+  function setupRound(){
+    const n = S.level;
+    const easy = S.firstRoundPending[S.level] === true;
+
+    for(let attempt=0; attempt<10000; attempt++){
+      const factors = [];
+      for(let i=0;i<n;i++) factors.push(randomFactor(S.level, easy));
+
+      let prod = C(1,0);
+      for(const z of factors) prod = cMul(prod, z);
+
+      if(productWithinBounds(prod)){
+        S.factors = factors;
+        S.target = prod;
+        S.firstRoundPending[S.level] = false;
+        return;
+      }
+    }
+
+    // fallback
+    const factors = [];
+    for(let i=0;i<n;i++) factors.push(polarToComplex(1.2, 0.3));
+    let prod = C(1,0);
+    for(const z of factors) prod = cMul(prod, z);
+    S.factors = factors;
+    S.target = prod;
+    S.firstRoundPending[S.level] = false;
+  }
+
+  // -------- Progression / end --------
+  function buildZeroLogTable(){
+    if(S.zeroLog.length === 0){
+      return `<p>No 0-score shots 🎉</p>`;
+    }
+    const rows = S.zeroLog.map((e, idx) => {
+      const factorsStr = e.factors.map(cisToString).join('<br>');
+      return `
+        <tr>
+          <td>${idx+1}</td>
+          <td>${e.level}</td>
+          <td class="mono">${factorsStr}</td>
+          <td class="mono">${cisToString(e.guess)}</td>
+          <td class="mono">${cisToString(e.correct)} <span class="tagBad">0</span></td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <h3 style="margin:14px 0 6px; font-size:15px;">0-score shot review</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Level</th>
+            <th>Given point(s)</th>
+            <th>Your guess</th>
+            <th>Correct answer</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function pauseForNextLevel(nextLevel){
+    S.phase = 'pause';
+    refreshHUD();
+    setOverlay(true,
+      `Level ${S.level} complete`,
+      `Total score: ${S.totalScore}\nClick to continue to Level ${nextLevel}.\n(Shots reset to 5. Timer is paused.)`,
+      `Continue to Level ${nextLevel}`,
+      () => {
+        setOverlay(false);
+        S.phase = 'playing';
+        S.level = nextLevel;
+        S.shotsLeft = SHOTS_PER_LEVEL;
+        S.shotPoint = null;
+        S.arrow = null;
+        clearInputs();
+        focusFirstBox();
+        setupRound();
+        refreshHUD();
+      }
+    );
+  }
+
+  function endGame(title, reason){
+    S.phase = 'ended';
+    refreshHUD();
+    const {stars, msg} = starsForScore(S.totalScore);
+    const tableHTML = buildZeroLogTable();
+    setOverlay(true,
+      title,
+      `${reason}\nFinal score: ${S.totalScore}\n${msg}`,
+      "Play again (Level 1)",
+      () => { setOverlay(false); resetAll(true); },
+      null, null,
+      stars,
+      tableHTML
+    );
+  }
+
+  function resetAll(showOverlay=true){
+    S.phase = 'start';
+    S.level = 1;
+    S.totalScore = 0;
+    S.shotsLeft = SHOTS_PER_LEVEL;
+    S.activeMsLeft = TOTAL_ACTIVE_MS;
+    S.lastTick = performance.now();
+    S.firstRoundPending = {1:true, 2:true, 3:true};
+    S.factors = [];
+    S.target = C(0,0);
+    S.shotPoint = null;
+    S.arrow = null;
+    S.popups = [];
+    S.zeroLog = [];
+
+    setupRound();
+    refreshHUD();
+    clearInputs();
+    focusFirstBox();
+
+    if(showOverlay){
+      setOverlay(true,
+        "Ready?",
+        "Timer starts when you click Start.\n\nLevel 1: shoot z₁.\nLevel 2: shoot z₁×z₂.\nLevel 3: shoot z₁×z₂×z₃.\n\n2 minutes active play total (timer pauses between levels).\nShots reset to 5 at the start of each level.\nOnly the first round of each level uses easy grid points.\nHidden product always satisfies −12 ≤ x,y ≤ 12.",
+        "Start Level 1",
+        () => { setOverlay(false); startGame(); }
+      );
+    } else {
+      overlay.style.display = 'none';
+    }
+  }
+
+  function startGame(){
+    S.phase = 'playing';
+    S.level = 1;
+    S.totalScore = 0;
+    S.shotsLeft = SHOTS_PER_LEVEL;
+    S.activeMsLeft = TOTAL_ACTIVE_MS;
+    S.lastTick = performance.now();
+    S.firstRoundPending = {1:true, 2:true, 3:true};
+    S.popups = [];
+    S.shotPoint = null;
+    S.arrow = null;
+    S.zeroLog = [];
+
+    setupRound();
+    refreshHUD();
+    clearInputs();
+    focusFirstBox();
+  }
+
+  function maybeLevelUp(){
+    if(S.phase !== 'playing') return;
+    if(S.level === 1 && S.totalScore > 25){
+      pauseForNextLevel(2);
+    } else if(S.level === 2 && S.totalScore > 50){
+      pauseForNextLevel(3);
+    }
+  }
+
+  // -------- Input -> point --------
+  function getUserPoint(){
+    const mode = modeEl.value;
+    if(mode === 'modarg'){
+      const r = Number(modulusEl.value);
+      let th = Number(argumentEl.value);
+      if(!Number.isFinite(r) || !Number.isFinite(th)) return null;
+      if(angleUnitEl.value === 'deg') th = th * Math.PI/180;
+      return { x: r*Math.cos(th), y: r*Math.sin(th) };
+    } else {
+      const a = Number(reEl.value);
+      const b = Number(imEl.value);
+      if(!Number.isFinite(a) || !Number.isFinite(b)) return null;
+      return { x:a, y:b };
+    }
+  }
+
+  // -------- Shooting --------
+  function addPopup(x,y,text){
+    S.popups.push({ x,y,text, t0: performance.now(), dur: 950 });
+    while(S.popups.length > 10) S.popups.shift();
+  }
+
+  function shoot(){
+    if(S.phase !== 'playing') return;
+    if(S.shotsLeft <= 0) return;
+    if(S.activeMsLeft <= 0) return;
+
+    const p = getUserPoint();
+    if(!p) return;
+
+    const targetP = cToPoint(S.target);
+    const d = Math.hypot(p.x - targetP.x, p.y - targetP.y);
+    const s = scoreShot(d);
+
+    // log if score == 0
+    if(s === 0){
+      S.zeroLog.push({
+        level: S.level,
+        factors: S.factors.map(z => C(z.re, z.im)),
+        guess: C(p.x, p.y),
+        correct: C(S.target.re, S.target.im)
+      });
+    }
+
+    S.totalScore += s;
+    S.shotsLeft = Math.max(0, S.shotsLeft - 1);
+
+    S.shotPoint = { x:p.x, y:p.y };
+    S.arrow = { from:{x:0,y:0}, to:{x:p.x,y:p.y}, t0: performance.now(), dur: ARROW_DUR };
+    addPopup(p.x, p.y, String(s));
+
+    setTimeout(() => {
+      if(S.phase !== 'playing') return;
+      setupRound();
+    }, ARROW_DUR + 140);
+
+    clearInputs();
+    focusFirstBox();
+    refreshHUD();
+
+    if(S.shotsLeft <= 0){
+      endGame("Out of shots!", "You used all your shots.");
+      return;
+    }
+
+    maybeLevelUp();
+  }
+
+  // -------- Drawing --------
+  function drawPolarGrid(){
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // circles every 1 unit
+    for(let r=1; r<=worldRadius; r++){
+      const pr = r * pxPerUnit;
+      const major = (r % 4 === 0);
+      ctx.strokeStyle = major ? 'rgba(233,238,252,.26)' : 'rgba(233,238,252,.16)';
+      ctx.lineWidth = major ? 2.0 : 1.35;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, pr, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    // spokes every 15 degrees
+    for(let deg=0; deg<180; deg+=15){
+      const a = deg * Math.PI/180;
+      const x = Math.cos(a)*worldRadius, y = Math.sin(a)*worldRadius;
+      const p2 = toScreen({x, y});
+      const p3 = toScreen({x:-x, y:-y});
+
+      const major = (deg % 45 === 0);
+      ctx.strokeStyle = major ? 'rgba(233,238,252,.24)' : 'rgba(233,238,252,.14)';
+      ctx.lineWidth = major ? 2.0 : 1.2;
+
+      ctx.beginPath();
+      ctx.moveTo(p3.x, p3.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    // axes
+    ctx.strokeStyle = 'rgba(233,238,252,.38)';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(0, center.y); ctx.lineTo(W, center.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(center.x, 0); ctx.lineTo(center.x, H); ctx.stroke();
+
+    // labels
+    ctx.fillStyle = 'rgba(233,238,252,.85)';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText('Re', W - 40, center.y - 8);
+    ctx.fillText('Im', center.x + 8, 22);
+
+    ctx.restore();
+  }
+
+  function drawPoint(p, color, radius=7, glow=true){
+    const s = toScreen(p);
+    ctx.save();
+    if(glow){
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 18;
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, radius, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, radius, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLabelNear(p, text, color='rgba(255,232,168,.95)'){
+    const s = toScreen(p);
+    ctx.save();
+    ctx.font = '800 14px system-ui, sans-serif';
+    ctx.fillStyle = color;
+    ctx.shadowColor = 'rgba(0,0,0,.65)';
+    ctx.shadowBlur = 10;
+    ctx.fillText(text, s.x + 10, s.y - 10);
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, t){
+    const x = from.x + (to.x - from.x)*t;
+    const y = from.y + (to.y - from.y)*t;
+
+    const s0 = toScreen(from);
+    const s1 = toScreen({x, y});
+
+    const dx = s1.x - s0.x, dy = s1.y - s0.y;
+    const ang = Math.atan2(dy, dx);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(109,255,154,.95)';
+    ctx.lineWidth = 4;
+    ctx.shadowColor = 'rgba(109,255,154,.55)';
+    ctx.shadowBlur = 14;
+
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.stroke();
+
+    const head = 14;
+    ctx.fillStyle = 'rgba(109,255,154,.95)';
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s1.x - head*Math.cos(ang - Math.PI/7), s1.y - head*Math.sin(ang - Math.PI/7));
+    ctx.lineTo(s1.x - head*Math.cos(ang + Math.PI/7), s1.y - head*Math.sin(ang + Math.PI/7));
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawPopups(now){
+    for(let i=S.popups.length-1; i>=0; i--){
+      const p = S.popups[i];
+      const t = (now - p.t0) / p.dur;
+      if(t >= 1){
+        S.popups.splice(i,1);
+        continue;
+      }
+      const alpha = 1 - t;
+      const rise = 18 * t;
+      const s = toScreen({x:p.x, y:p.y});
+      const x = s.x + 12;
+      const y = s.y - 12 - rise;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = '900 24px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(233,238,252,1)';
+      ctx.shadowColor = 'rgba(0,0,0,.65)';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = 'rgba(0,0,0,.55)';
+      ctx.lineWidth = 4;
+      ctx.strokeText(p.text, x, y);
+      ctx.fillText(p.text, x, y);
+      ctx.restore();
+    }
+  }
+
+  function drawTitle(){
+    ctx.save();
+    ctx.fillStyle = 'rgba(233,238,252,.95)';
+    ctx.font = '800 18px system-ui, sans-serif';
+    const objective = (S.level === 1) ? 'Shoot z₁' : (S.level === 2) ? 'Shoot z₁ × z₂' : 'Shoot z₁ × z₂ × z₃';
+    ctx.fillText(`Level ${S.level}: ${objective}`, 18, 30);
+
+    ctx.fillStyle = 'rgba(170,181,223,.9)';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText(`Total score: ${S.totalScore}   •   Shots left: ${S.shotsLeft}   •   Time left: ${mmss(S.activeMsLeft)}`, 18, 52);
+
+    if(S.phase !== 'playing'){
+      ctx.fillStyle = 'rgba(170,181,223,.75)';
+      ctx.fillText(`(Timer paused)`, 18, 74);
+    }
+    ctx.restore();
+  }
+
+  // -------- Timer --------
+  function updateTimer(now){
+    const dt = now - S.lastTick;
+    S.lastTick = now;
+
+    if(S.phase === 'playing'){
+      S.activeMsLeft = Math.max(0, S.activeMsLeft - dt);
+      if(S.activeMsLeft <= 0){
+        endGame("Time!", "The timer has finished.");
+      }
+    }
+  }
+
+  // -------- Events --------
+  modeEl.addEventListener('change', syncInputsUI);
+  angleUnitEl.addEventListener('change', syncInputsUI);
+  shootBtn.addEventListener('click', shoot);
+  resetBtn.addEventListener('click', () => resetAll(true));
+
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && overlay.style.display === 'none' && S.phase === 'playing'){
+      e.preventDefault();
+      shoot();
+    }
+  });
+
+  // -------- Main loop --------
+  function tick(now){
+    updateTimer(now);
+    refreshHUD();
+
+    ctx.clearRect(0,0,W,H);
+    drawPolarGrid();
+    drawTitle();
+
+    // Do not show any points until timer has started (phase !== 'start')
+    const canShowPoints = (S.phase !== 'start');
+
+    if(canShowPoints){
+      // factors
+      for(let i=0;i<S.factors.length;i++){
+        const p = cToPoint(S.factors[i]);
+        drawPoint(p, 'rgba(255,211,106,.95)', 7, true);
+        drawLabelNear(p, `z${i+1}`);
+      }
+
+      // shot marker
+      if(S.shotPoint){
+        drawPoint(S.shotPoint, 'rgba(109,255,154,.95)', 7, true);
+      }
+
+      // arrow
+      if(S.arrow){
+        const t = clamp((now - S.arrow.t0)/S.arrow.dur, 0, 1);
+        const tt = 1 - Math.pow(1 - t, 3);
+        drawArrow(S.arrow.from, S.arrow.to, tt);
+        if(t >= 1) S.arrow = null;
+      }
+
+      drawPopups(now);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  // -------- Init --------
+  angleUnitEl.value = "deg";
+  syncInputsUI();
+
+  // Prepare first hidden round, but keep phase=start so nothing is drawn yet.
+  setupRound();
+  refreshHUD();
+
+  setOverlay(true,
+    "Ready?",
+    "Timer starts when you click Start.\n\nLevel 1: shoot z₁.\nLevel 2: shoot z₁×z₂.\nLevel 3: shoot z₁×z₂×z₃.\n\n2 minutes active play total (timer pauses between levels).\nShots reset to 5 at the start of each level.\nOnly the first round of each level uses easy grid points.\nHidden product always satisfies −12 ≤ x,y ≤ 12.\n\nAt the end, you’ll see a table reviewing any 0-score shots.",
+    "Start Level 1",
+    () => { setOverlay(false); startGame(); }
+  );
+
+  requestAnimationFrame(tick);
+
+  // Level-up checks (in addition to after shots)
+  setInterval(() => {
+    if(S.phase !== 'playing') return;
+    if(S.level === 1 && S.totalScore > 25) pauseForNextLevel(2);
+    else if(S.level === 2 && S.totalScore > 50) pauseForNextLevel(3);
+  }, 250);
+})();
+</script>
+</body>
+</html>
