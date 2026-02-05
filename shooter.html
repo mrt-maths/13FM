@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Argand Shooter</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#111a33; --text:#e9eefc; --muted:#aab5df; --accent:#66e3ff; --danger:#ff5c7a; --ok:#6dff9a; }
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 30% 20%, #182454 0%, var(--bg) 55%, #070a14 100%);
+      color:var(--text); display:flex; min-height:100vh; align-items:center; justify-content:center;
+    }
+    .wrap{ width:min(1100px, 96vw); display:grid; grid-template-columns: 1.4fr 0.9fr; gap:16px; }
+    canvas{ width:100%; height:auto; background: linear-gradient(180deg, #081028 0%, #060a18 100%); border-radius:18px; box-shadow: 0 16px 60px rgba(0,0,0,.45); }
+    .panel{
+      background: rgba(17,26,51,.72);
+      border: 1px solid rgba(102,227,255,.18);
+      border-radius:18px; padding:14px 14px 12px;
+      box-shadow: 0 16px 60px rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+    }
+    h1{ margin:6px 0 10px; font-size:18px; letter-spacing:.2px; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+    .stat{ background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      padding:8px 10px; border-radius:12px; flex:1; min-width: 140px;
+    }
+    .stat .k{ color:var(--muted); font-size:12px; }
+    .stat .v{ font-size:18px; font-weight:700; margin-top:2px; }
+    label{ font-size:12px; color:var(--muted); }
+    input, select, button{
+      border-radius:12px; border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06); color:var(--text);
+      padding:10px 10px; font-size:14px; outline:none;
+    }
+    input{ width: 170px; }
+    input:focus, select:focus{ border-color: rgba(102,227,255,.55); box-shadow: 0 0 0 3px rgba(102,227,255,.18); }
+    button{
+      cursor:pointer; font-weight:700; background: linear-gradient(180deg, rgba(102,227,255,.28), rgba(102,227,255,.10));
+      border-color: rgba(102,227,255,.35);
+    }
+    button:hover{ filter: brightness(1.06); }
+    button:disabled{ opacity:.45; cursor:not-allowed; }
+    .btn2{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); font-weight:600; }
+    .hint{ font-size:12px; color:var(--muted); line-height:1.35; margin-top:10px; }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); font-size:12px; color:var(--muted);
+    }
+    .dot{ width:10px; height:10px; border-radius:999px; background: var(--accent); box-shadow:0 0 18px rgba(102,227,255,.55); }
+    .dot.red{ background: var(--danger); box-shadow:0 0 18px rgba(255,92,122,.55); }
+    .dot.green{ background: var(--ok); box-shadow:0 0 18px rgba(109,255,154,.55); }
+    .small{ font-size:12px; color:var(--muted); }
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .sep{ height:1px; background: rgba(255,255,255,.10); margin:12px 0; }
+    .modeBadge{
+      margin-left:auto;
+      font-size:12px;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      color: rgba(233,238,252,.9);
+      white-space:nowrap;
+    }
+    .inlineRow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .miniSelect{ padding:8px 10px; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <canvas id="cv" width="900" height="650"></canvas>
+    </div>
+
+    <div class="panel">
+      <h1>Argand Shooter</h1>
+
+      <div class="row">
+        <div class="stat">
+          <div class="k">Time left</div>
+          <div class="v"><span id="timeLeft">–</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Shots left</div>
+          <div class="v"><span id="shotsLeft">∞</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="stat">
+          <div class="k">Total score</div>
+          <div class="v"><span id="scoreTotal">0</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Last shot</div>
+          <div class="v"><span id="scoreLast">–</span> / 10</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="stat">
+          <div class="k">Best (this run)</div>
+          <div class="v"><span id="bestRun">0</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Accuracy rule</div>
+          <div class="v"><span style="font-size:14px;">&gt; 2 units away → 0</span></div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <label for="mode">Input mode</label>
+        <select id="mode">
+          <option value="modarg">Modulus &amp; argument</option>
+          <option value="reim">Real &amp; imaginary</option>
+        </select>
+        <span class="pill"><span class="dot red"></span> target</span>
+        <span class="pill"><span class="dot green"></span> your shot</span>
+        <span id="runState" class="modeBadge">Practice (no scoring)</span>
+      </div>
+
+      <!-- Angle unit option (only relevant for mod/arg) -->
+      <div class="row" id="angleUnitRow">
+        <label for="angleUnit">Angle unit</label>
+        <select id="angleUnit" class="miniSelect" title="Angle unit for θ">
+          <option value="rad">Radians</option>
+          <option value="deg">Degrees</option>
+        </select>
+        <span class="small">Measured from +Re axis anticlockwise (θ may be negative).</span>
+      </div>
+
+      <div id="inputsModArg" class="grid2">
+        <div>
+          <label for="modulus">Modulus r</label><br>
+          <input id="modulus" type="number" step="0.1" placeholder="e.g. 5.2" />
+        </div>
+        <div>
+          <label for="argument">Argument θ (<span id="thetaUnitLabel">radians</span>)</label><br>
+          <input id="argument" type="number" step="0.01" placeholder="e.g. 1.20 or -2.50" />
+        </div>
+      </div>
+
+      <div id="inputsReIm" class="grid2" style="display:none;">
+        <div>
+          <label for="re">Real part a</label><br>
+          <input id="re" type="number" step="0.1" placeholder="e.g. 3.5" />
+        </div>
+        <div>
+          <label for="im">Imag part b</label><br>
+          <input id="im" type="number" step="0.1" placeholder="e.g. -2" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="startBtn">Start 1-minute run (12 shots)</button>
+        <button id="shootBtn">Shoot</button>
+        <button id="resetBtn" class="btn2">Reset</button>
+      </div>
+
+      <div class="hint">
+        • Practice freely until you click <b>Start 1-minute run</b> (no points in practice).<br>
+        • Use <b>Tab</b> to move between boxes. Press <b>Enter</b> to shoot. After each shot, inputs clear and focus returns to the first box.<br>
+        • After you shoot, your <b>score (0–10)</b> appears on the diagram near your shot.
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  const modeEl = document.getElementById('mode');
+  const inputsModArg = document.getElementById('inputsModArg');
+  const inputsReIm = document.getElementById('inputsReIm');
+
+  const angleUnitRow = document.getElementById('angleUnitRow');
+  const angleUnitEl = document.getElementById('angleUnit');
+  const thetaUnitLabelEl = document.getElementById('thetaUnitLabel');
+
+  const modulusEl = document.getElementById('modulus');
+  const argumentEl = document.getElementById('argument');
+  const reEl = document.getElementById('re');
+  const imEl = document.getElementById('im');
+
+  const startBtn = document.getElementById('startBtn');
+  const shootBtn = document.getElementById('shootBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const timeLeftEl = document.getElementById('timeLeft');
+  const shotsLeftEl = document.getElementById('shotsLeft');
+  const scoreTotalEl = document.getElementById('scoreTotal');
+  const scoreLastEl = document.getElementById('scoreLast');
+  const bestRunEl = document.getElementById('bestRun');
+  const runStateEl = document.getElementById('runState');
+
+  // --- viewport ---
+  const W = cv.width, H = cv.height;
+  const center = { x: W * 0.5, y: H * 0.5 };
+  const worldRadius = 10;
+  const pxPerUnit = Math.min(W, H) * 0.42 / worldRadius;
+
+  const toScreen = (p) => ({ x: center.x + p.x * pxPerUnit, y: center.y - p.y * pxPerUnit });
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // --- game state ---
+  let running = false;         // true only during the 1-minute run
+  let tEnd = 0;
+  let shotsLeft = Infinity;    // 12 during run, infinite during practice
+  let totalScore = 0;
+  let bestRun = 0;
+  let lastScore = null;
+
+  let target = { x: 0, y: 0 };
+  let shotPoint = null;
+  let arrow = null;
+
+  // score popups: {x,y,text,t0,dur}
+  const popups = [];
+  const popupDur = 950; // ms
+
+  // stricter scoring: > 2 units => 0
+  const maxDist = 2.0;
+
+  function scoreShot(dist){
+    if(dist > maxDist) return 0;
+    const s = 10 * (1 - (dist / maxDist)); // linear 10->0 over [0,2]
+    return Math.max(0, Math.min(10, Math.round(s)));
+  }
+
+  function updateHud(){
+    runStateEl.textContent = running ? '1-minute run (scoring ON)' : 'Practice (no scoring)';
+    timeLeftEl.textContent = running ? `${Math.max(0, (tEnd - performance.now())/1000).toFixed(1)}s` : '–';
+    shotsLeftEl.textContent = running ? String(shotsLeft) : '∞';
+    scoreTotalEl.textContent = String(totalScore);
+    bestRunEl.textContent = String(bestRun);
+    scoreLastEl.textContent = (lastScore === null) ? '–' : String(lastScore);
+  }
+
+  function focusFirstBox(){
+    if(modeEl.value === 'modarg') modulusEl.focus();
+    else reEl.focus();
+  }
+
+  function clearInputs(){
+    modulusEl.value = '';
+    argumentEl.value = '';
+    reEl.value = '';
+    imEl.value = '';
+  }
+
+  function addPopup(x, y, text){
+    popups.push({ x, y, text, t0: performance.now(), dur: popupDur });
+    // keep list short
+    while(popups.length > 8) popups.shift();
+  }
+
+  // --- random target ---
+  function newTarget(){
+    const rMin = 1.2, rMax = 8.5;
+    const r = rMin + Math.random()*(rMax - rMin);
+    const a = Math.random()*Math.PI*2;
+    target.x = r * Math.cos(a);
+    target.y = r * Math.sin(a);
+  }
+
+  // --- grids (bolder) ---
+  function drawCartesianGrid(){
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    for(let i=-worldRadius; i<=worldRadius; i++){
+      const x1 = toScreen({x:i, y:-worldRadius}).x;
+      const y1 = toScreen({x:-worldRadius, y:i}).y;
+
+      const isAxis = (i === 0);
+      ctx.strokeStyle = isAxis ? 'rgba(233,238,252,.38)' : 'rgba(233,238,252,.14)';
+      ctx.lineWidth = isAxis ? 2.2 : 1.4;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, toScreen({x:i, y:-worldRadius}).y);
+      ctx.lineTo(x1, toScreen({x:i, y:worldRadius}).y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(toScreen({x:-worldRadius, y:i}).x, y1);
+      ctx.lineTo(toScreen({x:worldRadius, y:i}).x, y1);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(233,238,252,.8)';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText('Re', W - 40, center.y - 8);
+    ctx.fillText('Im', center.x + 8, 22);
+
+    ctx.restore();
+  }
+
+  function drawPolarGrid(){
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    for(let r=1; r<=worldRadius; r++){
+      const pr = r * pxPerUnit;
+      const major = (r % 5 === 0);
+      ctx.strokeStyle = major ? 'rgba(233,238,252,.20)' : 'rgba(233,238,252,.12)';
+      ctx.lineWidth = major ? 2.0 : 1.35;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, pr, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    for(let deg=0; deg<180; deg+=15){
+      const a = deg * Math.PI/180;
+      const x = Math.cos(a)*worldRadius, y = Math.sin(a)*worldRadius;
+      const p2 = toScreen({x, y});
+      const p3 = toScreen({x:-x, y:-y});
+
+      const major = (deg % 45 === 0);
+      ctx.strokeStyle = major ? 'rgba(233,238,252,.20)' : 'rgba(233,238,252,.10)';
+      ctx.lineWidth = major ? 2.0 : 1.25;
+
+      ctx.beginPath();
+      ctx.moveTo(p3.x, p3.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(233,238,252,.8)';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText('0°', W - 46, center.y - 8);
+    ctx.fillText('90°', center.x + 8, 22);
+
+    ctx.restore();
+  }
+
+  function drawAxes(){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(233,238,252,.45)';
+    ctx.lineWidth = 2.4;
+
+    ctx.beginPath(); ctx.moveTo(0, center.y); ctx.lineTo(W, center.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(center.x, 0); ctx.lineTo(center.x, H); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawTitle(){
+    ctx.save();
+    ctx.fillStyle = 'rgba(233,238,252,.95)';
+    ctx.font = '700 20px system-ui, sans-serif';
+    ctx.fillText('Target practice on the Argand diagram', 18, 30);
+
+    ctx.fillStyle = 'rgba(170,181,223,.9)';
+    ctx.font = '14px system-ui, sans-serif';
+    const gridLabel = (modeEl.value === 'modarg') ? 'Rectangular grid (mod/arg mode)' : 'Polar grid (re/im mode)';
+    ctx.fillText(gridLabel, 18, 52);
+
+    ctx.restore();
+  }
+
+  function drawPoint(p, color, glow=true){
+    const s = toScreen(p);
+    ctx.save();
+    if(glow){
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 18;
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 7, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 7, 0, Math.PI*2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, t){
+    const x = from.x + (to.x - from.x)*t;
+    const y = from.y + (to.y - from.y)*t;
+
+    const s0 = toScreen(from);
+    const s1 = toScreen({x, y});
+
+    const dx = s1.x - s0.x, dy = s1.y - s0.y;
+    const ang = Math.atan2(dy, dx);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(109,255,154,.95)';
+    ctx.lineWidth = 4;
+    ctx.shadowColor = 'rgba(109,255,154,.55)';
+    ctx.shadowBlur = 14;
+
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.stroke();
+
+    const head = 14;
+    ctx.fillStyle = 'rgba(109,255,154,.95)';
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s1.x - head*Math.cos(ang - Math.PI/7), s1.y - head*Math.sin(ang - Math.PI/7));
+    ctx.lineTo(s1.x - head*Math.cos(ang + Math.PI/7), s1.y - head*Math.sin(ang + Math.PI/7));
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawPopups(now){
+    for(let i=popups.length-1; i>=0; i--){
+      const p = popups[i];
+      const t = (now - p.t0) / p.dur;
+      if(t >= 1){
+        popups.splice(i,1);
+        continue;
+      }
+      const alpha = 1 - t;
+      const rise = 18 * t; // float upward
+      const s = toScreen({x:p.x, y:p.y});
+      const x = s.x + 12;
+      const y = s.y - 12 - rise;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = '800 22px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(233,238,252,1)';
+      ctx.shadowColor = 'rgba(0,0,0,.6)';
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(0,0,0,.55)';
+      ctx.strokeText(p.text, x, y);
+      ctx.fillText(p.text, x, y);
+      ctx.restore();
+    }
+  }
+
+  function getUserPoint(){
+    const mode = modeEl.value;
+
+    if(mode === 'modarg'){
+      const r = Number(modulusEl.value);
+      let theta = Number(argumentEl.value);
+      if(!Number.isFinite(r) || !Number.isFinite(theta)) return null;
+
+      // Convert to radians if user selected degrees
+      if(angleUnitEl.value === 'deg'){
+        theta = theta * Math.PI / 180;
+      }
+      // theta can be +/- and any magnitude; trig wraps naturally.
+      return { x: r*Math.cos(theta), y: r*Math.sin(theta) };
+    } else {
+      const a = Number(reEl.value);
+      const b = Number(imEl.value);
+      if(!Number.isFinite(a) || !Number.isFinite(b)) return null;
+      return { x: a, y: b };
+    }
+  }
+
+  // --- run control ---
+  function startRun(){
+    running = true;
+    totalScore = 0;
+    bestRun = 0;
+    lastScore = null;
+    shotPoint = null;
+    arrow = null;
+    shotsLeft = 12;
+    tEnd = performance.now() + 60_000;
+
+    newTarget();
+    clearInputs();
+    focusFirstBox();
+    updateHud();
+  }
+
+  function endRun(){
+    running = false;
+    shotsLeft = Infinity;
+    updateHud();
+  }
+
+  function resetAll(){
+    running = false;
+    shotsLeft = Infinity;
+    totalScore = 0;
+    bestRun = 0;
+    lastScore = null;
+    shotPoint = null;
+    arrow = null;
+    popups.length = 0;
+
+    clearInputs();
+    focusFirstBox();
+    newTarget();
+    updateHud();
+  }
+
+  // --- shooting ---
+  function shoot(){
+    if(running && shotsLeft <= 0) return;
+
+    const p = getUserPoint();
+    if(!p) return;
+
+    shotPoint = { x: p.x, y: p.y };
+
+    // compute score ALWAYS (for feedback popup)
+    const dist = Math.hypot(p.x - target.x, p.y - target.y);
+    const s = scoreShot(dist);
+
+    // popup feedback always
+    addPopup(p.x, p.y, String(s));
+
+    // animate arrow
+    arrow = { from:{x:0,y:0}, to:{x:p.x,y:p.y}, t0: performance.now(), dur: 450 };
+
+    // scoring only during run
+    if(running){
+      lastScore = s;
+      totalScore += s;
+      if(totalScore > bestRun) bestRun = totalScore;
+      shotsLeft = Math.max(0, shotsLeft - 1);
+    } else {
+      // in practice, show last shot score too (nice feedback), but don't accumulate
+      lastScore = s;
+    }
+
+    // new target after arrow lands
+    setTimeout(() => { newTarget(); }, arrow.dur + 80);
+
+    // reset inputs + focus first box (as requested)
+    clearInputs();
+    focusFirstBox();
+    updateHud();
+  }
+
+  // --- UI wiring ---
+  function syncAngleUI(){
+    const unit = angleUnitEl.value;
+    thetaUnitLabelEl.textContent = (unit === 'deg') ? 'degrees' : 'radians';
+    // tweak step/placeholder for convenience
+    if(unit === 'deg'){
+      argumentEl.step = "0.5";
+      argumentEl.placeholder = "e.g. 45 or -120";
+    } else {
+      argumentEl.step = "0.01";
+      argumentEl.placeholder = "e.g. 1.20 or -2.50";
+    }
+  }
+
+  modeEl.addEventListener('change', () => {
+    const mode = modeEl.value;
+    inputsModArg.style.display = (mode === 'modarg') ? '' : 'none';
+    inputsReIm.style.display = (mode === 'reim') ? '' : 'none';
+    angleUnitRow.style.display = (mode === 'modarg') ? '' : 'none';
+
+    clearInputs();
+    focusFirstBox();
+  });
+
+  angleUnitEl.addEventListener('change', syncAngleUI);
+
+  startBtn.addEventListener('click', startRun);
+  shootBtn.addEventListener('click', shoot);
+  resetBtn.addEventListener('click', resetAll);
+
+  // Enter shoots; Tab works naturally between fields.
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      shoot();
+    }
+  });
+
+  // --- main loop ---
+  function tick(now){
+    ctx.clearRect(0,0,W,H);
+
+    if(modeEl.value === 'modarg') drawCartesianGrid();
+    else drawPolarGrid();
+
+    drawAxes();
+    drawTitle();
+    drawPoint(target, 'rgba(255,92,122,.95)');
+
+    if(shotPoint) drawPoint(shotPoint, 'rgba(109,255,154,.95)');
+
+    if(arrow){
+      const t = clamp((now - arrow.t0)/arrow.dur, 0, 1);
+      const tt = 1 - Math.pow(1 - t, 3);
+      drawArrow(arrow.from, arrow.to, tt);
+      if(t >= 1) arrow = null;
+    }
+
+    drawPopups(now);
+
+    if(running){
+      const msLeft = tEnd - now;
+      if(msLeft <= 0){
+        endRun();
+      } else {
+        timeLeftEl.textContent = `${(msLeft/1000).toFixed(1)}s`;
+      }
+      shotsLeftEl.textContent = String(shotsLeft);
+      runStateEl.textContent = '1-minute run (scoring ON)';
+    } else {
+      runStateEl.textContent = 'Practice (no scoring)';
+      timeLeftEl.textContent = '–';
+      shotsLeftEl.textContent = '∞';
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  // init
+  newTarget();
+  syncAngleUI();
+  focusFirstBox();
+  updateHud();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

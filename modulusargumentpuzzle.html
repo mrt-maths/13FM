@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Modulus Argument Form Puzzle</title>
+  <style>
+    :root{
+      --bg:#0f1220;
+      --panel:#171a2b;
+      --panel2:#1e2340;
+      --ink:#e9ecff;
+      --muted:#b9c0ff;
+      --line:rgba(255,255,255,0.12);
+      --good:#35d07f;
+      --bad:#ff5c77;
+      --warn:#ffcc66;
+      --shadow: 0 10px 28px rgba(0,0,0,0.35);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 700px at 10% 5%, #1a1f3a 0%, var(--bg) 55%, #0b0d16 100%);
+      color:var(--ink);
+    }
+    header{
+      padding:18px 18px 10px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent);
+      position:sticky; top:0; z-index:5;
+      backdrop-filter: blur(6px);
+    }
+    header .title{display:flex;flex-direction:column;gap:4px;}
+    header h1{margin:0;font-size:18px;letter-spacing:0.2px;font-weight:750;}
+    header .sub{margin:0;font-size:13px;color:var(--muted);}
+    .btnrow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;}
+    button{
+      border:1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--ink);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:650;
+      transition: transform 0.05s ease, background 0.15s ease;
+    }
+    button:hover{ background: rgba(255,255,255,0.10); }
+    button:active{ transform: translateY(1px); }
+    button[disabled]{ opacity:0.5; cursor:not-allowed; }
+
+    .wrap{
+      display:grid;
+      grid-template-columns: 1fr 340px;
+      gap:16px;
+      padding:16px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .main{display:flex;flex-direction:column;gap:14px;}
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+
+    .instructions{
+      display:flex; flex-wrap:wrap;
+      gap:10px 14px;
+      align-items:center;
+      color: var(--muted);
+      font-size:13px;
+      line-height:1.35;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 10px;
+      border-radius:999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-weight:650;
+      font-size:12px;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background: var(--warn);
+      box-shadow: 0 0 0 3px rgba(255,204,102,0.18);
+    }
+
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;}
+
+    .expr{
+      background: rgba(0,0,0,0.15);
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding:14px;
+    }
+    .exprhead{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+      margin-bottom:10px;
+    }
+    .exprhead .label{font-weight:800;letter-spacing:0.2px;font-size:14px;}
+    .clue{
+      color: var(--muted);
+      font-size:12.5px;
+      border-left: 3px solid rgba(185,192,255,0.35);
+      padding-left:10px;
+      line-height:1.35;
+      max-width: 520px;
+    }
+
+    .mathline{
+      font-size:18px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      line-height:1.6;
+    }
+    .sym{opacity:0.95}
+    .cis{font-style: italic;opacity:0.95;}
+
+    .slot{
+      display:inline-flex;
+      min-width:74px;
+      justify-content:center;
+      align-items:center;
+      padding:6px 10px;
+      border-radius: 12px;
+      border:1.8px dashed rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.05);
+      color: rgba(233,236,255,0.85);
+      font-weight:800;
+      user-select:none;
+      position:relative;
+    }
+    .slot small{
+      position:absolute;
+      top:-10px;
+      left:10px;
+      padding:2px 6px;
+      border-radius:999px;
+      background: rgba(0,0,0,0.35);
+      border:1px solid var(--line);
+      font-size:11px;
+      color: var(--muted);
+      font-weight:750;
+    }
+    .slot.over{
+      outline: 2px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.08);
+    }
+    .slot.filled{
+      border-style: solid;
+      border-color: rgba(255,255,255,0.16);
+    }
+    .slot.locked{
+      border-color: rgba(53,208,127,0.65);
+      background: rgba(53,208,127,0.14);
+      box-shadow: 0 0 0 3px rgba(53,208,127,0.10) inset;
+    }
+
+    .tile{
+      display:inline-flex;
+      justify-content:center;
+      align-items:center;
+      padding:10px 12px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+      border:1px solid var(--line);
+      box-shadow: 0 10px 22px rgba(0,0,0,0.25);
+      font-weight:900;
+      letter-spacing:0.2px;
+      cursor: grab;
+      user-select:none;
+      min-width:86px;
+    }
+    .tile:active{ cursor: grabbing; }
+    .tile.locked{
+      cursor:not-allowed;
+      opacity:0.95;
+      border-color: rgba(53,208,127,0.65);
+      background: rgba(53,208,127,0.16);
+    }
+
+    .pile{
+      position: sticky;
+      top: 92px;
+      height: fit-content;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .pile .card{ padding:14px; }
+    .pile h2{margin:0 0 8px;font-size:14px;font-weight:850;letter-spacing:0.2px;}
+    .pile p{margin:0 0 10px;font-size:12.5px;color: var(--muted);line-height:1.35;}
+    .tiles{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      min-height: 160px;
+      padding:10px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.18);
+      border:1px dashed rgba(255,255,255,0.16);
+    }
+    .tiles.over{ outline:2px solid rgba(255,255,255,0.18); }
+
+    .status{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      font-size:13px;
+      color: var(--muted);
+      padding-top:6px;
+    }
+    .status strong{ color: var(--ink); }
+
+    .extension{display:none;}
+    .extension h3{margin:0 0 8px;font-size:15px;font-weight:900;}
+    .extq{
+      font-size:14px;
+      line-height:1.55;
+      color: var(--ink);
+      background: rgba(255,255,255,0.04);
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding:12px;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      .pile{ position:relative; top:auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <h1>Modulus Argument Form Puzzle</h1>
+      <p class="sub">Drag numbers from the pile to complete: <span class="mono">a + bi = r cis t</span> (t in radians, all values to 2dp).</p>
+    </div>
+    <div class="btnrow">
+      <button id="randomBtn" title="Generate a new random puzzle (new values + new clues)">Random</button>
+      <button id="fsBtn" title="Toggle fullscreen">Fullscreen</button>
+      <button id="checkBtn" disabled title="Check correct placements (available after 3 minutes)">Check (unlocks after 3:00)</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="main">
+      <div class="card">
+        <div class="instructions">
+          <span class="pill"><span class="dot"></span>3 expressions: fill <strong>a</strong>, <strong>b</strong>, <strong>r</strong>, <strong>t</strong></span>
+          <span class="pill">4 extra values not needed</span>
+          <span class="pill">After 3 minutes, <strong>Check</strong> locks correct values (green)</span>
+          <span class="pill">Click a slot to clear it</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="expr" data-expr="E1">
+          <div class="exprhead">
+            <div class="label">Expression 1</div>
+            <div class="clue" id="clueE1">Clue: has the <strong>smallest positive argument</strong> (closest above 0).</div>
+          </div>
+          <div class="mathline">
+            <span class="slot" data-role="a"><small>a</small></span>
+            <span class="sym">+</span>
+            <span class="slot" data-role="b"><small>b</small></span>
+            <span class="sym">i</span>
+            <span class="sym">=</span>
+            <span class="slot" data-role="r"><small>r</small></span>
+            <span class="cis">cis</span>
+            <span class="slot" data-role="t"><small>t</small></span>
+          </div>
+        </div>
+
+        <div class="expr" data-expr="E2">
+          <div class="exprhead">
+            <div class="label">Expression 2</div>
+            <div class="clue" id="clueE2">Clue: lies in the <strong>second quadrant</strong> and has <strong>|a| = |b|</strong>.</div>
+          </div>
+          <div class="mathline">
+            <span class="slot" data-role="a"><small>a</small></span>
+            <span class="sym">+</span>
+            <span class="slot" data-role="b"><small>b</small></span>
+            <span class="sym">i</span>
+            <span class="sym">=</span>
+            <span class="slot" data-role="r"><small>r</small></span>
+            <span class="cis">cis</span>
+            <span class="slot" data-role="t"><small>t</small></span>
+          </div>
+        </div>
+
+        <div class="expr" data-expr="E3">
+          <div class="exprhead">
+            <div class="label">Expression 3</div>
+            <div class="clue" id="clueE3">Clue: has a <strong>negative imaginary part</strong> and the <strong>largest |b|</strong> of the three.</div>
+          </div>
+          <div class="mathline">
+            <span class="slot" data-role="a"><small>a</small></span>
+            <span class="sym">+</span>
+            <span class="slot" data-role="b"><small>b</small></span>
+            <span class="sym">i</span>
+            <span class="sym">=</span>
+            <span class="slot" data-role="r"><small>r</small></span>
+            <span class="cis">cis</span>
+            <span class="slot" data-role="t"><small>t</small></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card extension" id="extension">
+        <h3>Extension Question</h3>
+        <div class="extq">
+          <div class="mono" style="font-size:15px; margin-bottom:8px;">z = −9 + 3i√3</div>
+          <div style="margin-bottom:8px;">
+            <strong>a)</strong> Express <span class="mono">z</span> in the form <span class="mono">r(cosθ + i sinθ)</span>, where <span class="mono">−π &lt; θ ≤ π</span>.
+          </div>
+          <div>
+            <strong>b)</strong> Given that <span class="mono">|w| = √3</span> and <span class="mono">arg(w) = 7π/12</span>, express in the form
+            <span class="mono">r(cosθ + i sinθ)</span>, where <span class="mono">−π &lt; θ ≤ π</span>:
+            <div style="margin-top:8px;">
+              <div><strong>i)</strong> <span class="mono">w</span></div>
+              <div><strong>ii)</strong> <span class="mono">zw</span></div>
+              <div><strong>iii)</strong> <span class="mono">z/w</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="pile">
+      <div class="card">
+        <h2>Value Pile</h2>
+        <p>Drag these values into the slots. (All numbers are to <strong>2dp</strong>. Angles <strong>t</strong> are in radians with <strong>−π &lt; t &lt; π</strong>.)</p>
+        <div class="tiles" id="pile" aria-label="value pile"></div>
+        <div class="status" id="status">
+          <div>Progress: <strong id="progressText">—</strong></div>
+          <div>Check button: <strong id="checkStatus">locked</strong></div>
+          <div style="font-size:12px; color:rgba(233,236,255,0.72)">
+            (Progress only updates to a fixed message when you click <strong>Check</strong>.)
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // ============================================================
+    //  Fixed puzzle loads the SAME every time.
+    //  Clicking "Random" generates a new set of values + clues.
+    // ============================================================
+
+    // ---------- DOM refs ----------
+    const pile = document.getElementById("pile");
+    const slots = Array.from(document.querySelectorAll(".slot"));
+    const checkBtn = document.getElementById("checkBtn");
+    const checkStatusEl = document.getElementById("checkStatus");
+    const progressTextEl = document.getElementById("progressText");
+    const extension = document.getElementById("extension");
+    const fsBtn = document.getElementById("fsBtn");
+    const randomBtn = document.getElementById("randomBtn");
+
+    const clueE1 = document.getElementById("clueE1");
+    const clueE2 = document.getElementById("clueE2");
+    const clueE3 = document.getElementById("clueE3");
+
+    // ---------- State ----------
+    let tileMap = new Map();        // tileId -> {value, locked}
+    let slotMap = new Map();        // slotEl -> tileId (or null)
+    let lockedSlots = new Set();    // slotEls locked correct
+    let checkAvailable = false;
+    let cooldownTimer = null;
+
+    // Current solution set
+    let solutions = {};
+    let distractors = [];
+
+    // ---------- Helpers ----------
+    const uid = (() => { let i = 1; return () => "tile_" + (i++); })();
+
+    function fmt2(x){
+      // ensure -0.00 doesn't appear
+      const v = (Math.abs(x) < 0.0005) ? 0 : x;
+      return Number(v).toFixed(2);
+    }
+
+    function clampAngleToPi(t){
+      // map to (-pi, pi)
+      const pi = Math.PI;
+      while (t <= -pi) t += 2*pi;
+      while (t >  pi)  t -= 2*pi;
+      // ensure not exactly -pi or pi
+      if (t <= -pi) t = -pi + 1e-6;
+      if (t >=  pi) t =  pi - 1e-6;
+      return t;
+    }
+
+    function computeR(a,b){
+      return Math.sqrt(a*a + b*b);
+    }
+    function computeT(a,b){
+      return clampAngleToPi(Math.atan2(b,a));
+    }
+
+    function shuffle(arr){
+      for (let i = arr.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // ---------- Tiles / Slots ----------
+    function makeTile(value){
+      const id = uid();
+      const el = document.createElement("div");
+      el.className = "tile";
+      el.draggable = true;
+      el.textContent = value;
+      el.dataset.tileId = id;
+      el.dataset.value = value;
+
+      tileMap.set(id, { value, locked:false });
+
+      el.addEventListener("dragstart", (e) => {
+        const t = tileMap.get(id);
+        if (t.locked) { e.preventDefault(); return; }
+        e.dataTransfer.setData("text/plain", id);
+        e.dataTransfer.effectAllowed = "move";
+      });
+
+      return el;
+    }
+
+    function isSlotLocked(slotEl){ return lockedSlots.has(slotEl); }
+
+    function resetSlot(slotEl){
+      slotMap.set(slotEl, null);
+      slotEl.textContent = "";
+      const tag = document.createElement("small");
+      tag.textContent = slotEl.dataset.role;
+      slotEl.appendChild(tag);
+      slotEl.classList.remove("filled","locked");
+    }
+
+    function clearSlot(slotEl){
+      if (isSlotLocked(slotEl)) return;
+      const existing = slotMap.get(slotEl);
+      if (existing){
+        // recreate a visible tile back into pile
+        const val = tileMap.get(existing)?.value;
+        const info = tileMap.get(existing);
+        if (val && info && !info.locked){
+          pile.appendChild(makeTile(val));
+        }
+      }
+      resetSlot(slotEl);
+      updateExtensionVisibility();
+    }
+
+    function placeTileInSlot(tileId, slotEl){
+      if (isSlotLocked(slotEl)) return false;
+      const tileInfo = tileMap.get(tileId);
+      if (!tileInfo || tileInfo.locked) return false;
+
+      // If slot already has a tile, return it to pile
+      const existing = slotMap.get(slotEl);
+      if (existing && existing !== tileId){
+        const val = tileMap.get(existing)?.value;
+        const info = tileMap.get(existing);
+        if (val && info && !info.locked){
+          pile.appendChild(makeTile(val));
+        }
+      }
+
+      // If tile is in another slot, clear that slot
+      for (const [s, tid] of slotMap.entries()){
+        if (tid === tileId && s !== slotEl){
+          if (!isSlotLocked(s)) resetSlot(s);
+          else return false;
+        }
+      }
+
+      // Fill slot
+      slotEl.classList.add("filled");
+      slotEl.textContent = tileInfo.value;
+      const tag = document.createElement("small");
+      tag.textContent = slotEl.dataset.role;
+      slotEl.appendChild(tag);
+
+      slotMap.set(slotEl, tileId);
+
+      // Remove dragged tile element from DOM (it came from pile)
+      const tileEl = document.querySelector(`.tile[data-tile-id="${tileId}"]`);
+      if (tileEl) tileEl.remove();
+
+      updateExtensionVisibility();
+      return true;
+    }
+
+    function slotCorrect(slotEl){
+      const exprEl = slotEl.closest(".expr");
+      const exprKey = exprEl.dataset.expr;
+      const role = slotEl.dataset.role;
+      const tileId = slotMap.get(slotEl);
+      if (!tileId) return false;
+      const v = tileMap.get(tileId)?.value;
+      return v === solutions[exprKey][role];
+    }
+
+    function lockSlot(slotEl){
+      const tileId = slotMap.get(slotEl);
+      if (!tileId) return;
+      const info = tileMap.get(tileId);
+      if (!info) return;
+      info.locked = true;
+      tileMap.set(tileId, info);
+
+      lockedSlots.add(slotEl);
+      slotEl.classList.add("locked");
+    }
+
+    function allCorrect(){
+      for (const s of slots){
+        if (!slotCorrect(s)) return false;
+      }
+      return true;
+    }
+
+    function updateExtensionVisibility(){
+      if (allCorrect()){
+        extension.style.display = "block";
+      } else {
+        extension.style.display = "none";
+      }
+    }
+
+    // ---------- Drag & drop wiring ----------
+    function allowDropOnSlot(slotEl){
+      slotEl.addEventListener("dragover", (e) => {
+        if (isSlotLocked(slotEl)) return;
+        e.preventDefault();
+        slotEl.classList.add("over");
+      });
+      slotEl.addEventListener("dragleave", () => slotEl.classList.remove("over"));
+      slotEl.addEventListener("drop", (e) => {
+        e.preventDefault();
+        slotEl.classList.remove("over");
+        const tileId = e.dataTransfer.getData("text/plain");
+        if (!tileId) return;
+        placeTileInSlot(tileId, slotEl);
+      });
+      slotEl.addEventListener("click", () => clearSlot(slotEl));
+    }
+
+    slots.forEach(s => { slotMap.set(s, null); allowDropOnSlot(s); });
+
+    pile.addEventListener("dragover", (e) => { e.preventDefault(); pile.classList.add("over"); });
+    pile.addEventListener("dragleave", () => pile.classList.remove("over"));
+    pile.addEventListener("drop", (e) => { e.preventDefault(); pile.classList.remove("over"); });
+
+    // ---------- Check cooldown ----------
+    function startCheckCooldown(seconds){
+      checkAvailable = false;
+      checkBtn.disabled = true;
+      checkStatusEl.textContent = "locked";
+
+      let remaining = seconds;
+      checkBtn.textContent = `Check (unlocks after ${formatTime(remaining)})`;
+
+      if (cooldownTimer) clearInterval(cooldownTimer);
+      cooldownTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0){
+          clearInterval(cooldownTimer);
+          checkAvailable = true;
+          checkBtn.disabled = false;
+          checkBtn.textContent = "Check";
+          checkStatusEl.textContent = "available";
+        } else {
+          checkBtn.textContent = `Check (unlocks after ${formatTime(remaining)})`;
+        }
+      }, 1000);
+    }
+    function formatTime(s){
+      const m = Math.floor(s/60);
+      const r = s%60;
+      return `${m}:${String(r).padStart(2,"0")}`;
+    }
+
+    // ---------- Progress display (does NOT reveal count) ----------
+    function setProgressAfterCheck(){
+      // Always show a fixed message (no counts).
+      progressTextEl.textContent = allCorrect() ? "All correct ✅" : "Checked ✓";
+    }
+
+    checkBtn.addEventListener("click", () => {
+      if (!checkAvailable) return;
+
+      // Lock any correct values; animate incorrect slots (no scoring)
+      for (const s of slots){
+        if (isSlotLocked(s)) continue;
+        const tileId = slotMap.get(s);
+        if (!tileId) continue;
+
+        if (slotCorrect(s)){
+          lockSlot(s);
+        } else {
+          s.animate(
+            [{ boxShadow:"0 0 0 0 rgba(255,92,119,0)" },
+             { boxShadow:"0 0 0 4px rgba(255,92,119,0.35)" },
+             { boxShadow:"0 0 0 0 rgba(255,92,119,0)" }],
+            { duration: 350, easing:"ease" }
+          );
+        }
+      }
+
+      setProgressAfterCheck();
+      updateExtensionVisibility();
+      if (allCorrect()){
+        extension.scrollIntoView({behavior:"smooth", block:"start"});
+      }
+
+      // re-lock for 3 mins
+      startCheckCooldown(180);
+    });
+
+    // ---------- Fullscreen ----------
+    fsBtn.addEventListener("click", async () => {
+      try{
+        if (!document.fullscreenElement){
+          await document.documentElement.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch(e){
+        alert("Fullscreen isn't available in this browser/context.");
+      }
+    });
+
+    // ============================================================
+    //  Puzzle generation
+    // ============================================================
+
+    // FIXED puzzle (loads every time)
+    const FIXED = {
+      solutions: {
+        E1: { a:"4.00",  b:"2.00",  r:"4.47", t:"0.46" },   // (4 + 2i)
+        E2: { a:"-3.00", b:"3.00",  r:"4.24", t:"2.36" },   // (-3 + 3i)
+        E3: { a:"1.00",  b:"-4.00", r:"4.12", t:"-1.33" }   // (1 - 4i)
+      },
+      distractors: ["-2.00", "5.50", "-0.79", "3.10"],
+      clues: {
+        E1: 'Clue: has the <strong>smallest positive argument</strong> (closest above 0).',
+        E2: 'Clue: lies in the <strong>second quadrant</strong> and has <strong>|a| = |b|</strong>.',
+        E3: 'Clue: has a <strong>negative imaginary part</strong> and the <strong>largest |b|</strong> of the three.'
+      }
+    };
+
+    function chooseDistinctInt(excludeSet){
+      // choose an integer in [-6..6], excluding 0 optional later
+      while(true){
+        const v = Math.floor(Math.random()*13) - 6;
+        if (!excludeSet.has(v)) return v;
+      }
+    }
+
+    function generateRandomPuzzle(){
+      // Build 3 complex numbers with uniqueness constraints to support clear clues:
+      // - E1: smallest positive argument
+      // - E2: Q2 and |a|=|b|
+      // - E3: negative imaginary part and largest |b| among the three
+
+      // E2: enforce Q2 and |a|=|b| with a<0, b>0
+      const k = 1 + Math.floor(Math.random()*5); // 1..5
+      const a2 = -k;
+      const b2 =  k;
+
+      // E3: b negative, and its |b| largest of all three (choose 4..6)
+      const b3mag = 4 + Math.floor(Math.random()*3); // 4..6
+      const b3 = -b3mag;
+      // choose a3 nonzero integer, avoid making |a|=|b| like E2 and keep within [-6,6]
+      let a3;
+      do {
+        a3 = Math.floor(Math.random()*13) - 6; // -6..6
+      } while (a3 === 0 || Math.abs(a3) === b3mag); // avoid exact |a|=|b|
+
+      // E1: smallest positive argument: ensure b1>0 and angle small.
+      // choose a1 positive and larger than b1 to keep angle small.
+      const b1 = 1 + Math.floor(Math.random()*3); // 1..3
+      const a1 = 3 + Math.floor(Math.random()*4); // 3..6
+
+      // Now ensure E1 arg is positive and less than E2 arg (which is ~3π/4)
+      // and also less than arg of E3 if E3 has positive angle (but E3 b<0 so angle negative).
+      // So E1 will indeed be "smallest positive".
+
+      const r1 = computeR(a1,b1), t1 = computeT(a1,b1);
+      const r2 = computeR(a2,b2), t2 = computeT(a2,b2);
+      const r3 = computeR(a3,b3), t3 = computeT(a3,b3);
+
+      const sols = {
+        E1: { a: fmt2(a1), b: fmt2(b1), r: fmt2(r1), t: fmt2(t1) },
+        E2: { a: fmt2(a2), b: fmt2(b2), r: fmt2(r2), t: fmt2(t2) },
+        E3: { a: fmt2(a3), b: fmt2(b3), r: fmt2(r3), t: fmt2(t3) }
+      };
+
+      // Create 4 distractors (values not equal to any needed value)
+      const neededVals = new Set(Object.values(sols).flatMap(o => Object.values(o)));
+      const dis = [];
+      while (dis.length < 4){
+        // make a mix of ints and decimals
+        let v;
+        if (Math.random() < 0.5){
+          v = fmt2((Math.floor(Math.random()*13)-6)); // integer
+        } else {
+          v = fmt2((Math.random()*12 - 6)); // decimal
+        }
+        if (!neededVals.has(v) && !dis.includes(v)) dis.push(v);
+      }
+
+      const clues = {
+        E1: 'Clue: has the <strong>smallest positive argument</strong> (closest above 0).',
+        E2: 'Clue: lies in the <strong>second quadrant</strong> and has <strong>|a| = |b|</strong>.',
+        E3: 'Clue: has a <strong>negative imaginary part</strong> and the <strong>largest |b|</strong> of the three.'
+      };
+
+      return { solutions: sols, distractors: dis, clues };
+    }
+
+    function applyPuzzle(puz){
+      solutions = puz.solutions;
+      distractors = puz.distractors;
+
+      clueE1.innerHTML = puz.clues.E1;
+      clueE2.innerHTML = puz.clues.E2;
+      clueE3.innerHTML = puz.clues.E3;
+
+      // Reset everything (slots, locks, pile, progress, extension, timers)
+      lockedSlots = new Set();
+      tileMap = new Map();
+      slotMap = new Map();
+
+      extension.style.display = "none";
+      progressTextEl.textContent = "—";
+
+      // Clear pile
+      pile.innerHTML = "";
+
+      // Reset slots
+      slots.forEach(s => {
+        s.classList.remove("over","filled","locked");
+        slotMap.set(s, null);
+        s.textContent = "";
+        const tag = document.createElement("small");
+        tag.textContent = s.dataset.role;
+        s.appendChild(tag);
+      });
+
+      // Build tiles (always the same set for fixed; shuffled order is fine)
+      const needed = [
+        solutions.E1.a, solutions.E1.b, solutions.E1.r, solutions.E1.t,
+        solutions.E2.a, solutions.E2.b, solutions.E2.r, solutions.E2.t,
+        solutions.E3.a, solutions.E3.b, solutions.E3.r, solutions.E3.t,
+        ...distractors
+      ];
+
+      shuffle(needed).forEach(v => pile.appendChild(makeTile(v)));
+
+      // Re-wire slot behaviour (slotMap reset)
+      slots.forEach(s => { allowDropOnSlot(s); });
+
+      // Start new check cooldown
+      startCheckCooldown(180);
+    }
+
+    // Random button: new numbers + new clues
+    randomBtn.addEventListener("click", () => {
+      applyPuzzle(generateRandomPuzzle());
+    });
+
+    // Initial load: fixed puzzle (same values every time)
+    applyPuzzle(FIXED);
+  </script>
+</body>
+</html>
