@@ -12,9 +12,35 @@
       svg: { fontCache: 'none' } // IMPORTANT: prevents glyph-def updates that can cause wobble
     };
   </script>
-  <script defer src="./mathjax/es5/tex-mml-svg.js"></script>
+  <script>
+    // Prefer GitHub Pages project path, then try other common local paths, then fall back to CDNs.
+    (function(){
+      const candidates = [
+        '/13FM/mathjax/es5/tex-mml-svg.js',
+        './mathjax/es5/tex-mml-svg.js',
+        '/mathjax/es5/tex-mml-svg.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-svg.min.js',
+        'https://unpkg.com/mathjax@3/es5/tex-mml-svg.js'
+      ];
 
-  <style>
+      function tryLoad(i){
+        if (i >= candidates.length){
+          console.error('MathJax failed to load from all candidates:', candidates);
+          return;
+        }
+        const src = candidates[i];
+        const s = document.createElement('script');
+        s.src = src;
+        s.defer = true;
+        s.onload = ()=>console.log('Loaded MathJax from', src);
+        s.onerror = ()=>{ console.warn('Failed to load MathJax from', src); tryLoad(i+1); };
+        document.head.appendChild(s);
+      }
+      tryLoad(0);
+    })();
+  </script>
+
+<style>
     :root{
       --bg:#0b1020;
       --ink:#e8eeff;
