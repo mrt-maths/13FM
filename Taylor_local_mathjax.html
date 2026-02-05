@@ -460,37 +460,36 @@ const texImgCache = new Map();
 function normalizeTex(tex){
   if (!tex) return tex;
 
-  // 1) Undo control-character escapes produced by JS string parsing:
-  // \f -> formfeed, \t -> tab, \r -> carriage return, etc.
+  // Convert JS control characters back to their escaped forms (these come from \f, \t, \r in source strings).
   tex = tex
     .replace(/\f/g, "\\f")
     .replace(/\t/g, "\\t")
     .replace(/\r/g, "\\r");
 
-  // Reconstitute the most common TeX commands that are affected:
+  // Repair the classic breakages: \frac, \text, \right
   tex = tex
     .replace(/\\f(?=rac\b)/g, "\\frac")
     .replace(/\\t(?=ext\b)/g, "\\text")
     .replace(/\\r(?=ight\b)/g, "\\right");
 
-  // 2) Add missing backslashes before common TeX commands if they appear "bare".
-  const cmds = [
-    "frac","cdot","left","right","mathrm","sqrt","pi","ln",
-    "sin","cos","tan","sinh","cosh","arctan"
-  ];
+  // If the backslash was lost entirely, repair common remnants.
+  tex = tex.replace(/(^|[^A-Za-z\\])rac(?=\d|\{|\-)/g, (m,p1)=> p1 + "\\frac");
+  tex = tex.replace(/(^|[^A-Za-z\\])ext(?=\b|\{)/g, (m,p1)=> p1 + "\\text");
+  tex = tex.replace(/(^|[^A-Za-z\\])ight(?=\b|\{)/g, (m,p1)=> p1 + "\\right");
+
+  // Add missing backslashes for common commands when they appear bare.
+  const cmds = ["frac","cdot","left","right","mathrm","sqrt","pi","ln","sin","cos","tan","sinh","cosh","arctan"];
   for (const cmd of cmds){
-    const re1 = new RegExp(`(^|[^\\\\A-Za-z])(${cmd})(?=\\b|\\{|\$)`, "g");
-    tex = tex.replace(re1, (m,p1,c)=>`${p1}\\\\${c}`);
+    const re1 = new RegExp(`(^|[^\\\\A-Za-z])(${cmd})(?=\\b|\\{)`, "g");
+    tex = tex.replace(re1, (m,p1,c)=> `${p1}\\${c}`);
   }
 
-  // 3) Special repair for "rac" remnants (when \frac lost its backslash entirely)
-  tex = tex.replace(/(^|[^A-Za-z\\\\])rac(?=\d|\{|\-)/g, (m,p1)=>`${p1}\\\\frac`);
-
-  // 4) Ensure \cdot is present even in concatenations like "rac43cdot125"
-  tex = tex.replace(/cdot/g, "\\cdot");
+  // Force \mathrm{e} if "mathrme" shows up without slash
+  tex = tex.replace(/(^|[^A-Za-z\\])mathrme\b/g, (m,p1)=> p1 + "\\mathrm{e}");
 
   return tex;
 }
+
 
 
 function svgToDataUri(svg){
@@ -510,13 +509,22 @@ async function texToImgHTML(tex){
 
   await MathJax.startup.promise;
 
-  const node = await MathJax.tex2svgPromise(tex, {display:false});
-  const svg = node.querySelector("svg");
-  const uri = svgToDataUri(svg);
-  const html = `<span class="mathinline"><img class="mathimg" alt="" src="${uri}"></span>`;
-  texImgCache.set(tex, html);
-  return html;
+  try{
+    const node = await MathJax.tex2svgPromise(tex, {display:false});
+    const svg = node.querySelector("svg");
+    const uri = svgToDataUri(svg);
+    const html = `<span class="mathinline"><img class="mathimg" alt="" src="${uri}"></span>`;
+    texImgCache.set(tex, html);
+    return html;
+  }catch(err){
+    console.error("TeX render error:", err, tex);
+    const safe = tex.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const html = `<span style="color:#ff6b6b;font-weight:900;font-family:ui-monospace,Consolas,monospace;font-size:12px;">${safe}</span>`;
+    texImgCache.set(tex, html);
+    return html;
+  }
 }
+
 
 /* --------------------------
    Helpers / maths
