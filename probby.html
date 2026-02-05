@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dice Events Trainer</title>
+
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    margin: 0;
+    background: #f5f5f5;
+  }
+
+  /* TITLE BAR */
+  #titleBar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #222;
+    color: white;
+    padding: 10px 20px;
+    font-size: 1.2rem;
+  }
+  #fullscreenBtn {
+    background: #444;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  /* MAIN LAYOUT */
+  #main {
+    display: flex;
+    gap: 20px;
+    padding: 10px 20px;
+  }
+  #leftPanel, #rightPanel {
+    flex: 1;
+    min-width: 350px;
+  }
+
+  .card {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  }
+
+  .card h3 {
+    margin-top: 0;
+  }
+
+  /* GRID */
+  #diceGrid {
+    display: grid;
+    grid-template-columns: repeat(6, 50px);
+    grid-template-rows: repeat(6, 50px);
+    gap: 4px;
+  }
+  .cell {
+    width: 50px;
+    height: 50px;
+    background: #fafafa;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 22px;
+    user-select: none;
+    text-align: center;
+    line-height: 1.1;
+  }
+  .cell.highlight {
+    background: #ffe08a;
+    border-color: #e0a800;
+  }
+
+  /* TALLY TABLE */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 6px;
+    text-align: center;
+  }
+  th {
+    background: #eee;
+  }
+
+  /* HISTORY */
+  #historyCard table {
+    font-size: 0.8rem;
+  }
+  .hist-desc {
+    font-size: 0.7rem;
+    line-height: 1.1;
+  }
+
+  /* ANSWER OPTIONS VERTICAL */
+  #rightPanel label {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .feedback.correct { color: #0a7a1f; font-weight: bold; }
+  .feedback.wrong { color: #c62828; font-weight: bold; }
+</style>
+</head>
+
+<body>
+
+<!-- TITLE BAR -->
+<div id="titleBar">
+  <div><strong>Dice Events Trainer</strong></div>
+  <div>Score: <span id="score">0</span></div>
+  <button id="fullscreenBtn">Fullscreen</button>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div id="main">
+
+  <!-- LEFT PANEL -->
+  <div id="leftPanel">
+    <div class="card" id="gridCard">
+      <h3>Outcome Grid</h3>
+      <div id="diceGrid"></div>
+    </div>
+
+    <div class="card" id="tallyCard" style="display:none;">
+      <h3>Dice Roller & Tally</h3>
+      <button id="rollBtn">Roll Dice</button>
+      <p id="rollResult"></p>
+
+      <table>
+        <tr>
+          <th></th>
+          <th>Event 2 True</th>
+          <th>Event 2 False</th>
+          <th>Total</th>
+        </tr>
+        <tr>
+          <th>Event 1 True</th>
+          <td id="tt_tt">0</td>
+          <td id="tt_tf">0</td>
+          <td id="rowTotalTrue">0</td>
+        </tr>
+        <tr>
+          <th>Event 1 False</th>
+          <td id="tt_ft">0</td>
+          <td id="tt_ff">0</td>
+          <td id="rowTotalFalse">0</td>
+        </tr>
+        <tr>
+          <th>Total</th>
+          <td id="colTotalTrue">0</td>
+          <td id="colTotalFalse">0</td>
+          <td></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="rightPanel">
+
+    <div class="card">
+      <h3>Events</h3>
+      <p><strong>Event 1:</strong> <span id="event1Text"></span></p>
+      <p><strong>Event 2:</strong> <span id="event2Text"></span></p>
+
+      <div>
+        <label><input type="radio" name="relation" value="independent"> Independent</label>
+        <label><input type="radio" name="relation" value="not-independent"> Not independent</label>
+        <label><input type="radio" name="relation" value="mutually-exclusive"> Mutually exclusive (and not independent)</label>
+      </div>
+
+      <button id="submitBtn">Submit</button>
+
+      <p id="feedback"></p>
+    </div>
+
+    <div class="card" id="historyCard">
+      <h3>Last 5 Errors</h3>
+      <div id="historyContainer"><p>No errors yet.</p></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ---------------------------------------------------------
+   EMOJI DICE
+--------------------------------------------------------- */
+const redDie = ["","🎲1","🎲2","🎲3","🎲4","🎲5","🎲6"];
+const blueDie = ["","🔷1","🔷2","🔷3","🔷4","🔷5","🔷6"];
+
+/* ---------------------------------------------------------
+   BUILD OUTCOME GRID
+--------------------------------------------------------- */
+const diceGrid = document.getElementById("diceGrid");
+
+function buildGrid() {
+  diceGrid.innerHTML = "";
+  for (let r = 1; r <= 6; r++) {
+    for (let b = 1; b <= 6; b++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.r = r;
+      cell.dataset.b = b;
+      cell.innerHTML = redDie[r] + "<br>" + blueDie[b];
+      cell.onclick = () => cell.classList.toggle("highlight");
+      diceGrid.appendChild(cell);
+    }
+  }
+}
+
+function clearHighlights() {
+  document.querySelectorAll(".cell.highlight")
+    .forEach(c => c.classList.remove("highlight"));
+}
+
+/* ---------------------------------------------------------
+   FULLSCREEN HANDLER
+--------------------------------------------------------- */
+document.getElementById("fullscreenBtn").onclick = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+};
+
+/* ---------------------------------------------------------
+   EVENT DEFINITIONS (50 EVENTS)
+--------------------------------------------------------- */
+const events = [
+  { id:"A1", text:"The total is prime.", fn:(r,b)=>[2,3,5,7,11].includes(r+b) },
+  { id:"A2", text:"The total is even.", fn:(r,b)=>(r+b)%2===0 },
+  { id:"A3", text:"The total is odd.", fn:(r,b)=>(r+b)%2===1 },
+  { id:"A4", text:"The total is at most 5.", fn:(r,b)=>(r+b)<=5 },
+  { id:"A5", text:"The total is at least 9.", fn:(r,b)=>(r+b)>=9 },
+  { id:"A6", text:"The total is exactly 5.", fn:(r,b)=>(r+b)===5 },
+  { id:"A7", text:"The total is exactly 7.", fn:(r,b)=>(r+b)===7 },
+  { id:"A8", text:"The total is exactly 10.", fn:(r,b)=>(r+b)===10 },
+  { id:"A9", text:"The total is a multiple of 3.", fn:(r,b)=>(r+b)%3===0 },
+  { id:"A10", text:"The total is a multiple of 4.", fn:(r,b)=>(r+b)%4===0 },
+
+  { id:"B1", text:"The red die shows a 6.", fn:(r,b)=>r===6 },
+  { id:"B2", text:"The red die shows a 1.", fn:(r,b)=>r===1 },
+  { id:"B3", text:"The red die is even.", fn:(r,b)=>r%2===0 },
+  { id:"B4", text:"The red die is odd.", fn:(r,b)=>r%2===1 },
+  { id:"B5", text:"The red die ≥ 4.", fn:(r,b)=>r>=4 },
+  { id:"B6", text:"The red die ≤ 3.", fn:(r,b)=>r<=3 },
+  { id:"B7", text:"The red die is prime.", fn:(r,b)=>[2,3,5].includes(r) },
+  { id:"B8", text:"Red > Blue.", fn:(r,b)=>r>b },
+  { id:"B9", text:"Red < Blue.", fn:(r,b)=>r<b },
+  { id:"B10", text:"Red = Blue.", fn:(r,b)=>r===b },
+
+  { id:"C1", text:"The blue die shows a 6.", fn:(r,b)=>b===6 },
+  { id:"C2", text:"The blue die shows a 2.", fn:(r,b)=>b===2 },
+  { id:"C3", text:"The blue die is even.", fn:(r,b)=>b%2===0 },
+  { id:"C4", text:"The blue die is odd.", fn:(r,b)=>b%2===1 },
+  { id:"C5", text:"The blue die ≥ 4.", fn:(r,b)=>b>=4 },
+  { id:"C6", text:"The blue die ≤ 3.", fn:(r,b)=>b<=3 },
+  { id:"C7", text:"The blue die is prime.", fn:(r,b)=>[2,3,5].includes(b) },
+  { id:"C8", text:"Blue > Red.", fn:(r,b)=>b>r },
+  { id:"C9", text:"Blue < Red.", fn:(r,b)=>b<r },
+  { id:"C10", text:"Blue = Red.", fn:(r,b)=>b===r },
+
+  { id:"D1", text:"Difference = 0.", fn:(r,b)=>Math.abs(r-b)===0 },
+  { id:"D2", text:"Difference = 1.", fn:(r,b)=>Math.abs(r-b)===1 },
+  { id:"D3", text:"Difference < 2.", fn:(r,b)=>Math.abs(r-b)<2 },
+  { id:"D4", text:"Difference ≥ 3.", fn:(r,b)=>Math.abs(r-b)>=3 },
+  { id:"D5", text:"Difference = 2.", fn:(r,b)=>Math.abs(r-b)===2 },
+  { id:"D6", text:"Difference ≤ 1.", fn:(r,b)=>Math.abs(r-b)<=1 },
+  { id:"D7", text:"Red ≥ Blue+2.", fn:(r,b)=>r-b>=2 },
+  { id:"D8", text:"Blue ≥ Red+2.", fn:(r,b)=>b-r>=2 },
+  { id:"D9", text:"Product even.", fn:(r,b)=>(r*b)%2===0 },
+  { id:"D10", text:"Product odd.", fn:(r,b)=>(r*b)%2===1 },
+
+  { id:"E1", text:"At least one 6.", fn:(r,b)=>r===6||b===6 },
+  { id:"E2", text:"At least one 1.", fn:(r,b)=>r===1||b===1 },
+  { id:"E3", text:"At least one even.", fn:(r,b)=>r%2===0||b%2===0 },
+  { id:"E4", text:"At least one odd.", fn:(r,b)=>r%2===1||b%2===1 },
+  { id:"E5", text:"Both even.", fn:(r,b)=>r%2===0&&b%2===0 },
+  { id:"E6", text:"Both odd.", fn:(r,b)=>r%2===1&&b%2===1 },
+  { id:"E7", text:"At least one prime.", fn:(r,b)=>[2,3,5].includes(r)||[2,3,5].includes(b) },
+  { id:"E8", text:"Both prime.", fn:(r,b)=>[2,3,5].includes(r)&&[2,3,5].includes(b) },
+  { id:"E9", text:"Total>8 & red even.", fn:(r,b)=>(r+b)>8 && r%2===0 },
+  { id:"E10", text:"Total<6 & blue odd.", fn:(r,b)=>(r+b)<6 && b%2===1 }
+];
+
+/* ---------------------------------------------------------
+   CLASSIFICATION LOGIC
+--------------------------------------------------------- */
+function classify(fn1, fn2) {
+  let A = 0, B = 0, AB = 0;
+
+  for (let r = 1; r <= 6; r++) {
+    for (let b = 1; b <= 6; b++) {
+      const a = fn1(r,b);
+      const c = fn2(r,b);
+      if (a) A++;
+      if (c) B++;
+      if (a && c) AB++;
+    }
+  }
+
+  const pA = A / 36;
+  const pB = B / 36;
+  const pAB = AB / 36;
+
+  if (AB === 0) return "mutually-exclusive";
+  if (Math.abs(pAB - pA*pB) < 1e-9) return "independent";
+  return "not-independent";
+}
+
+/* ---------------------------------------------------------
+   STATE + UI ELEMENTS
+--------------------------------------------------------- */
+let currentPair = null;
+let currentCorrect = null;
+let score = 0;
+let history = [];
+
+const event1Text = document.getElementById("event1Text");
+const event2Text = document.getElementById("event2Text");
+const scoreEl = document.getElementById("score");
+const feedbackEl = document.getElementById("feedback");
+const historyContainer = document.getElementById("historyContainer");
+const gridCard = document.getElementById("gridCard");
+const tallyCard = document.getElementById("tallyCard");
+
+/* ---------------------------------------------------------
+   LOAD NEW QUESTION
+--------------------------------------------------------- */
+function newQuestion() {
+  clearHighlights();
+  feedbackEl.textContent = "";
+  feedbackEl.className = "";
+
+  const i = Math.floor(Math.random() * events.length);
+  let j;
+  do { j = Math.floor(Math.random() * events.length); } while (j === i);
+
+  currentPair = { e1: events[i], e2: events[j] };
+  currentCorrect = classify(events[i].fn, events[j].fn);
+
+  event1Text.textContent = events[i].text + " (" + events[i].id + ")";
+  event2Text.textContent = events[j].text + " (" + events[j].id + ")";
+}
+
+/* ---------------------------------------------------------
+   HISTORY (LAST 5 ERRORS, WITH DESCRIPTIONS)
+--------------------------------------------------------- */
+function renderHistory() {
+  if (history.length === 0) {
+    historyContainer.innerHTML = "<p>No errors yet.</p>";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr>
+        <th>Event 1</th>
+        <th>Event 2</th>
+        <th>Your Answer</th>
+        <th>Correct</th>
+      </tr>
+  `;
+
+  history.slice(-5).forEach(h => {
+    html += `
+      <tr>
+        <td>
+          <div>${h.e1.id}</div>
+          <div class="hist-desc">${h.e1.text}</div>
+        </td>
+        <td>
+          <div>${h.e2.id}</div>
+          <div class="hist-desc">${h.e2.text}</div>
+        </td>
+        <td>${h.user}</td>
+        <td>${h.correct}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  historyContainer.innerHTML = html;
+}
+
+/* ---------------------------------------------------------
+   RESET TALLY TABLE
+--------------------------------------------------------- */
+let tt_tt = 0, tt_tf = 0, tt_ft = 0, tt_ff = 0;
+
+function updateTallyDisplay() {
+  document.getElementById("tt_tt").textContent = tt_tt;
+  document.getElementById("tt_tf").textContent = tt_tf;
+  document.getElementById("tt_ft").textContent = tt_ft;
+  document.getElementById("tt_ff").textContent = tt_ff;
+
+  document.getElementById("rowTotalTrue").textContent = tt_tt + tt_tf;
+  document.getElementById("rowTotalFalse").textContent = tt_ft + tt_ff;
+  document.getElementById("colTotalTrue").textContent = tt_tt + tt_ft;
+  document.getElementById("colTotalFalse").textContent = tt_tf + tt_ff;
+}
+
+function resetTally() {
+  tt_tt = tt_tf = tt_ft = tt_ff = 0;
+  updateTallyDisplay();
+}
+
+/* ---------------------------------------------------------
+   SUBMIT ANSWER (AUTO-ADVANCE)
+--------------------------------------------------------- */
+document.getElementById("submitBtn").onclick = () => {
+  const selected = document.querySelector('input[name="relation"]:checked');
+  if (!selected) {
+    feedbackEl.textContent = "Please select an option.";
+    feedbackEl.className = "feedback wrong";
+    return;
+  }
+
+  const userChoice = selected.value;
+
+  if (userChoice === currentCorrect) {
+    score = score === 0 ? 1 : score * 2;
+    feedbackEl.textContent = "Correct! Score doubled.";
+    feedbackEl.className = "feedback correct";
+  } else {
+    history.push({
+      e1: currentPair.e1,
+      e2: currentPair.e2,
+      user: userChoice,
+      correct: currentCorrect
+    });
+    renderHistory();
+    score = 0;
+    feedbackEl.textContent = "Incorrect. Score reset.";
+    feedbackEl.className = "feedback wrong";
+  }
+
+  scoreEl.textContent = score;
+
+  // Switch panel mode
+  if (score > 50) {
+    gridCard.style.display = "none";
+    tallyCard.style.display = "block";
+  } else {
+    gridCard.style.display = "block";
+    tallyCard.style.display = "none";
+  }
+
+  // Reset tally table every submit
+  resetTally();
+
+  // Immediately load next question
+  document.querySelectorAll('input[name="relation"]').forEach(r => r.checked = false);
+  newQuestion();
+};
+
+/* ---------------------------------------------------------
+   TALLY TABLE MODE (ROLL DICE)
+--------------------------------------------------------- */
+const rollBtn = document.getElementById("rollBtn");
+const rollResult = document.getElementById("rollResult");
+
+rollBtn.onclick = () => {
+  const r = Math.floor(Math.random() * 6) + 1;
+  const b = Math.floor(Math.random() * 6) + 1;
+
+  rollResult.textContent = `Red: ${r} ${redDie[r]} | Blue: ${b} ${blueDie[b]}`;
+
+  const e1True = currentPair.e1.fn(r, b);
+  const e2True = currentPair.e2.fn(r, b);
+
+  if (e1True && e2True) tt_tt++;
+  else if (e1True && !e2True) tt_tf++;
+  else if (!e1True && e2True) tt_ft++;
+  else tt_ff++;
+
+  updateTallyDisplay();
+};
+
+/* ---------------------------------------------------------
+   INITIALIZE APP
+--------------------------------------------------------- */
+buildGrid();
+newQuestion();
+renderHistory();
+</script>
+
+</body>
+</html>
