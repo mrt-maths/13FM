@@ -456,6 +456,30 @@
 --------------------------- */
 const texImgCache = new Map();
 
+// Fix TeX strings that lost backslashes due to JS escape parsing (e.g. \frac -> formfeed + "rac").
+function normalizeTex(tex){
+  if (!tex) return tex;
+
+  // Undo control-character escapes produced by JS string parsing
+  tex = tex
+    .replace(/\f(?=rac\b)/g, "\\\\f")   // \frac
+    .replace(/\t(?=ext\b)/g, "\\\\t")  // \text
+    .replace(/\r(?=ight\b)/g, "\\\\r") // \right
+    .replace(/\n(?=ewline\b)/g, "\\\\n"); // \newline (rare)
+
+  // The above replacements created sequences like "\\f" + "rac" => "\frac" etc.
+  tex = tex
+    .replace(/\\\\frac\b/g, "\\\\frac")
+    .replace(/\\\\text\b/g, "\\\\text")
+    .replace(/\\\\right\b/g, "\\\\right");
+
+  // Add missing backslashes for common TeX commands if they appear bare
+  tex = tex.replace(/(^|[^\\\\])\b(left|right|mathrm|sqrt|pi|ln|cos|sin|tan|sinh|cosh|arctan|cdot|frac)\b/g,
+    (m, p1, cmd) => `${p1}\\\\${cmd}`);
+
+  return tex;
+}
+
 function svgToDataUri(svg){
   if (!svg.getAttribute("xmlns")) svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   // Force a light colour INSIDE the SVG because <img> does not inherit CSS color.
@@ -468,6 +492,7 @@ const s = new XMLSerializer().serializeToString(svg);
 }
 
 async function texToImgHTML(tex){
+  tex = normalizeTex(tex);
   if (texImgCache.has(tex)) return texImgCache.get(tex);
 
   await MathJax.startup.promise;
