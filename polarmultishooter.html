@@ -194,6 +194,17 @@
       </div>
 
       <div class="row">
+        <div class="stat">
+          <div class="k">High score</div>
+          <div class="v"><span id="highScore">0</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">Angle unit</div>
+          <div class="v"><span id="angleUnitReadout">°</span></div>
+        </div>
+      </div>
+
+      <div class="row">
         <span class="pill"><span class="dot yellow"></span> factors (z₁, z₂, z₃)</span>
         <span class="pill"><span class="dot green"></span> your shot</span>
         <span id="stateBadge" class="modeBadge">Not started</span>
@@ -244,7 +255,7 @@
 
       <div class="hint">
         • If you score <b>0</b> on a shot, it will be saved and shown in a review table at the end.<br>
-        • Correct answer and all displayed values are shown as <span class="mono">r cis θ</span> in the review.
+        • Review values are shown as <span class="mono">r cis θ</span> using your chosen angle unit (° or rad).
       </div>
 
       <div id="overlay" class="overlay">
@@ -273,6 +284,8 @@
   const scoreTotalEl = document.getElementById('scoreTotal');
   const shotsLeftEl = document.getElementById('shotsLeft');
   const stateBadgeEl = document.getElementById('stateBadge');
+  const highScoreEl = document.getElementById('highScore');
+  const angleUnitReadout = document.getElementById('angleUnitReadout');
 
   const modeEl = document.getElementById('mode');
   const angleUnitEl = document.getElementById('angleUnit');
@@ -301,7 +314,7 @@
   const W = cv.width, H = cv.height;
   const center = { x: W*0.5, y: H*0.5 };
   const BOUND = 12;            // enforce |x|,|y| <= 12 for hidden product
-  const worldRadius = 12;      // draw grid to r=12
+  const worldRadius = 12;      // grid to r=12
   const pxPerUnit = Math.min(W, H) * 0.42 / worldRadius;
   const toScreen = (p) => ({ x: center.x + p.x*pxPerUnit, y: center.y - p.y*pxPerUnit });
   const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -311,11 +324,13 @@
   const cMul = (z, w) => C(z.re*w.re - z.im*w.im, z.re*w.im + z.im*w.re);
   const cToPoint = (z) => ({ x: z.re, y: z.im });
 
-  function cisToString(z){
-    // r cis θ, θ in radians in [-pi, pi)
+  function radToDeg(r){ return r * 180 / Math.PI; }
+  function degToRad(d){ return d * Math.PI / 180; }
+
+  function cisToString(z, unit){
     const r = Math.hypot(z.re, z.im);
-    let th = Math.atan2(z.im, z.re);
-    // pretty rounding
+    let th = Math.atan2(z.im, z.re); // radians in (-pi,pi]
+    if(unit === 'deg') th = radToDeg(th);
     const rStr = (Math.round(r*100)/100).toFixed(2).replace(/\.00$/,'');
     const thStr = (Math.round(th*100)/100).toFixed(2).replace(/\.00$/,'');
     return `${rStr} cis ${thStr}`;
@@ -331,6 +346,16 @@
     if(d > SCORE_MAXDIST) return 0;
     const s = 10 * (1 - d / SCORE_MAXDIST);
     return Math.max(0, Math.min(10, Math.round(s)));
+  }
+
+  // -------- Persistent high score --------
+  const HS_KEY = "argandShooterHighScore_v1";
+  function loadHighScore(){
+    const n = Number(localStorage.getItem(HS_KEY));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function saveHighScore(v){
+    localStorage.setItem(HS_KEY, String(v));
   }
 
   // -------- State --------
@@ -350,7 +375,9 @@
     arrow: null,
     popups: [],
 
-    zeroLog: [] // entries when score==0
+    zeroLog: [],
+
+    highScore: loadHighScore()
   };
 
   // -------- UI helpers --------
@@ -367,6 +394,10 @@
     if(score <= 50) return {stars:1, msg:"Keep trying"};
     if(score <= 80) return {stars:2, msg:"Good progress"};
     return {stars:3, msg:"Complex king!"};
+  }
+
+  function currentAngleUnit(){
+    return angleUnitEl.value; // 'deg' or 'rad'
   }
 
   function setOverlay(show, title, text, primaryText, primaryFn, secondaryText, secondaryFn, starsCount=null, tableHTML=null){
@@ -401,6 +432,8 @@
     levelEl.textContent = String(S.level);
     scoreTotalEl.textContent = String(S.totalScore);
     shotsLeftEl.textContent = String(S.shotsLeft);
+    highScoreEl.textContent = String(S.highScore);
+    angleUnitReadout.textContent = (currentAngleUnit() === 'deg') ? '°' : 'rad';
 
     if(S.phase === 'playing') stateBadgeEl.textContent = `Playing (Level ${S.level})`;
     else if(S.phase === 'pause') stateBadgeEl.textContent = `Paused (Level ${S.level})`;
@@ -429,7 +462,7 @@
 
     if(mode === 'modarg'){
       angleUnitEl.disabled = false;
-      if(angleUnitEl.value === 'deg'){
+      if(currentAngleUnit() === 'deg'){
         thetaUnitEl.textContent = 'degrees';
         argumentEl.step = "0.5";
         argumentEl.placeholder = "e.g. 45 or -120";
@@ -444,6 +477,7 @@
 
     clearInputs();
     focusFirstBox();
+    refreshHUD();
   }
 
   // -------- Random generation (hidden product within |x|,|y|<=12) --------
@@ -465,7 +499,7 @@
     if(easy){
       const r = randChoice([1,2,3,4,5,6,7,8,9,10,11].filter(x => x>=rMin && x<=rMax));
       const deg = randChoice(Array.from({length:24}, (_,i)=>i*15));
-      return polarToComplex(r, deg*Math.PI/180);
+      return polarToComplex(r, degToRad(deg));
     } else {
       const r = rand(rMin, rMax);
       const th = rand(0, Math.PI*2);
@@ -481,7 +515,7 @@
     const n = S.level;
     const easy = S.firstRoundPending[S.level] === true;
 
-    for(let attempt=0; attempt<10000; attempt++){
+    for(let attempt=0; attempt<12000; attempt++){
       const factors = [];
       for(let i=0;i<n;i++) factors.push(randomFactor(S.level, easy));
 
@@ -506,26 +540,27 @@
     S.firstRoundPending[S.level] = false;
   }
 
-  // -------- Progression / end --------
-  function buildZeroLogTable(){
+  // -------- Review table for 0 shots --------
+  function buildZeroLogTable(unit){
     if(S.zeroLog.length === 0){
       return `<p>No 0-score shots 🎉</p>`;
     }
     const rows = S.zeroLog.map((e, idx) => {
-      const factorsStr = e.factors.map(cisToString).join('<br>');
+      const factorsStr = e.factors.map(z => cisToString(z, unit)).join('<br>');
       return `
         <tr>
           <td>${idx+1}</td>
           <td>${e.level}</td>
           <td class="mono">${factorsStr}</td>
-          <td class="mono">${cisToString(e.guess)}</td>
-          <td class="mono">${cisToString(e.correct)} <span class="tagBad">0</span></td>
+          <td class="mono">${cisToString(e.guess, unit)}</td>
+          <td class="mono">${cisToString(e.correct, unit)} <span class="tagBad">0</span></td>
         </tr>
       `;
     }).join('');
 
+    const unitLabel = (unit === 'deg') ? 'degrees' : 'radians';
     return `
-      <h3 style="margin:14px 0 6px; font-size:15px;">0-score shot review</h3>
+      <h3 style="margin:14px 0 6px; font-size:15px;">0-score shot review (${unitLabel})</h3>
       <table>
         <thead>
           <tr>
@@ -541,6 +576,7 @@
     `;
   }
 
+  // -------- Progression / end --------
   function pauseForNextLevel(nextLevel){
     S.phase = 'pause';
     refreshHUD();
@@ -565,12 +601,24 @@
 
   function endGame(title, reason){
     S.phase = 'ended';
+
+    // update high score
+    if(S.totalScore > S.highScore){
+      S.highScore = S.totalScore;
+      saveHighScore(S.highScore);
+    }
+
     refreshHUD();
     const {stars, msg} = starsForScore(S.totalScore);
-    const tableHTML = buildZeroLogTable();
+
+    // IMPORTANT: use the current angle unit for post-game feedback
+    const unit = currentAngleUnit();
+    const tableHTML = buildZeroLogTable(unit);
+
+    const hsLine = `High score: ${S.highScore}`;
     setOverlay(true,
       title,
-      `${reason}\nFinal score: ${S.totalScore}\n${msg}`,
+      `${reason}\nFinal score: ${S.totalScore}\n${msg}\n${hsLine}`,
       "Play again (Level 1)",
       () => { setOverlay(false); resetAll(true); },
       null, null,
@@ -602,7 +650,7 @@
     if(showOverlay){
       setOverlay(true,
         "Ready?",
-        "Timer starts when you click Start.\n\nLevel 1: shoot z₁.\nLevel 2: shoot z₁×z₂.\nLevel 3: shoot z₁×z₂×z₃.\n\n2 minutes active play total (timer pauses between levels).\nShots reset to 5 at the start of each level.\nOnly the first round of each level uses easy grid points.\nHidden product always satisfies −12 ≤ x,y ≤ 12.",
+        "Timer starts when you click Start.\n\nLevel 1: shoot z₁.\nLevel 2: shoot z₁×z₂.\nLevel 3: shoot z₁×z₂×z₃.\n\n2 minutes active play total (timer pauses between levels).\nShots reset to 5 at the start of each level.\nOnly the first round of each level uses easy grid points.\nHidden product always satisfies −12 ≤ x,y ≤ 12.\n\nIf you score 0 on a shot, it will appear in the end-of-game review table.",
         "Start Level 1",
         () => { setOverlay(false); startGame(); }
       );
@@ -646,7 +694,7 @@
       const r = Number(modulusEl.value);
       let th = Number(argumentEl.value);
       if(!Number.isFinite(r) || !Number.isFinite(th)) return null;
-      if(angleUnitEl.value === 'deg') th = th * Math.PI/180;
+      if(currentAngleUnit() === 'deg') th = degToRad(th);
       return { x: r*Math.cos(th), y: r*Math.sin(th) };
     } else {
       const a = Number(reEl.value);
@@ -700,12 +748,17 @@
     focusFirstBox();
     refreshHUD();
 
-    if(S.shotsLeft <= 0){
+    // IMPORTANT ORDER:
+    // 1) Allow level up even if this was the 5th shot (shotsLeft now 0)
+    // 2) If no level up, then game over for out-of-shots.
+    const prevLevel = S.level;
+    maybeLevelUp();
+    const leveledUp = (S.level !== prevLevel) || (S.phase === 'pause'); // pause indicates we can continue
+
+    if(S.shotsLeft <= 0 && !leveledUp){
       endGame("Out of shots!", "You used all your shots.");
       return;
     }
-
-    maybeLevelUp();
   }
 
   // -------- Drawing --------
@@ -726,7 +779,7 @@
 
     // spokes every 15 degrees
     for(let deg=0; deg<180; deg+=15){
-      const a = deg * Math.PI/180;
+      const a = degToRad(deg);
       const x = Math.cos(a)*worldRadius, y = Math.sin(a)*worldRadius;
       const p2 = toScreen({x, y});
       const p3 = toScreen({x:-x, y:-y});
@@ -902,23 +955,20 @@
     drawPolarGrid();
     drawTitle();
 
-    // Do not show any points until timer has started (phase !== 'start')
+    // Don't show points until Start clicked (phase !== 'start')
     const canShowPoints = (S.phase !== 'start');
 
     if(canShowPoints){
-      // factors
       for(let i=0;i<S.factors.length;i++){
         const p = cToPoint(S.factors[i]);
         drawPoint(p, 'rgba(255,211,106,.95)', 7, true);
         drawLabelNear(p, `z${i+1}`);
       }
 
-      // shot marker
       if(S.shotPoint){
         drawPoint(S.shotPoint, 'rgba(109,255,154,.95)', 7, true);
       }
 
-      // arrow
       if(S.arrow){
         const t = clamp((now - S.arrow.t0)/S.arrow.dur, 0, 1);
         const tt = 1 - Math.pow(1 - t, 3);
@@ -934,22 +984,22 @@
 
   // -------- Init --------
   angleUnitEl.value = "deg";
+  S.highScore = loadHighScore();
   syncInputsUI();
 
-  // Prepare first hidden round, but keep phase=start so nothing is drawn yet.
   setupRound();
   refreshHUD();
 
   setOverlay(true,
     "Ready?",
-    "Timer starts when you click Start.\n\nLevel 1: shoot z₁.\nLevel 2: shoot z₁×z₂.\nLevel 3: shoot z₁×z₂×z₃.\n\n2 minutes active play total (timer pauses between levels).\nShots reset to 5 at the start of each level.\nOnly the first round of each level uses easy grid points.\nHidden product always satisfies −12 ≤ x,y ≤ 12.\n\nAt the end, you’ll see a table reviewing any 0-score shots.",
+    "Timer starts when you click Start.\n\nLevel 1: shoot z₁.\nLevel 2: shoot z₁×z₂.\nLevel 3: shoot z₁×z₂×z₃.\n\n2 minutes active play total (timer pauses between levels).\nShots reset to 5 at the start of each level.\nOnly the first round of each level uses easy grid points.\nHidden product always satisfies −12 ≤ x,y ≤ 12.\n\nIf you score 0 on a shot, it will appear in the end-of-game review table.",
     "Start Level 1",
     () => { setOverlay(false); startGame(); }
   );
 
   requestAnimationFrame(tick);
 
-  // Level-up checks (in addition to after shots)
+  // Also keep a periodic check for leveling while playing.
   setInterval(() => {
     if(S.phase !== 'playing') return;
     if(S.level === 1 && S.totalScore > 25) pauseForNextLevel(2);
