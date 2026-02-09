@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Numerical Integration Drag-and-Drop Game</title>
+  <title>Numerical Integration Drag-and-Drop</title>
 
   <!-- MathJax -->
   <script>
@@ -38,6 +38,7 @@
       color: var(--ink);
     }
 
+    /* Sticky header: integral always visible */
     .topbar{
       position: sticky;
       top: 0;
@@ -61,7 +62,7 @@
       flex-direction:column;
       gap: 4px;
       min-width: 260px;
-      flex: 1 1 320px;
+      flex: 1 1 360px;
     }
     .brand .title{
       font-size: 15px;
@@ -199,12 +200,30 @@
       border: 1px dashed rgba(255,255,255,.18);
       background: rgba(0,0,0,.14);
       min-height: 98px;
+      position: relative;
     }
     .bank .lbl{
       font-weight: 900;
       font-size: 12px;
       color: var(--muted);
       margin-bottom: 6px;
+      display:flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .selectedPill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,204,102,.55);
+      background: rgba(255,204,102,.10);
+      font-size: 12px;
+      color: var(--ink);
+      font-weight: 900;
+      white-space: nowrap;
     }
     .tokens{
       display:flex;
@@ -241,6 +260,10 @@
       z-index: 9999;
       transform: translate(-50%,-50%);
       cursor: grabbing;
+    }
+    .token.selected{
+      outline: 2px solid rgba(255,204,102,.9);
+      box-shadow: 0 0 0 4px rgba(255,204,102,.15);
     }
 
     .hTableWrap{
@@ -292,7 +315,6 @@
       white-space: nowrap;
     }
 
-    /* IMPORTANT: droppable element is the slot itself */
     .slot, .fSlot{
       width: var(--slotW);
       height: var(--slotH);
@@ -302,6 +324,7 @@
       display:flex;
       align-items:center;
       justify-content:center;
+      position: relative;
     }
     .slot.filled, .fSlot.filled{
       border-style: solid;
@@ -309,6 +332,11 @@
     }
     .slot.ok, .fSlot.ok{ border-color: rgba(53,208,127,.75); }
     .slot.bad, .fSlot.bad{ border-color: rgba(255,77,77,.75); }
+
+    .slot.hover, .fSlot.hover{
+      border-color: rgba(255,204,102,.85);
+      box-shadow: 0 0 0 4px rgba(255,204,102,.12);
+    }
 
     .row{
       display:flex;
@@ -365,7 +393,6 @@
       pointer-events: none;
     }
     .tiny{ font-size: 12px; color: var(--muted); }
-    .mjWarn{ display:none; }
   </style>
 </head>
 
@@ -395,9 +422,6 @@
 </div>
 
 <div class="page">
-  <div class="msg warn mjWarn" id="mjWarn">
-    If the maths looks unformatted, your device may be blocking MathJax’s CDN.
-  </div>
 
   <!-- STEP 0 -->
   <div class="card" id="panel0">
@@ -409,7 +433,7 @@
       </div>
       <div class="row">
         <label class="tiny"><strong>Enter \(h\)</strong> (3 d.p.):</label>
-        <input type="text" id="hBox" placeholder="e.g. 0.124" />
+        <input type="text" id="hBox" placeholder="e.g. 0.124" inputmode="decimal" />
         <button id="btnCheck0">Check \(h\)</button>
       </div>
       <div class="msg hidden" id="msg0"></div>
@@ -420,10 +444,13 @@
   <div class="card" id="panel1">
     <div class="hd"><p class="title">Step 1 — Complete the table</p></div>
     <div class="bd" id="step1Wrap">
-      <div class="stepTag"><span class="dot lock" id="dot1"></span> Step 1 — Drag \(x\) and \(y\)</div>
+      <div class="stepTag"><span class="dot lock" id="dot1"></span> Step 1 — Drag or tap values into the table</div>
 
       <div class="bank" id="bankWrap">
-        <div class="lbl">Values</div>
+        <div class="lbl">
+          <span>Values</span>
+          <span class="selectedPill" id="selectedPill" style="display:none;">Selected: <span id="selectedText"></span></span>
+        </div>
         <div class="tokens" id="mixedBank"></div>
       </div>
 
@@ -443,7 +470,7 @@
   <div class="card" id="panel2">
     <div class="hd"><p class="title">Step 2 — Build the formula</p></div>
     <div class="bd" id="step2Wrap">
-      <div class="stepTag"><span class="dot lock" id="dot2"></span> Step 2 — Drag into the formula</div>
+      <div class="stepTag"><span class="dot lock" id="dot2"></span> Step 2 — Drag or tap \(y\) values into the formula</div>
 
       <div class="formulaArea">
         <div class="formulaLead" id="whereLine">where \(h=\dfrac{b-a}{n}\)</div>
@@ -469,91 +496,29 @@
       </div>
       <div class="row">
         <label class="tiny"><strong>Approximation:</strong></label>
-        <input type="text" id="answerBox" placeholder="e.g. 1.234" />
+        <input type="text" id="answerBox" placeholder="e.g. 1.234" inputmode="decimal" />
         <button id="btnCheck3">Check answer</button>
       </div>
       <div class="msg hidden" id="resultBox"></div>
     </div>
   </div>
+
 </div>
 
 <script>
-/* ===== Dragging (robust snapping) ===== */
-let dragState = null;
-
-function cleanupDrag(){
-  if(!dragState) return;
-  try{ dragState.ghostEl?.remove(); }catch(e){}
-  dragState = null;
-}
-window.addEventListener('pointerup', cleanupDrag, true);
-window.addEventListener('pointercancel', cleanupDrag, true);
-window.addEventListener('blur', cleanupDrag);
-
-function makeDraggable(el){
-  el.addEventListener('pointerdown',(ev)=>{
-    if(ev.button!==undefined && ev.button!==0) return;
-    ev.preventDefault();
-    cleanupDrag();
-
-    const tokenId = el.dataset.tokenId;
-    const tokenType = el.dataset.type;
-    if(!tokenId) return;
-
-    const ghost = el.cloneNode(true);
-    ghost.classList.add('ghost');
-    ghost.classList.remove('used');
-    document.body.appendChild(ghost);
-
-    dragState = { tokenId, tokenType, ghostEl: ghost };
-    moveGhost(ev.clientX, ev.clientY);
-    el.setPointerCapture?.(ev.pointerId);
-  });
-
-  el.addEventListener('pointermove',(ev)=>{
-    if(!dragState) return;
-    moveGhost(ev.clientX, ev.clientY);
-  });
-
-  el.addEventListener('pointerup',(ev)=>{
-    if(!dragState) return;
-    const dropTarget = droppableSlotAt(ev.clientX, ev.clientY);
-    if(dropTarget){
-      handleDropOn(dropTarget, dragState.tokenId, dragState.tokenType);
-    }
-    cleanupDrag();
-  });
-
-  el.addEventListener('pointercancel', cleanupDrag);
-}
-
-function moveGhost(x,y){
-  if(!dragState) return;
-  dragState.ghostEl.style.left = x+'px';
-  dragState.ghostEl.style.top  = y+'px';
-}
-
-function droppableSlotAt(x,y){
-  // IMPORTANT: use elementsFromPoint to find slots even when something overlaps.
-  const els = document.elementsFromPoint(x,y);
-  for(const el of els){
-    const slot = el.closest?.('.slot,.fSlot');
-    if(slot && slot.dataset && slot.dataset.slotId) return slot;
-  }
-  return null;
-}
-
-/* ===== State ===== */
+/* =========================
+   State
+   ========================= */
 const state={
   rule:'trapezium',
   f:null,
   fLatex:'',
   a:0,b:0,h:0,n:0,
   xs:[], ys:[],
-  tokens:new Map(),
-  bankEls:new Map(),
-  tableSlots:new Map(),
-  formulaSlots:new Map(),
+  tokens:new Map(),             // tokenId -> {type,label,isRed}
+  bankEls:new Map(),            // tokenId -> DOM element in bank
+  tableSlots:new Map(),         // slotId -> tokenId
+  formulaSlots:new Map(),       // slotId -> tokenId
   correctTable:new Map(),
   correctFormula:new Map(),
   hOk:false,
@@ -564,7 +529,154 @@ const state={
 };
 const $=(id)=>document.getElementById(id);
 
-/* ===== Utility ===== */
+/* =========================
+   Touch-friendly drag + tap-to-place
+   ========================= */
+let dragState = null;          // { tokenId, tokenType, ghostEl, lastX, lastY }
+let selectedTokenId = null;    // tap-to-place selection
+
+function cleanupDrag(){
+  if(!dragState) return;
+  try{ dragState.ghostEl?.remove(); }catch(e){}
+  dragState = null;
+  clearSlotHover();
+}
+
+function clearSelectionVisual(){
+  document.querySelectorAll('.token.selected').forEach(el=>el.classList.remove('selected'));
+  $('selectedPill').style.display='none';
+}
+
+function setSelectedToken(tokenId){
+  selectedTokenId = tokenId;
+  clearSelectionVisual();
+  const el = state.bankEls.get(tokenId);
+  if(el){
+    el.classList.add('selected');
+    $('selectedText').textContent = state.tokens.get(tokenId)?.label ?? '';
+    $('selectedPill').style.display='inline-flex';
+  }
+}
+
+function clearSelectedToken(){
+  selectedTokenId = null;
+  clearSelectionVisual();
+}
+
+function droppableSlotAt(x,y){
+  const els = document.elementsFromPoint(x,y);
+  for(const el of els){
+    const slot = el.closest?.('.slot,.fSlot');
+    if(slot && slot.dataset && slot.dataset.slotId) return slot;
+  }
+  return null;
+}
+
+function moveGhost(x,y){
+  if(!dragState) return;
+  dragState.lastX = x;
+  dragState.lastY = y;
+  dragState.ghostEl.style.left = x+'px';
+  dragState.ghostEl.style.top  = y+'px';
+
+  const slot = droppableSlotAt(x,y);
+  setSlotHover(slot);
+}
+
+function makeDraggable(el){
+  // Tap-to-select (best on touch)
+  el.addEventListener('click', (ev)=>{
+    if(dragState) return;
+    const tokenId = el.dataset.tokenId;
+    if(!tokenId) return;
+    if(el.classList.contains('used')) return;
+    if(selectedTokenId === tokenId) clearSelectedToken();
+    else setSelectedToken(tokenId);
+  });
+
+  // Drag (mouse/pen/touch)
+  el.addEventListener('pointerdown', (ev)=>{
+    if(ev.button!==undefined && ev.button!==0) return;
+    if(el.classList.contains('used')) return;
+
+    ev.preventDefault(); // stop scroll hijack while dragging
+    cleanupDrag();
+
+    const tokenId = el.dataset.tokenId;
+    const tokenType = el.dataset.type;
+    if(!tokenId) return;
+
+    const ghost = el.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.classList.remove('used','selected');
+    document.body.appendChild(ghost);
+
+    dragState = { tokenId, tokenType, ghostEl: ghost, lastX: ev.clientX, lastY: ev.clientY };
+    moveGhost(ev.clientX, ev.clientY);
+
+    // dragging clears tap selection
+    clearSelectedToken();
+  }, { passive:false });
+
+  el.addEventListener('pointermove', (ev)=>{
+    if(!dragState) return;
+    ev.preventDefault();
+    moveGhost(ev.clientX, ev.clientY);
+  }, { passive:false });
+}
+
+// Global pointerup: reliable drop on iPad/Safari
+window.addEventListener('pointerup', (ev)=>{
+  if(!dragState) return;
+
+  const x = (typeof ev.clientX === 'number') ? ev.clientX : dragState.lastX;
+  const y = (typeof ev.clientY === 'number') ? ev.clientY : dragState.lastY;
+
+  const slot = droppableSlotAt(x,y);
+  if(slot){
+    handleDropOn(slot, dragState.tokenId, dragState.tokenType);
+  }
+  cleanupDrag();
+}, true);
+
+window.addEventListener('pointercancel', cleanupDrag, true);
+window.addEventListener('blur', cleanupDrag);
+
+// Tap-to-place on slots
+function enableTapToPlaceOnSlots(){
+  document.querySelectorAll('.slot,.fSlot').forEach(slot=>{
+    if(slot.dataset.tapBound === '1') return;
+    slot.dataset.tapBound = '1';
+
+    slot.addEventListener('click', ()=>{
+      if(!selectedTokenId) return;
+      const tok = state.tokens.get(selectedTokenId);
+      if(!tok) return;
+
+      const accept = slot.dataset.accept;
+      if(accept && accept !== tok.type) return;
+
+      handleDropOn(slot, selectedTokenId, tok.type);
+      // keep selection for faster filling
+    });
+  });
+}
+
+let hoverSlotEl = null;
+function setSlotHover(slot){
+  if(hoverSlotEl === slot) return;
+  if(hoverSlotEl) hoverSlotEl.classList.remove('hover');
+  hoverSlotEl = slot;
+  if(hoverSlotEl) hoverSlotEl.classList.add('hover');
+}
+function clearSlotHover(){
+  if(hoverSlotEl) hoverSlotEl.classList.remove('hover');
+  hoverSlotEl = null;
+}
+
+/* =========================
+   Utility
+   ========================= */
 function rnd(min,max){ return min+Math.random()*(max-min); }
 function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function to3(x){ let v=Math.round(x*1000)/1000; if(Object.is(v,-0)) v=0; return v; }
@@ -590,7 +702,9 @@ function signJoin(a, expr){
   return `${a}${wrap(expr)}`;
 }
 
-/* ===== Functions ===== */
+/* =========================
+   Functions
+   ========================= */
 function makeBaseFunction(kind){
   if(kind==='expPow'){
     const a=choice([0.5,0.8,1.2,-0.7,-1.1]);
@@ -658,7 +772,9 @@ function buildCombinedFunction(){
   return { f, latex };
 }
 
-/* ===== h choices ===== */
+/* =========================
+   Grid + integration
+   ========================= */
 function pickGrid(rule, fInfo){
   const hChoices = [
     0.035,0.041,0.062,0.073,0.083,0.095,
@@ -728,7 +844,9 @@ function approxByRuleUsingRounded(rule, ysRounded, hRounded){
   return h*s;
 }
 
-/* ===== Copy integrand (Desmos/GeoGebra-friendly) ===== */
+/* =========================
+   Copy integrand
+   ========================= */
 function integrandForCalculators(){
   let s = state.fLatex;
 
@@ -738,15 +856,12 @@ function integrandForCalculators(){
        .replace(/\\tan/g,'tan')
        .replace(/\\ln/g,'ln');
 
-  // e^{...} -> exp(...)
   s = s.replace(/e\^\{([^}]+)\}/g, 'exp($1)');
-  // x^{n} -> x^n and generic ^{...} -> ^...
   s = s.replace(/x\^\{([^}]+)\}/g, 'x^$1').replace(/\^\{([^}]+)\}/g, '^$1');
 
   s = s.replace(/\\times/g,'*').replace(/\\,/g,'');
   s = s.replace(/\s+/g,' ').trim();
 
-  // explicit multiplication for Desmos
   s = s.replace(/(\d)(x)/g, '$1*$2');
   s = s.replace(/(\d)\(/g, '$1*(');
   s = s.replace(/(\d)(sin|cos|tan|ln|exp)/g, '$1*$2');
@@ -782,7 +897,9 @@ async function copyTextToClipboard(text){
   }
 }
 
-/* ===== Build question ===== */
+/* =========================
+   Build question
+   ========================= */
 function buildQuestion(rule){
   state.rule=rule;
 
@@ -832,7 +949,9 @@ function buildQuestion(rule){
   rerenderMath();
 }
 
-/* ===== Tokens ===== */
+/* =========================
+   Tokens & mappings
+   ========================= */
 function buildBanksMixed(){
   const needX=state.xs.length;
   const needY=state.ys.length;
@@ -908,13 +1027,16 @@ function buildFormulaMappings(){
   }
 }
 
-/* ===== Rendering ===== */
+/* =========================
+   Rendering
+   ========================= */
 function renderAll(){
   renderTopBar();
   renderMixedBank();
   renderHorizontalTable();
   renderFormula();
   refreshBankUsedStates();
+  enableTapToPlaceOnSlots();
 }
 
 function renderTopBar(){
@@ -940,6 +1062,7 @@ function renderMixedBank(){
   const bank=$('mixedBank');
   bank.innerHTML='';
   state.bankEls.clear();
+  clearSelectedToken();
 
   for(const [id,tok] of items){
     const el=document.createElement('div');
@@ -1008,6 +1131,7 @@ function renderHorizontalTable(){
   wrapEl.appendChild(r2);
 
   redrawPlaced();
+  enableTapToPlaceOnSlots();
 }
 
 function buildGivenFormulaLatex(){
@@ -1104,46 +1228,49 @@ function renderFormula(){
     area.appendChild(l);
   }
 
-  // MAKE FORMULA BOXES REAL NODES and clickable
   document.querySelectorAll('.fSlot').forEach(slot=>{
     slot.addEventListener('click', ()=> clearSlot(slot));
   });
 
   redrawPlaced();
+  enableTapToPlaceOnSlots();
 }
 
 function rerenderMath(){
-  if(!window.MathJax || !window.MathJax.typesetPromise){
-    document.getElementById('mjWarn').style.display='block';
-    return;
+  if(window.MathJax && window.MathJax.typesetPromise){
+    window.MathJax.typesetPromise().catch(()=>{});
   }
-  window.MathJax.typesetPromise().catch(()=> document.getElementById('mjWarn').style.display='block');
 }
 
-/* ===== Used state ===== */
+/* =========================
+   Used token disabling
+   ========================= */
 function refreshBankUsedStates(){
   for(const el of state.bankEls.values()) el.classList.remove('used');
+
   for(const tokenId of state.tableSlots.values()){
-    const el=state.bankEls.get(tokenId); if(el) el.classList.add('used');
+    const el = state.bankEls.get(tokenId);
+    if(el) el.classList.add('used');
   }
   for(const tokenId of state.formulaSlots.values()){
-    const el=state.bankEls.get(tokenId); if(el) el.classList.add('used');
+    const el = state.bankEls.get(tokenId);
+    if(el) el.classList.add('used');
   }
 }
 
-/* ===== Slots: drop and paint ===== */
+/* =========================
+   Slots
+   ========================= */
 function paintSlot(slotEl, tokenId){
   const tok=state.tokens.get(tokenId);
   slotEl.classList.add('filled');
   slotEl.innerHTML='';
-
   const t=document.createElement('div');
   t.className=`token ${tok.type} small`;
   t.textContent=tok.label;
   t.dataset.tokenId=tokenId;
   t.dataset.type=tok.type;
   makeDraggable(t);
-
   slotEl.appendChild(t);
 }
 
@@ -1172,6 +1299,7 @@ function handleDropOn(slotEl, tokenId, tokenType){
   clearSlot(slotEl, true);
   map.set(slotId, tokenId);
   paintSlot(slotEl, tokenId);
+
   refreshBankUsedStates();
 }
 
@@ -1180,7 +1308,7 @@ function clearSlot(slotEl, silent=false){
   if(!slotId) return;
   const map = slotId.startsWith('t_') ? state.tableSlots : state.formulaSlots;
   map.delete(slotId);
-  slotEl.classList.remove('filled','ok','bad');
+  slotEl.classList.remove('filled','ok','bad','hover');
   slotEl.innerHTML='';
   refreshBankUsedStates();
 }
@@ -1197,23 +1325,27 @@ function redrawPlaced(){
   refreshBankUsedStates();
 }
 
-/* ===== Locks ===== */
+/* =========================
+   Locks
+   ========================= */
 function updateLocks(){
-  document.getElementById('dot0').className='dot '+(state.hOk?'good':'lock');
-  document.getElementById('dot1').className='dot '+(state.tableComplete?'good':'lock');
-  document.getElementById('dot2').className='dot '+(state.formulaComplete?'good':'lock');
-  document.getElementById('dot3').className='dot lock';
+  $('dot0').className='dot '+(state.hOk?'good':'lock');
+  $('dot1').className='dot '+(state.tableComplete?'good':'lock');
+  $('dot2').className='dot '+(state.formulaComplete?'good':'lock');
+  $('dot3').className='dot lock';
 
-  document.getElementById('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
-  document.getElementById('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
-  document.getElementById('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
+  $('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
+  $('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
+  $('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
 }
 
-/* ===== Checks ===== */
+/* =========================
+   Checks & resets
+   ========================= */
 function checkStep0(){
-  const raw=document.getElementById('hBox').value.trim().replace(/,/g,'');
+  const raw=$('hBox').value.trim().replace(/,/g,'');
   const val=Number(raw);
-  const msg=document.getElementById('msg0');
+  const msg=$('msg0');
 
   if(!Number.isFinite(val)){
     msg.className='msg warn'; msg.textContent='Enter a valid number for h (3 d.p.).';
@@ -1244,7 +1376,7 @@ function checkStep0(){
 }
 
 function checkStep1(){
-  const msg=document.getElementById('msg1');
+  const msg=$('msg1');
   let allFilled=true, allCorrect=true;
 
   for(const [slotId, expected] of state.correctTable.entries()){
@@ -1287,7 +1419,7 @@ function checkStep1(){
 }
 
 function checkStep2(){
-  const msg=document.getElementById('msg2');
+  const msg=$('msg2');
   let allFilled=true, allCorrect=true;
 
   for(const [slotId, expected] of state.correctFormula.entries()){
@@ -1330,9 +1462,9 @@ function checkStep2(){
 }
 
 function checkStep3(){
-  const raw=document.getElementById('answerBox').value.trim().replace(/,/g,'');
+  const raw=$('answerBox').value.trim().replace(/,/g,'');
   const val=Number(raw);
-  const box=document.getElementById('resultBox');
+  const box=$('resultBox');
 
   if(!Number.isFinite(val)){
     box.className='msg warn'; box.textContent='Please enter a valid number.';
@@ -1346,10 +1478,10 @@ function checkStep3(){
 
   if(err<=tol){
     box.className='msg good';
-    box.innerHTML=`<strong>Correct ✅</strong><br/>Expected: <strong>${expected.toFixed(4)}</strong>`;
+    box.innerHTML=`<strong>Correct ✅</strong><br/>Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong>`;
   } else {
     box.className='msg bad';
-    box.innerHTML=`<strong>Not quite ❌</strong><br/>Expected: <strong>${expected.toFixed(4)}</strong>`;
+    box.innerHTML=`<strong>Not quite ❌</strong><br/>Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong>`;
   }
   box.classList.remove('hidden');
 }
@@ -1362,59 +1494,61 @@ function resetStep1(silent){
   state.tableSlots.clear();
   state.tableComplete=false;
   document.querySelectorAll('.slot').forEach(s=>{
-    s.classList.remove('filled','ok','bad');
+    s.classList.remove('filled','ok','bad','hover');
     s.innerHTML='';
   });
   refreshBankUsedStates();
-  if(!silent) document.getElementById('msg1').classList.add('hidden');
+  if(!silent) $('msg1').classList.add('hidden');
 }
 function resetStep2(silent){
   state.formulaSlots.clear();
   state.formulaComplete=false;
   document.querySelectorAll('.fSlot').forEach(s=>{
-    s.classList.remove('filled','ok','bad');
+    s.classList.remove('filled','ok','bad','hover');
     s.innerHTML='';
   });
   refreshBankUsedStates();
-  if(!silent) document.getElementById('msg2').classList.add('hidden');
+  if(!silent) $('msg2').classList.add('hidden');
 }
 function resetStep3(silent){
-  document.getElementById('answerBox').value='';
-  document.getElementById('resultBox').classList.add('hidden');
-  if(!silent) document.getElementById('resultBox').textContent='';
+  $('answerBox').value='';
+  $('resultBox').classList.add('hidden');
+  if(!silent) $('resultBox').textContent='';
 }
 
 function clearMessages(){
-  document.getElementById('msg0').classList.add('hidden');
-  document.getElementById('msg1').classList.add('hidden');
-  document.getElementById('msg2').classList.add('hidden');
-  document.getElementById('resultBox').classList.add('hidden');
-  document.getElementById('hBox').value='';
-  document.getElementById('answerBox').value='';
+  $('msg0').classList.add('hidden');
+  $('msg1').classList.add('hidden');
+  $('msg2').classList.add('hidden');
+  $('resultBox').classList.add('hidden');
+  $('hBox').value='';
+  $('answerBox').value='';
 }
 
-/* ===== Buttons ===== */
-document.getElementById('btnNew').addEventListener('click', ()=>buildQuestion(document.getElementById('ruleSelect').value));
-document.getElementById('ruleSelect').addEventListener('change', ()=>buildQuestion(document.getElementById('ruleSelect').value));
+/* =========================
+   Buttons
+   ========================= */
+$('btnNew').addEventListener('click', ()=>buildQuestion($('ruleSelect').value));
+$('ruleSelect').addEventListener('change', ()=>buildQuestion($('ruleSelect').value));
 
-document.getElementById('btnCheck0').addEventListener('click', checkStep0);
-document.getElementById('btnCheck1').addEventListener('click', checkStep1);
-document.getElementById('btnCheck2').addEventListener('click', checkStep2);
-document.getElementById('btnCheck3').addEventListener('click', checkStep3);
+$('btnCheck0').addEventListener('click', checkStep0);
+$('btnCheck1').addEventListener('click', checkStep1);
+$('btnCheck2').addEventListener('click', checkStep2);
+$('btnCheck3').addEventListener('click', checkStep3);
 
-document.getElementById('btnReset1').addEventListener('click', ()=>{
+$('btnReset1').addEventListener('click', ()=>{
   resetStep1(false); resetStep2(true); resetStep3(true);
   updateLocks();
 });
-document.getElementById('btnReset2').addEventListener('click', ()=>{
+$('btnReset2').addEventListener('click', ()=>{
   resetStep2(false); resetStep3(true);
   updateLocks();
 });
 
-document.getElementById('btnCopyIntegrand').addEventListener('click', async ()=>{
+$('btnCopyIntegrand').addEventListener('click', async ()=>{
   const txt = integrandForCalculators();
   const ok = await copyTextToClipboard(txt);
-  const btn = document.getElementById('btnCopyIntegrand');
+  const btn = $('btnCopyIntegrand');
   if(ok){
     const old = btn.textContent;
     btn.textContent = 'Copied ✅';
@@ -1425,25 +1559,25 @@ document.getElementById('btnCopyIntegrand').addEventListener('click', async ()=>
 });
 
 /* Fullscreen */
-document.getElementById('btnFullscreen').addEventListener('click', async ()=>{
+$('btnFullscreen').addEventListener('click', async ()=>{
   try{
     if(!document.fullscreenElement){
       await document.documentElement.requestFullscreen();
-      document.getElementById('btnFullscreen').textContent='Exit fullscreen';
+      $('btnFullscreen').textContent='Exit fullscreen';
     } else {
       await document.exitFullscreen();
-      document.getElementById('btnFullscreen').textContent='Fullscreen';
+      $('btnFullscreen').textContent='Fullscreen';
     }
   } catch(e){
     alert('Fullscreen not available on this device/browser.');
   }
 });
 document.addEventListener('fullscreenchange', ()=>{
-  document.getElementById('btnFullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+  $('btnFullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
 });
 
 /* Init */
-buildQuestion(document.getElementById('ruleSelect').value);
+buildQuestion($('ruleSelect').value);
 window.addEventListener('load', ()=>rerenderMath());
 </script>
 
