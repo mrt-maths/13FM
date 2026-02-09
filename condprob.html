@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Conditional Probability Tester</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panelL: rgba(16,24,38,.55);
+      --panelR: rgba(15,23,42,.55);
+      --ink:#e8eefc;
+      --muted:#a9b4cf;
+      --accent:#7aa2ff;
+      --good:#24c96b;
+      --bad:#ff4d4d;
+      --warn:#ffcc66;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 800px at 20% 10%, #162348 0%, var(--bg) 55%, #070a0f 100%);
+      color:var(--ink);
+    }
+    header{
+      padding:14px 16px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(11,15,20,.6);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .left{display:flex; flex-direction:column; gap:2px;}
+    header h1{margin:0; font-size:16px; font-weight:700; letter-spacing:.2px;}
+    header .sub{font-size:12px; color:var(--muted);}
+    header .right{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+
+    /* pills ~30% narrower */
+    .pill{
+      background: rgba(122,162,255,.14);
+      border:1px solid rgba(122,162,255,.25);
+      color: var(--ink);
+      padding:6px 7px;
+      border-radius:999px;
+      font-size:11px;
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .pill b{font-family: var(--mono); font-weight:700; font-size:11px;}
+
+    /* dropdown styled like pill */
+    .levelSelect{
+      appearance:none;
+      -webkit-appearance:none;
+      -moz-appearance:none;
+      padding:6px 28px 6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(122,162,255,.25);
+      background: rgba(122,162,255,.14);
+      color: var(--ink);
+      font-size:11px;
+      font-weight:700;
+      font-family: var(--mono);
+      cursor:pointer;
+      box-shadow: var(--shadow);
+      position:relative;
+    }
+    .levelSelect:focus{
+      outline:none;
+      box-shadow: 0 0 0 3px rgba(122,162,255,.18), var(--shadow);
+      border-color: rgba(122,162,255,.55);
+    }
+    .selectWrap{
+      position:relative;
+      display:flex;
+      align-items:center;
+    }
+    .selectWrap::after{
+      content:"▾";
+      position:absolute;
+      right:10px;
+      font-size:12px;
+      color: rgba(232,238,252,.9);
+      pointer-events:none;
+    }
+
+    .btn{
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      padding:8px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:12px;
+      box-shadow: var(--shadow);
+    }
+    .btn:hover{ background: rgba(255,255,255,.10); }
+    .btn:disabled{ cursor:not-allowed; opacity:.5; box-shadow:none; }
+
+    main{
+      display:flex;
+      height: calc(100vh - 58px);
+      min-height: 640px;
+    }
+    .panel{padding:16px; overflow:auto;}
+    .leftPanel{
+      flex: 0 0 40%;
+      border-right:1px solid rgba(255,255,255,.08);
+      background: var(--panelL);
+      backdrop-filter: blur(10px);
+    }
+    .rightPanel{
+      flex: 1;
+      background: var(--panelR);
+      backdrop-filter: blur(10px);
+    }
+    .card{
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      padding:14px;
+      box-shadow: var(--shadow);
+    }
+    .card h2{margin:0 0 8px 0; font-size:14px; letter-spacing:.2px;}
+    .hint{font-size:12px; color: var(--muted); line-height:1.35;}
+
+    /* Population grid */
+    .popWrap{margin-top:12px; display:flex; justify-content:center;}
+    .popGrid{
+      display:grid;
+      gap:14px;
+      padding:12px;
+      border-radius: var(--radius);
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      box-shadow: var(--shadow);
+    }
+
+    /* circles (~50% larger) */
+    .circle{
+      width:78px; height:78px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.20);
+      background: radial-gradient(84px 84px at 30% 25%, rgba(255,255,255,.10), rgba(255,255,255,.03));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+      user-select:none;
+    }
+    .circle:hover{ transform: translateY(-1px); }
+    .circle.match{
+      border-color: rgba(122,162,255,.75);
+      box-shadow: 0 0 0 4px rgba(122,162,255,.14), var(--shadow);
+    }
+    .circle.selected{
+      border-color: rgba(255,204,102,.80);
+      box-shadow: 0 0 0 4px rgba(255,204,102,.16), var(--shadow);
+    }
+
+    /* Event layouts inside circle */
+    .boxes{ display:grid; gap:6px; align-items:center; justify-items:center; }
+    .boxes.layout2{ grid-template-columns: repeat(2, 20px); grid-template-rows: 22px; }
+    .boxes.layout3{ grid-template-columns: repeat(2, 20px); grid-template-rows: 22px 22px; }
+    .boxes.layout4{ grid-template-columns: repeat(2, 20px); grid-template-rows: 22px 22px; }
+
+    .box{
+      width:20px; height:22px;
+      border-radius:5px;
+      border:1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.06);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:12px;
+      font-weight:900;
+      font-family: var(--mono);
+      color: rgba(232,238,252,.92);
+      line-height:1;
+    }
+    .box.off{color: rgba(232,238,252,.12);}
+    .box.on{
+      background: rgba(122,162,255,.28);
+      border-color: rgba(122,162,255,.65);
+      color: rgba(232,238,252,.95);
+    }
+
+    /* triangle layout for 3 events */
+    .layout3 .slot0{ grid-column: 1 / span 2; grid-row: 1; justify-self:center; }
+    .layout3 .slot1{ grid-column: 1; grid-row: 2; }
+    .layout3 .slot2{ grid-column: 2; grid-row: 2; }
+
+    /* square layout for 4 events */
+    .layout4 .slot0{ grid-column: 1; grid-row: 1; }
+    .layout4 .slot1{ grid-column: 2; grid-row: 1; }
+    .layout4 .slot2{ grid-column: 1; grid-row: 2; }
+    .layout4 .slot3{ grid-column: 2; grid-row: 2; }
+
+    /* Highlight info under population */
+    .countLine{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(232,238,252,.92);
+      font-family: var(--mono);
+      font-size:13px;
+      line-height:1.35;
+    }
+    .countLine .muted{ color: var(--muted); font-family: var(--sans); font-size:12px; }
+
+    /* Questions 2 columns x 5 */
+    .qGrid{
+      margin-top:10px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width: 1100px){
+      main{flex-direction:column; height:auto; min-height:auto;}
+      .leftPanel{flex: 0 0 auto; border-right:none; border-bottom:1px solid rgba(255,255,255,.08);}
+      .qGrid{grid-template-columns:1fr;}
+    }
+
+    /* reserve status space on card padding */
+    .qCard{
+      position: relative;
+      border-radius: var(--radius);
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      padding:10px 54px 12px 10px;
+      box-shadow: var(--shadow);
+    }
+    .qRow{
+      display:flex;
+      align-items:center;
+      gap:4px;
+    }
+    .lhs{
+      font-family: var(--mono);
+      font-size:13px;
+      color: rgba(232,238,252,.95);
+      flex: 1 1 auto;
+      min-width: 0;
+      line-height:1.2;
+      word-break: break-word;
+      padding-right:0;
+    }
+    .eq{
+      font-family: var(--mono);
+      font-weight:900;
+      opacity:.9;
+      margin:0;
+      width:14px;
+      text-align:center;
+      flex:0 0 auto;
+    }
+    .fracBox{
+      display:flex;
+      flex-direction:column;
+      align-items:stretch;
+      width:72px;
+      gap:4px;
+      flex:0 0 auto;
+      margin:0;
+    }
+    .fracBox input{
+      width:100%;
+      padding:7px 8px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size:13px;
+      outline:none;
+      text-align:center;
+    }
+    .fracBox input:focus{
+      border-color: rgba(122,162,255,.65);
+      box-shadow: 0 0 0 3px rgba(122,162,255,.18);
+    }
+    .fracBox input.dropReady{
+      outline:2px dashed rgba(122,162,255,.55);
+      outline-offset:3px;
+    }
+    .fracLine{
+      height:0;
+      border-top:2px solid rgba(232,238,252,.55);
+      margin:6px 0;
+      border-radius:2px;
+    }
+
+    .status{
+      position:absolute;
+      right:10px;
+      top:10px;
+      margin-left:0;
+      font-size:12px;
+      font-weight:900;
+      font-family: var(--mono);
+      padding:6px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      white-space:nowrap;
+      min-width:30px;
+      text-align:center;
+      pointer-events:none;
+    }
+    .status.good{ color: var(--good); border-color: rgba(36,201,107,.35); background: rgba(36,201,107,.10); }
+    .status.bad{ color: var(--bad); border-color: rgba(255,77,77,.35); background: rgba(255,77,77,.10); }
+
+    .toast{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .toast strong{color: var(--ink)}
+    .toast.good{ border-color: rgba(36,201,107,.35); background: rgba(36,201,107,.08); color: rgba(232,238,252,.9); }
+    .toast.warn{ border-color: rgba(255,204,102,.35); background: rgba(255,204,102,.08); color: rgba(232,238,252,.9); }
+    .toast .actions{
+      margin-top:10px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .smallRule{
+      margin-top:10px;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+
+    .assistPanel{
+      margin-top:12px;
+      padding:12px;
+      border-radius: var(--radius);
+      border:1px solid rgba(255,204,102,.35);
+      background: rgba(255,204,102,.08);
+      box-shadow: var(--shadow);
+    }
+    .assistTitle{
+      font-weight:800;
+      font-size:13px;
+      color: rgba(232,238,252,.95);
+      margin-bottom:8px;
+    }
+    .tiles{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+    }
+    .tile{
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(232,238,252,.95);
+      font-family: var(--mono);
+      font-size:14px;
+      font-weight:900;
+      cursor:grab;
+      user-select:none;
+      min-width:48px;
+      text-align:center;
+    }
+    .tile:active{ cursor:grabbing; transform: scale(.98); }
+    .assistHint{
+      margin-top:8px;
+      color: rgba(232,238,252,.88);
+      font-size:12px;
+    }
+
+    .fatal{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,77,77,.35);
+      background: rgba(255,77,77,.10);
+      color: rgba(232,238,252,.92);
+      font-size:12px;
+      line-height:1.35;
+      font-family: var(--mono);
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="left">
+    <h1>Conditional Probability Tester</h1>
+    <div class="sub">10 questions. Correct answers lock when checked. Check delay = min(incorrect × 30s, 3:00).</div>
+  </div>
+  <div class="right">
+    <!-- ✅ dropdown for level selection -->
+    <div class="selectWrap">
+      <select class="levelSelect" id="levelSelect" title="Choose level">
+        <option value="0">Level 1 (2 events)</option>
+        <option value="1">Level 2 (3 events)</option>
+        <option value="2">Level 3 (4 events)</option>
+      </select>
+    </div>
+
+    <div class="pill">Events <b id="eventsPill">A, B</b></div>
+    <div class="pill">Check in <b id="checkInPill">3:00</b></div>
+    <button class="btn" id="checkBtn" disabled>Check</button>
+    <button class="btn" id="fsBtn">Fullscreen</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel leftPanel">
+    <div class="card">
+      <h2>Population</h2>
+      <div class="hint">Click a circle to highlight all members with the same pattern of event membership.</div>
+
+      <div class="popWrap">
+        <div class="popGrid" id="popGrid"></div>
+      </div>
+
+      <div class="countLine" id="countLine"></div>
+      <div class="toast" id="roundToast" style="display:none"></div>
+      <div id="fatalMount"></div>
+    </div>
+  </section>
+
+  <section class="panel rightPanel">
+    <div class="card">
+      <h2>Problems</h2>
+      <div class="hint">
+        Fractions may be simplified or not. If the true probability is <b>0</b>, any <span style="font-family:var(--mono)">0 / n</span> with <b>n&gt;0</b> is accepted (max one such question per level).
+      </div>
+
+      <div class="qGrid" id="qGrid"></div>
+
+      <div id="assistMount"></div>
+
+      <div class="smallRule">After the 3rd check, if any are still incorrect, you’ll get draggable missing numerators/denominators.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  function uuid(){
+    try{ if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
+    return "id-" + Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
+  }
+
+  const fmtTime = (sec) => {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec/60);
+    const s = sec%60;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  };
+  const shuffle = (arr) => { for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; };
+  const pick = (arr) => arr[Math.floor(Math.random()*arr.length)];
+  const within = (x, lo, hi) => x > lo && x < hi;
+
+  const el = (id) => document.getElementById(id);
+  const popGrid = el("popGrid");
+  const qGrid = el("qGrid");
+  const assistMount = el("assistMount");
+  const eventsPill = el("eventsPill");
+  const checkInPill = el("checkInPill");
+  const checkBtn = el("checkBtn");
+  const fsBtn = el("fsBtn");
+  const roundToast = el("roundToast");
+  const countLine = el("countLine");
+  const fatalMount = el("fatalMount");
+  const levelSelect = el("levelSelect");
+
+  const layouts = [
+    {n:15, cols:3, rows:5},
+    {n:18, cols:3, rows:6},
+    {n:20, cols:4, rows:5},
+    {n:24, cols:4, rows:6},
+  ];
+  const levels = [
+    {events:["A","B"]},
+    {events:["A","B","C"]},
+    {events:["A","B","C","D"]}
+  ];
+
+  const constraints = {
+    PA: [0.2, 0.7],
+    PB: [0.4, 0.9],
+    PB_given_A: [0.4, 0.8],
+    PA_given_B: [0.1, 0.75],
+  };
+
+  let levelIndex = 0;
+  let layout = null;
+  let universe = [];
+  let questions = [];
+  let roundStart = 0;
+  let checkUnlockedAt = 180;
+  let timer = null;
+
+  let selectedSig = null;
+  let currentEvents = [];
+
+  let checkCount = 0;
+  let assistShown = false;
+  let levelComplete = false;
+
+  // set helpers
+  function setFromAtom(atom, members){
+    const isComp = atom.endsWith("'");
+    const name = isComp ? atom.slice(0,-1) : atom;
+    const out = [];
+    for(let i=0;i<members.length;i++){
+      const inside = !!members[i][name];
+      if(isComp ? !inside : inside) out.push(i);
+    }
+    return out;
+  }
+  const setUnion = (S,T) => Array.from(new Set([...S, ...T]));
+  const setIntersect = (S,T) => {
+    const t = new Set(T);
+    return S.filter(x => t.has(x));
+  };
+  function evalExpr(node, members){
+    if(node.type === "atom") return setFromAtom(node.atom, members);
+    if(node.type === "union") return setUnion(evalExpr(node.left, members), evalExpr(node.right, members));
+    if(node.type === "inter") return setIntersect(evalExpr(node.left, members), evalExpr(node.right, members));
+    throw new Error("Bad expr node");
+  }
+
+  // text
+  const atomText = (atom) => atom.replace("'", "′");
+  function exprToText(node){
+    if(node.type==="atom") return atomText(node.atom);
+    if(node.type==="inter"){
+      let L = exprToText(node.left);
+      let R = exprToText(node.right);
+      if(node.left.type==="union") L = `(${L})`;
+      if(node.right.type==="union") R = `(${R})`;
+      return `${L} ∩ ${R}`;
+    }
+    if(node.type==="union"){
+      let L = exprToText(node.left);
+      let R = exprToText(node.right);
+      if(node.left.type==="inter") L = `(${L})`;
+      if(node.right.type==="inter") R = `(${R})`;
+      return `${L} ∪ ${R}`;
+    }
+    return "?";
+  }
+  function nodeToInsideText(node){
+    if(node.type === "cond"){
+      return `${exprToText(node.E)} | ${exprToText(node.F)}`;
+    }
+    return exprToText(node);
+  }
+
+  // population generation
+  function computeABStats(members){
+    const N = members.length;
+    let A=0, B=0, AB=0;
+    for(const m of members){
+      if(m.A) A++;
+      if(m.B) B++;
+      if(m.A && m.B) AB++;
+    }
+    return {
+      PA: A/N,
+      PB: B/N,
+      PB_given_A: (A===0)? null : AB/A,
+      PA_given_B: (B===0)? null : AB/B
+    };
+  }
+  function generatePopulation(events, N){
+    for(let attempt=0; attempt<3000; attempt++){
+      const members = [];
+      for(let i=0;i<N;i++){
+        const m = {};
+        m.A = Math.random() < (0.35 + 0.25*Math.random());
+        const pB = m.A ? (0.50 + 0.30*Math.random()) : (0.35 + 0.35*Math.random());
+        m.B = Math.random() < pB;
+
+        for(const e of events){
+          if(e==="A" || e==="B") continue;
+          m[e] = Math.random() < (0.30 + 0.40*Math.random());
+        }
+        members.push(m);
+      }
+      for(const e of events){
+        if(e==="A" || e==="B") continue;
+        let count = 0;
+        for(const m of members) if(m[e]) count++;
+        if(count === 0) for(let k=0;k<Math.min(2,N);k++) members[Math.floor(Math.random()*N)][e] = true;
+        if(count === N) for(let k=0;k<Math.min(2,N);k++) members[Math.floor(Math.random()*N)][e] = false;
+      }
+      const s = computeABStats(members);
+      if(
+        within(s.PA, constraints.PA[0], constraints.PA[1]) &&
+        within(s.PB, constraints.PB[0], constraints.PB[1]) &&
+        s.PB_given_A != null && within(s.PB_given_A, constraints.PB_given_A[0], constraints.PB_given_A[1]) &&
+        s.PA_given_B != null && within(s.PA_given_B, constraints.PA_given_B[0], constraints.PA_given_B[1])
+      ) return members;
+    }
+    // fallback
+    const members = [];
+    for(let i=0;i<N;i++){
+      const m = {};
+      for(const e of events) m[e] = Math.random() < 0.5;
+      members.push(m);
+    }
+    return members;
+  }
+
+  // expressions (0/1/2 operators)
+  function atomsFor(events){
+    const out = [];
+    for(const e of events){ out.push(e); out.push(e+"'"); }
+    return out;
+  }
+  function distinctAtoms(atoms, k){
+    const picked = [];
+    let tries = 0;
+    while(picked.length < k && tries++ < 250){
+      const a = pick(atoms);
+      if(!picked.includes(a)) picked.push(a);
+    }
+    while(picked.length < k) picked.push(pick(atoms));
+    return picked;
+  }
+  function makeExpr(events){
+    const atoms = atomsFor(events);
+    const [a,b,c] = distinctAtoms(atoms, 3);
+    const A = {type:"atom", atom:a};
+    const B = {type:"atom", atom:b};
+    const C = {type:"atom", atom:c};
+    const op = () => (Math.random() < 0.5) ? "inter" : "union";
+
+    const r = Math.random();
+    const opCount = (r < 0.30) ? 0 : (r < 0.62) ? 1 : 2;
+
+    if(opCount === 0) return A;
+    if(opCount === 1){
+      if(Math.random() < 0.55) return {type: op(), left: A, right: B};
+      return {type:"cond", E: A, F: B};
+    }
+    const choice = Math.random();
+    if(choice < 0.38) return {type: op(), left: {type: op(), left: A, right: B}, right: C};
+    if(choice < 0.70) return {type:"cond", E: {type: op(), left: A, right: B}, F: C};
+    return {type:"cond", E: A, F: {type: op(), left: B, right: C}};
+  }
+
+  function fractionForNode(node){
+    const N = universe.length;
+    if(node.type === "cond"){
+      const F = evalExpr(node.F, universe);
+      if(F.length === 0) return null;
+      const E = evalExpr(node.E, universe);
+      return {num: setIntersect(E, F).length, den: F.length};
+    }
+    return {num: evalExpr(node, universe).length, den: N};
+  }
+
+  // build questions
+  function buildQuestions(events){
+    const out = [];
+    const seen = new Set();
+    let haveConditional = 0;
+    let zeroAnswers = 0;
+
+    const addQ = (node, forcedText=null) => {
+      const frac = fractionForNode(node);
+      if(!frac) return false;
+      if(frac.num === 0 && zeroAnswers >= 1) return false;
+
+      const text = forcedText ?? `P(${nodeToInsideText(node)})`;
+      const key = `${text}|${frac.num}/${frac.den}`;
+      if(seen.has(key)) return false;
+
+      out.push({ id: uuid(), text, node, num: frac.num, den: frac.den, locked:false, userNumRaw:"", userDenRaw:"", _els:null });
+      seen.add(key);
+      if(node.type === "cond") haveConditional++;
+      if(frac.num === 0) zeroAnswers++;
+      return true;
+    };
+
+    addQ({type:"cond", E:{type:"atom", atom:"B"}, F:{type:"atom", atom:"A"}}, "P(B | A)");
+    addQ({type:"atom", atom: events[0]}, `P(${events[0]})`);
+    addQ({type:"atom", atom: events[events.length-1] + "'"}, `P(${events[events.length-1]}′)`);
+
+    let guard = 0;
+    while(haveConditional < 4 && out.length < 10 && guard++ < 5000){
+      let node = makeExpr(events);
+      let tries = 0;
+      while(node.type !== "cond" && tries++ < 250) node = makeExpr(events);
+      addQ(node);
+    }
+    guard = 0;
+    while(out.length < 10 && guard++ < 12000) addQ(makeExpr(events));
+
+    return shuffle(out).slice(0,10);
+  }
+
+  // highlighting
+  function signatureForMember(m, events){
+    return events.map(e => `${e}${m[e]?1:0}`).join("");
+  }
+  function sigToCountAndLabel(sig, events){
+    const parts = [];
+    for(const e of events){
+      const pos = sig.indexOf(e);
+      const bit = sig[pos + 1];
+      parts.push(bit === "1" ? e : e + "′");
+    }
+    return parts.join(" ∩ ");
+  }
+  function updateCountLineDefault(){
+    countLine.innerHTML = `n(Ω) = ${universe.length}<div class="muted">Click a circle to group identical membership patterns.</div>`;
+  }
+  function updateCountLineForSig(sig){
+    const count = popGrid.querySelectorAll(`.circle[data-sig="${sig}"]`).length;
+    countLine.innerHTML = `n(${sigToCountAndLabel(sig, currentEvents)}) = ${count}`;
+  }
+  function clearHighlights(){
+    popGrid.querySelectorAll(".circle").forEach(c => c.classList.remove("match","selected"));
+    selectedSig = null;
+    updateCountLineDefault();
+  }
+  function applyHighlights(sig, selectedEl){
+    popGrid.querySelectorAll(".circle").forEach(c => {
+      if(c.dataset.sig === sig) c.classList.add("match");
+      else c.classList.remove("match");
+      c.classList.remove("selected");
+    });
+    if(selectedEl) selectedEl.classList.add("selected");
+    updateCountLineForSig(sig);
+  }
+
+  // render
+  function renderHeader(events){
+    eventsPill.textContent = events.join(", ");
+    levelSelect.value = String(levelIndex);
+  }
+
+  function renderPopulation(events){
+    popGrid.innerHTML = "";
+    selectedSig = null;
+    currentEvents = events.slice();
+
+    popGrid.style.gridTemplateColumns = `repeat(${layout.cols}, 78px)`;
+    popGrid.style.gridTemplateRows = `repeat(${layout.rows}, 78px)`;
+
+    const layoutClass = (events.length === 2) ? "layout2" : (events.length === 3) ? "layout3" : "layout4";
+
+    for(let i=0;i<universe.length;i++){
+      const m = universe[i];
+      const sig = signatureForMember(m, events);
+
+      const c = document.createElement("div");
+      c.className = "circle";
+      c.dataset.sig = sig;
+
+      const boxes = document.createElement("div");
+      boxes.className = `boxes ${layoutClass}`;
+
+      events.forEach((e, idx) => {
+        const box = document.createElement("div");
+        const on = !!m[e];
+        box.className = `box ${on ? "on" : "off"} slot${idx}`;
+        box.textContent = on ? e : " ";
+        boxes.appendChild(box);
+      });
+
+      c.appendChild(boxes);
+      c.addEventListener("click", () => {
+        const thisSig = c.dataset.sig;
+        if(selectedSig === thisSig){ clearHighlights(); }
+        else { selectedSig = thisSig; applyHighlights(thisSig, c); }
+      });
+
+      popGrid.appendChild(c);
+    }
+    updateCountLineDefault();
+  }
+
+  function renderQuestions(){
+    qGrid.innerHTML = "";
+    assistMount.innerHTML = "";
+    assistShown = false;
+
+    for(const q of questions){
+      const card = document.createElement("div");
+      card.className = "qCard";
+
+      const row = document.createElement("div");
+      row.className = "qRow";
+
+      const lhs = document.createElement("div");
+      lhs.className = "lhs";
+      lhs.textContent = q.text;
+
+      const eq = document.createElement("div");
+      eq.className = "eq";
+      eq.textContent = "=";
+
+      const fracBox = document.createElement("div");
+      fracBox.className = "fracBox";
+
+      const numIn = document.createElement("input");
+      numIn.type = "text";
+      numIn.inputMode = "numeric";
+      numIn.placeholder = "num";
+
+      const line = document.createElement("div");
+      line.className = "fracLine";
+
+      const denIn = document.createElement("input");
+      denIn.type = "text";
+      denIn.placeholder = "den";
+
+      const status = document.createElement("div");
+      status.className = "status";
+      status.textContent = "";
+
+      const enableDrop = (inputEl, which) => {
+        inputEl.addEventListener("dragover", (e) => { e.preventDefault(); inputEl.classList.add("dropReady"); });
+        inputEl.addEventListener("dragleave", () => inputEl.classList.remove("dropReady"));
+        inputEl.addEventListener("drop", (e) => {
+          e.preventDefault();
+          inputEl.classList.remove("dropReady");
+          const val = e.dataTransfer.getData("text/plain");
+          if(q.locked) return;
+          inputEl.value = val;
+          if(which === "num") q.userNumRaw = val; else q.userDenRaw = val;
+          status.className = "status";
+          status.textContent = "";
+        });
+      };
+      enableDrop(numIn, "num");
+      enableDrop(denIn, "den");
+
+      fracBox.appendChild(numIn);
+      fracBox.appendChild(line);
+      fracBox.appendChild(denIn);
+
+      const setLockedUI = (locked) => {
+        numIn.disabled = locked;
+        denIn.disabled = locked;
+        if(locked){
+          numIn.style.opacity = "0.75";
+          denIn.style.opacity = "0.75";
+          status.className = "status good";
+          status.textContent = "✓";
+        } else {
+          numIn.style.opacity = "";
+          denIn.style.opacity = "";
+          status.className = "status";
+          status.textContent = "";
+        }
+      };
+
+      const onEdit = () => {
+        if(q.locked) return;
+        q.userNumRaw = numIn.value;
+        q.userDenRaw = denIn.value;
+        status.className = "status";
+        status.textContent = "";
+      };
+      numIn.addEventListener("input", onEdit);
+      denIn.addEventListener("input", onEdit);
+
+      row.appendChild(lhs);
+      row.appendChild(eq);
+      row.appendChild(fracBox);
+      card.appendChild(row);
+      card.appendChild(status);
+
+      setLockedUI(q.locked);
+
+      qGrid.appendChild(card);
+      q._els = {status, numIn, denIn, setLockedUI, card};
+    }
+  }
+
+  function setToast(type, html){
+    roundToast.style.display = "block";
+    roundToast.className = "toast " + (type || "");
+    roundToast.innerHTML = html;
+  }
+  function hideToast(){ roundToast.style.display = "none"; }
+
+  // checking
+  function parseMaybeInt(s){
+    const t = (s ?? "").trim();
+    if(t === "") return NaN;
+    if(!/^[+-]?\d+$/.test(t)) return NaN;
+    return parseInt(t, 10);
+  }
+  function isCorrect(q){
+    if(((q.userDenRaw ?? "").trim().toLowerCase()) === "cheat") return true;
+    const n = parseMaybeInt(q.userNumRaw);
+    const d = parseMaybeInt(q.userDenRaw);
+    if(!Number.isFinite(n) || !Number.isFinite(d)) return false;
+    if(d === 0 || n < 0 || d < 0) return false;
+    if(q.num === 0) return (n === 0 && d > 0);
+    return (n * q.den === q.num * d);
+  }
+  function computeDynamicDelaySeconds(incorrectCount){
+    return Math.min(incorrectCount * 30, 180);
+  }
+
+  function maybeShowAssistPanel(){
+    if(assistShown) return;
+    const remaining = questions.filter(q => !q.locked);
+    if(remaining.length === 0) return;
+    if(checkCount < 3) return;
+
+    assistShown = true;
+
+    questions.forEach(q => {
+      if(q.locked && q._els?.card) q._els.card.style.display = "none";
+      else if(q._els?.card) q._els.card.style.display = "";
+    });
+
+    const values = [];
+    for(const q of remaining){ values.push(String(q.num)); values.push(String(q.den)); }
+    shuffle(values);
+
+    const panel = document.createElement("div");
+    panel.className = "assistPanel";
+    panel.innerHTML = `
+      <div class="assistTitle">Help: drag the missing numerators/denominators into the boxes</div>
+      <div class="tiles" id="tiles"></div>
+      <div class="assistHint">Only unanswered questions are shown above. You can still type if you prefer.</div>
+    `;
+    const tilesDiv = panel.querySelector("#tiles");
+    values.forEach((v) => {
+      const t = document.createElement("div");
+      t.className = "tile";
+      t.draggable = true;
+      t.textContent = v;
+      t.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", v));
+      tilesDiv.appendChild(t);
+    });
+
+    assistMount.innerHTML = "";
+    assistMount.appendChild(panel);
+  }
+
+  function doCheck(){
+    checkCount++;
+
+    let lockedCount = 0;
+    let newlyLocked = 0;
+
+    for(const q of questions){
+      if(q.locked){ lockedCount++; continue; }
+      const ok = isCorrect(q);
+      if(ok){
+        q.locked = true;
+        newlyLocked++;
+        lockedCount++;
+        q._els?.setLockedUI(true);
+      } else if(q._els){
+        q._els.status.className = "status bad";
+        q._els.status.textContent = "×";
+      }
+    }
+
+    const incorrectCount = questions.filter(q => !q.locked).length;
+    const delay = computeDynamicDelaySeconds(incorrectCount);
+    const t = elapsedSeconds();
+    checkUnlockedAt = t + delay;
+
+    if(lockedCount === questions.length){
+      questions.forEach(q => { if(q._els?.card) q._els.card.style.display = ""; });
+      setToast("good", `<strong>All correct.</strong> You can select a new level from the dropdown at the top.`);
+      updateCheckButton(true);
+      levelComplete = true;
+    } else {
+      setToast("warn", `<strong>${lockedCount}/${questions.length}</strong> locked. ${newlyLocked ? `(+${newlyLocked} this check.) ` : ""}Next check unlocks in <b>${fmtTime(delay)}</b>.`);
+      maybeShowAssistPanel();
+      updateCheckButton(false);
+    }
+  }
+
+  // timer
+  function elapsedSeconds(){ return Math.floor((Date.now() - roundStart) / 1000); }
+  function updateCheckButton(forceDisabled=false){
+    const t = elapsedSeconds();
+    const remaining = Math.max(0, checkUnlockedAt - t);
+    checkInPill.textContent = fmtTime(remaining);
+
+    if(forceDisabled){
+      checkBtn.disabled = true;
+      checkBtn.textContent = "Check";
+      return;
+    }
+    const unlocked = remaining === 0;
+    checkBtn.disabled = !unlocked;
+    checkBtn.textContent = unlocked ? "Check" : "Check (locked)";
+  }
+  function startTimer(){
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => {
+      if(!levelComplete) updateCheckButton(false);
+    }, 250);
+    updateCheckButton(false);
+  }
+
+  // lifecycle
+  function newLevel(){
+    const events = levels[levelIndex].events;
+
+    layout = pick(layouts);
+    universe = generatePopulation(events, layout.n);
+    questions = buildQuestions(events);
+
+    levelComplete = false;
+    checkCount = 0;
+    assistShown = false;
+    hideToast();
+    clearHighlights();
+
+    renderHeader(events);
+    renderPopulation(events);
+    renderQuestions();
+
+    roundStart = Date.now();
+    checkUnlockedAt = Math.min(questions.length * 30, 180);
+    startTimer();
+  }
+
+  // level selector change
+  levelSelect.addEventListener("change", () => {
+    levelIndex = parseInt(levelSelect.value, 10);
+    if(!Number.isFinite(levelIndex) || levelIndex < 0 || levelIndex >= levels.length) levelIndex = 0;
+    newLevel();
+  });
+
+  // fullscreen
+  async function toggleFullscreen(){
+    try{
+      if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    }catch(e){}
+    fsBtn.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+  }
+  fsBtn.addEventListener("click", toggleFullscreen);
+  document.addEventListener("fullscreenchange", () => {
+    fsBtn.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+  });
+
+  checkBtn.addEventListener("click", () => { if(!checkBtn.disabled) doCheck(); });
+
+  function fatal(err){
+    console.error(err);
+    fatalMount.innerHTML = `<div class="fatal">ERROR:\n${String(err && err.stack ? err.stack : err)}</div>`;
+  }
+
+  try{
+    newLevel();
+  }catch(e){
+    fatal(e);
+  }
+})();
+</script>
+</body>
+</html>
