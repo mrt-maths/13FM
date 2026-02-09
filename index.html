@@ -1,39 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MRT Maths Games</title>
-<style>
-  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:32px;background:#f5f7fb}
-  h1{margin:0 0 10px}
-  p{margin:0 0 18px;opacity:.75}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-  a.card{display:block;text-decoration:none;color:#111;background:#fff;border:1px solid #ddd;border-radius:14px;padding:16px;transition:.15s}
-  a.card:hover{transform:translateY(-3px);box-shadow:0 10px 18px rgba(0,0,0,.08)}
-  .title{font-weight:700;font-size:18px;margin-bottom:6px}
-  .desc{font-size:13px;opacity:.75;line-height:1.3;word-break:break-word}
-  .error{background:#fff3f3;border:1px solid #ffd0d0;border-radius:12px;padding:12px}
-  .toolbar{display:flex;gap:10px;align-items:center;margin:14px 0 18px;flex-wrap:wrap}
-  input{padding:10px 12px;border:1px solid #ddd;border-radius:10px;min-width:260px}
-  button{padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff;cursor:pointer}
-  button:hover{box-shadow:0 6px 14px rgba(0,0,0,.06)}
-  .small{font-size:12px;opacity:.7}
-</style>
-</head>
-<body>
-  <h1>MRT Maths Games</h1>
-  <p>Auto-generated list of HTML games in this folder.</p>
-
-  <div class="toolbar">
-    <input id="q" type="search" placeholder="Search games..." aria-label="Search games">
-    <button id="reload" type="button">Reload</button>
-    <span class="small" id="meta"></span>
-  </div>
-
-  <div id="status"></div>
-  <div class="grid" id="games"></div>
-
 <script>
 /* Site: https://mrt-maths.github.io/Shared/ */
 const OWNER  = "mrt-maths";
@@ -47,13 +11,22 @@ const gridEl = document.getElementById("games");
 const qEl = document.getElementById("q");
 const metaEl = document.getElementById("meta");
 
-let allFiles = [];
+let allFiles = [];   // [{ name, updatedAt: Date|null, updatedISO: string|null, sha: string|null }]
 
 function prettify(filename){
   return filename
     .replace(/\.html$/i,"")
     .replace(/[-_]+/g," ")
     .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatDate(d){
+  if(!d) return "Unknown";
+  // Uses visitor’s locale/timezone
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric", month: "short", day: "2-digit",
+    hour: "2-digit", minute: "2-digit"
+  }).format(d);
 }
 
 function render(list){
@@ -65,13 +38,77 @@ function render(list){
   }
   statusEl.innerHTML = "";
   const base = PATH ? (PATH.replace(/\/+$/,"") + "/") : "";
-  gridEl.innerHTML = list.map(f => `
-    <a class="card" href="${base}${encodeURI(f)}">
-      <div class="title">${prettify(f)}</div>
-      <div class="desc">${base}${f}</div>
-    </a>
-  `).join("");
-  metaEl.textContent = `${list.length} game(s)`;
+
+  gridEl.innerHTML = list.map(f => {
+    const updatedLabel = f.updatedAt ? formatDate(f.updatedAt) : "Unknown";
+    return `
+      <a class="card" href="${base}${encodeURI(f.name)}">
+        <div class="title">${prettify(f.name)}</div>
+        <div class="desc">${base}${f.name}</div>
+        <div class="small" style="margin-top:10px;">Updated: ${updatedLabel}</div>
+      </a>
+    `;
+  }).join("");
+
+  const known = list.filter(x => x.updatedAt).length;
+  metaEl.textContent = `${list.length} game(s) • ${known} with update dates`;
+}
+
+/** Simple concurrency runner */
+async function mapLimit(arr, limit, mapper){
+  const results = new Array(arr.length);
+  let i = 0;
+  const workers = Array.from({length: Math.min(limit, arr.length)}, async () => {
+    while(i < arr.length){
+      const idx = i++;
+      results[idx] = await mapper(arr[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/** Cache latest commit per file in localStorage */
+const CACHE_KEY = `mrt_index_cache:${OWNER}/${REPO}@${BRANCH}:${PATH || "/"}`;
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function loadCache(){
+  try{
+    const raw = localStorage.getItem(CACHE_KEY);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(!obj || !obj.savedAt || !obj.data) return null;
+    if(Date.now() - obj.savedAt > CACHE_TTL_MS) return null;
+    return obj.data; // { [fullPath]: { updatedISO, sha } }
+  }catch{ return null; }
+}
+
+function saveCache(cacheObj){
+  try{
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: cacheObj }));
+  }catch{}
+}
+
+async function fetchLatestCommitForPath(fullPath, cache){
+  // fullPath example: "MyFolder/Game.html" or "Game.html"
+  if(cache && cache[fullPath]?.updatedISO){
+    return { updatedISO: cache[fullPath].updatedISO, sha: cache[fullPath].sha || null, fromCache: true };
+  }
+
+  const commitsApi =
+    `https://api.github.com/repos/${OWNER}/${REPO}/commits` +
+    `?sha=${encodeURIComponent(BRANCH)}` +
+    `&path=${encodeURIComponent(fullPath)}` +
+    `&per_page=1`;
+
+  const res = await fetch(commitsApi, { headers: { "Accept": "application/vnd.github+json" }});
+  if(!res.ok) throw new Error(`Commits API error ${res.status} for ${fullPath}`);
+  const arr = await res.json();
+  if(!Array.isArray(arr) || !arr.length) return { updatedISO: null, sha: null, fromCache: false };
+
+  const updatedISO = arr[0]?.commit?.committer?.date || arr[0]?.commit?.author?.date || null;
+  const sha = arr[0]?.sha || null;
+  return { updatedISO, sha, fromCache: false };
 }
 
 async function load(){
@@ -87,16 +124,53 @@ async function load(){
     }
     const items = await res.json();
 
-    allFiles = items
+    const names = items
       .filter(x => x.type === "file" && /\.html$/i.test(x.name))
       .map(x => x.name)
-      .filter(n => n.toLowerCase() !== "index.html")
-      .sort((a,b) => a.localeCompare(b));
+      .filter(n => n.toLowerCase() !== "index.html");
 
-    if(!allFiles.length){
+    if(!names.length){
       statusEl.innerHTML = `<div class="error">No other .html files found in this folder. If they’re in a subfolder, set PATH to that folder name.</div>`;
       return;
     }
+
+    // Prepare cache + full paths
+    const cache = loadCache() || {};
+    const base = PATH ? (PATH.replace(/\/+$/,"") + "/") : "";
+
+    statusEl.innerHTML = `<div class="small">Fetching last-updated times… (this may take a moment)</div>`;
+
+    let done = 0;
+    const enriched = await mapLimit(names, 5, async (name) => {
+      const fullPath = `${base}${name}`;
+      try{
+        const { updatedISO, sha, fromCache } = await fetchLatestCommitForPath(fullPath, cache);
+        if(updatedISO && !fromCache){
+          cache[fullPath] = { updatedISO, sha };
+        }
+        return {
+          name,
+          updatedISO: updatedISO || null,
+          updatedAt: updatedISO ? new Date(updatedISO) : null,
+          sha: sha || null
+        };
+      } finally {
+        done++;
+        statusEl.innerHTML = `<div class="small">Fetching last-updated times… ${done}/${names.length}</div>`;
+      }
+    });
+
+    saveCache(cache);
+
+    // Sort by most recent updatedAt (unknown dates at bottom)
+    enriched.sort((a,b) => {
+      const ta = a.updatedAt ? a.updatedAt.getTime() : -Infinity;
+      const tb = b.updatedAt ? b.updatedAt.getTime() : -Infinity;
+      return tb - ta;
+    });
+
+    allFiles = enriched;
+    statusEl.innerHTML = "";
 
     render(allFiles);
   } catch(err){
@@ -106,13 +180,15 @@ async function load(){
 
 qEl.addEventListener("input", () => {
   const term = qEl.value.trim().toLowerCase();
-  const filtered = allFiles.filter(f => f.toLowerCase().includes(term));
+  const filtered = allFiles.filter(f => f.name.toLowerCase().includes(term));
   render(filtered);
 });
 
-document.getElementById("reload").addEventListener("click", load);
+document.getElementById("reload").addEventListener("click", () => {
+  // Force refresh by clearing cache for this view
+  try{ localStorage.removeItem(CACHE_KEY); }catch{}
+  load();
+});
 
 load();
 </script>
-</body>
-</html>
