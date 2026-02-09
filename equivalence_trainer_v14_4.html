@@ -1,0 +1,216 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Equivalence Trainer — Round 1</title>
+<style>
+  :root{ --panel:#0f172a; --text:#e5e7eb; --muted:#9ca3af; --border:#1f2937; --ok:#10b981; --bad:#ef4444; --accent:#22d3ee; }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(135deg,#0b1022,#0f172a);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+  header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  h1{margin:0;font-size:1.15rem}
+  .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border)}
+  select{font-size:.95rem}
+  .btn{background:linear-gradient(135deg,#22d3ee,#0ea5e9);color:#012;border:none;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
+  .btn[disabled]{filter:grayscale(.7) brightness(.7);cursor:not-allowed}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:14px}
+  .panel{background:radial-gradient(900px 220px at 50% -50%, rgba(34,211,238,.07), transparent),var(--panel);border:1px solid var(--border);border-radius:12px;min-height:420px;padding:10px;position:relative}
+  .panel h2{margin:4px 0 6px 4px;font-size:1.02rem;color:#e0f2fe}
+  .hint{color:var(--muted);font-size:.9rem;margin-left:4px}
+  table.twoway{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8px}
+  table.twoway th, table.twoway td{border:1px solid var(--border);text-align:center;padding:6px}
+  table.twoway th{background:#0b1220;color:#bae6fd}
+  td.total-cell{background:#0b1220}
+  input.freq{width:84px;text-align:center;padding:6px 4px;border-radius:8px;border:1px solid #0a2540;background:#060b19;color:var(--text);font-weight:700}
+  input.freq:focus{outline:none;box-shadow:0 0 0 2px rgba(34,211,238,.35)}
+  input.freq.given{background:#0a162b;border-color:#0b2e42;color:#9ddaf0}
+  input.freq.correct{box-shadow:0 0 0 2px rgba(16,185,129,.45);border-color:var(--ok)}
+  input.freq.wrong{animation:shake .18s 2;box-shadow:0 0 0 2px rgba(239,68,68,.5);border-color:var(--bad)}
+  @keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}100%{transform:translateX(0)}}
+  .wrap{position:relative;height:420px}
+  .svg{width:100%;height:100%;display:block}
+  .overlay-input{position:absolute;width:84px;transform:translate(-50%,-50%)}
+  .status{min-height:1.2em;color:var(--muted);padding:0 18px 12px}
+  .order-1{order:1}.order-2{order:2}.order-3{order:3}
+  #countdown{color:#fca5a5;font-weight:700;margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Equivalence Trainer — Round 1</h1>
+  <div id="topStatus" class="hint"></div>
+</header>
+<div class="toolbar">
+  <label for="modeSel"><strong>Mode</strong>:</label>
+  <select id="modeSel">
+    <option value="freq" selected>Frequencies</option>
+    <option value="prob">Probabilities</option>
+  </select>
+  <button id="nextBtn" class="btn" style="display:none">Next Round ▶</button>
+  <button id="checkBtn" class="btn">✅ Check</button><span id="countdown"></span>
+</div>
+
+<div class="grid" id="panels">
+  <section class="panel order-1" id="panel-table">
+    <h2>Two-Way Table</h2>
+    <div class="hint">Rows: A vs <strong>not A</strong>. Columns: B vs <strong>not B</strong>.</div>
+    <table class="twoway" aria-label="Two-way table">
+      <thead><tr><th></th><th>B</th><th>not B</th><th>Total</th></tr></thead>
+      <tbody>
+        <tr>
+          <th>A</th>
+          <td><input class="freq" id="t_ab" /></td>
+          <td><input class="freq" id="t_aNotB" /></td>
+          <td class="total-cell"><input class="freq" id="t_row_A_total" /></td>
+        </tr>
+        <tr>
+          <th>not A</th>
+          <td><input class="freq" id="t_notA_B" /></td>
+          <td><input class="freq" id="t_notA_notB" /></td>
+          <td class="total-cell"><input class="freq" id="t_row_notA_total" /></td>
+        </tr>
+        <tr>
+          <th>Total</th>
+          <td class="total-cell"><input class="freq" id="t_col_B_total" /></td>
+          <td class="total-cell"><input class="freq" id="t_col_notB_total" /></td>
+          <td class="total-cell"><input class="freq" id="t_total_total" /></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel order-2" id="panel-venn">
+    <h2>Venn Diagram</h2>
+    <div class="hint">A only, A∩B, B only, Outside (neither).</div>
+    <div class="wrap" id="vennWrap">
+      <svg class="svg" id="vennSvg" viewBox="0 0 660 420" preserveAspectRatio="xMidYMid meet" aria-label="Venn diagram">
+        <rect x="28" y="26" width="604" height="368" rx="16" ry="16" fill="#050a17" stroke="#132742" stroke-width="2"/>
+        <circle cx="290" cy="210" r="125" fill="rgba(34,211,238,0.22)" stroke="#22d3ee" stroke-width="3" />
+        <circle cx="390" cy="210" r="125" fill="rgba(52,211,153,0.22)" stroke="#34d399" stroke-width="3" />
+        <text x="250" y="84" text-anchor="middle" fill="#e0f2fe" font-weight="700">A</text>
+        <text x="430" y="84" text-anchor="middle" fill="#e0f2fe" font-weight="700">B</text>
+      </svg>
+      <input class="freq overlay-input" id="v_aOnly" />
+      <input class="freq overlay-input" id="v_ab" />
+      <input class="freq overlay-input" id="v_bOnly" />
+      <input class="freq overlay-input" id="v_neither" />
+    </div>
+  </section>
+
+  <section class="panel order-3" id="panel-tree">
+    <h2>Tree Diagram</h2>
+    <div class="hint">Frequencies or branch probabilities (prob mode). On each split, the two probabilities sum to 1.</div>
+    <div class="wrap" id="treeWrap">
+      <svg class="svg" id="treeSvg" viewBox="0 0 660 380" preserveAspectRatio="xMidYMid meet" aria-label="Two-stage tree">
+        <line id="rootA"  x1="0" y1="0" x2="0" y2="0" stroke="#22d3ee" stroke-width="3" />
+        <line id="rootNA" x1="0" y1="0" x2="0" y2="0" stroke="#94a3b8" stroke-width="3" />
+        <circle id="rootDot" cx="0" cy="0" r="4" fill="#e5e7eb" />
+        <line id="AtoB"   x1="0" y1="0" x2="0" y2="0" stroke="#34d399" stroke-width="3" />
+        <line id="AtoNB"  x1="0" y1="0" x2="0" y2="0" stroke="#f59e0b" stroke-width="3" />
+        <line id="NAtoB"  x1="0" y1="0" x2="0" y2="0" stroke="#34d399" stroke-width="3" />
+        <line id="NAtoNB" x1="0" y1="0" x2="0" y2="0" stroke="#f59e0b" stroke-width="3" />
+        <text id="labelA"  x="0" y="0" fill="#93c5fd" font-weight="700">A</text>
+        <text id="labelNA" x="0" y="0" fill="#cbd5e1" font-weight="700">not A</text>
+        <text id="labelB1"  x="0" y="0" fill="#bbf7d0" font-weight="700">B</text>
+        <text id="labelNB1" x="0" y="0" fill="#fde68a" font-weight="700">not B</text>
+        <text id="labelB2"  x="0" y="0" fill="#bbf7d0" font-weight="700">B</text>
+        <text id="labelNB2" x="0" y="0" fill="#fde68a" font-weight="700">not B</text>
+      </svg>
+      <input class="freq overlay-input" id="tr_A"  title="P(A) or A count" />
+      <input class="freq overlay-input" id="tr_notA" title="P(¬A) or not A count" />
+      <input class="freq overlay-input" id="tr_A_B" title="P(B|A) (prob) or A∧B (freq)" />
+      <input class="freq overlay-input" id="tr_A_notB" title="P(¬B|A) (prob) or A∧¬B (freq)" />
+      <input class="freq overlay-input" id="tr_notA_B" title="P(B|¬A) (prob) or ¬A∧B (freq)" />
+      <input class="freq overlay-input" id="tr_notA_notB" title="P(¬B|¬A) (prob) or ¬A∧¬B (freq)" />
+    </div>
+  </section>
+</div>
+
+<div id="status" class="status"></div>
+
+<script>
+  const CAL = {"venn": {"aOnly": {"x": 161.13169811320753, "y": 183.40035}, "ab": {"x": 287.782641509434, "y": 186.87375}, "bOnly": {"x": 417.8071698113207, "y": 185.7387}, "outside": {"x": 482.0, "y": 304.0}}, "tree": {"root": {"x": 60.0, "y": 190.0}, "endpoints": {"A": {"x": 242.05132075471698, "y": 79.349415}, "NA": {"x": 241.3675471698113, "y": 281.14775}, "AB": {"x": 560.8607547169811, "y": 3.210867}, "ANB": {"x": 562.2271698113208, "y": 129.67405}, "NAB": {"x": 566.328679245283, "y": 208.202}, "NANB": {"x": 579.9996226415095, "y": 357.53345}}, "boxes": {"A": {"attach": "rootA", "t": 0.32630269917948973, "dy": -25.330915448710442}, "NA": {"attach": "rootNA", "t": 0.27885673246848713, "dy": 1.1647862631454302}, "AB": {"attach": "AtoB", "t": 0.36391506522221834, "dy": -12}, "ANB": {"attach": "AtoNB", "t": 0.37789039465579116, "dy": 12}, "NAB": {"attach": "NAtoB", "t": 0.41075620986428635, "dy": -12}, "NANB": {"attach": "NAtoNB", "t": 0.385575105192934, "dy": 12}}}};
+  const RIGHT_SHIFT = 42;
+
+  const $ = (id)=>document.getElementById(id);
+  const els = { title: $('title'), status: $('status'), modeSel: $('modeSel'), nextBtn: $('nextBtn'), checkBtn: $('checkBtn'), countdown: $('countdown'), vWrap: $('vennWrap'), vSvg: $('vennSvg'), v_aOnly: $('v_aOnly'), v_ab: $('v_ab'), v_bOnly: $('v_bOnly'), v_neither: $('v_neither'), tWrap: $('treeWrap'), tSvg: $('treeSvg'), tr_A: $('tr_A'), tr_notA: $('tr_notA'), tr_A_B: $('tr_A_B'), tr_A_notB: $('tr_A_notB'), tr_notA_B: $('tr_notA_B'), tr_notA_notB: $('tr_notA_notB'), t_ab: $('t_ab'), t_aNotB: $('t_aNotB'), t_notA_B: $('t_notA_B'), t_notA_notB: $('t_notA_notB'), t_row_A_total: $('t_row_A_total'), t_row_notA_total: $('t_row_notA_total'), t_col_B_total: $('t_col_B_total'), t_col_notB_total: $('t_col_notB_total'), t_total_total: $('t_total_total'), rootA: $('rootA'), rootNA: $('rootNA'), AtoB: $('AtoB'), AtoNB: $('AtoNB'), NAtoB: $('NAtoB'), NAtoNB: $('NAtoNB'), labelA: $('labelA'), labelNA: $('labelNA'), labelB1: $('labelB1'), labelNB1: $('labelNB1'), labelB2: $('labelB2'), labelNB2: $('labelNB2'), rootDot: $('rootDot') };
+
+  function placeAtSvgXY(inputEl, wrapEl, svgEl, x, y){ const wrapRect = wrapEl.getBoundingClientRect(); const svgRect = svgEl.getBoundingClientRect(); const vb = svgEl.viewBox.baseVal; const s = Math.min(svgRect.width/vb.width, svgRect.height/vb.height); const offX = (svgRect.width - vb.width * s) / 2; const offY = (svgRect.height - vb.height * s) / 2; const px = svgRect.left + offX + (x - vb.x) * s - wrapRect.left + RIGHT_SHIFT; const py = svgRect.top + offY + (y - vb.y) * s - wrapRect.top; inputEl.style.left = px + 'px'; inputEl.style.top = py + 'px'; }
+  function getLine(el){ return { x1:+el.getAttribute('x1'), y1:+el.getAttribute('y1'), x2:+el.getAttribute('x2'), y2:+el.getAttribute('y2') }; }
+  function layoutTree(){ const EP=CAL.tree.endpoints, R=CAL.tree.root; function L(el,x1,y1,x2,y2){ el.setAttribute('x1',x1); el.setAttribute('y1',y1); el.setAttribute('x2',x2); el.setAttribute('y2',y2); } L(els.rootA,R.x,R.y,EP.A.x,EP.A.y); L(els.rootNA,R.x,R.y,EP.NA.x,EP.NA.y); L(els.AtoB,EP.A.x,EP.A.y,EP.AB.x,EP.AB.y); L(els.AtoNB,EP.A.x,EP.A.y,EP.ANB.x,EP.ANB.y); L(els.NAtoB,EP.NA.x,EP.NA.y,EP.NAB.x,EP.NAB.y); L(els.NAtoNB,EP.NA.x,EP.NA.y,EP.NANB.x,EP.NANB.y); els.rootDot.setAttribute('cx', R.x); els.rootDot.setAttribute('cy', R.y); els.labelA.setAttribute('x', EP.A.x-10); els.labelA.setAttribute('y', EP.A.y-8); els.labelNA.setAttribute('x', EP.NA.x-18); els.labelNA.setAttribute('y', EP.NA.y+14); els.labelB1.setAttribute('x', EP.AB.x+8); els.labelB1.setAttribute('y', EP.AB.y-2); els.labelNB1.setAttribute('x', EP.ANB.x+8); els.labelNB1.setAttribute('y', EP.ANB.y+4); els.labelB2.setAttribute('x', EP.NAB.x+8); els.labelB2.setAttribute('y', EP.NAB.y-2); els.labelNB2.setAttribute('x', EP.NANB.x+8); els.labelNB2.setAttribute('y', EP.NANB.y+4); }
+  function placeTreeBoxes(){ const S=CAL.tree.boxes; function P(id,s){ const L=getLine(document.getElementById(s.attach)); const x=L.x1+s.t*(L.x2-L.x1); const y=L.y1+s.t*(L.y2-L.y1)+s.dy; placeAtSvgXY(els[id], els.tWrap, els.tSvg, x,y);} P('tr_A',S.A); P('tr_notA',S.NA); P('tr_A_B',S.AB); P('tr_A_notB',S.ANB); P('tr_notA_B',S.NAB); P('tr_notA_notB',S.NANB); }
+  function placeVennBoxes(){ const V=CAL.venn; placeAtSvgXY(els.v_aOnly, els.vWrap, els.vSvg, V.aOnly.x,V.aOnly.y); placeAtSvgXY(els.v_ab, els.vWrap, els.vSvg, V.ab.x,V.ab.y); placeAtSvgXY(els.v_bOnly, els.vWrap, els.vSvg, V.bOnly.x,V.bOnly.y); placeAtSvgXY(els.v_neither, els.vWrap, els.vSvg, V.outside.x,V.outside.y); }
+  function layoutAll(){ layoutTree(); placeTreeBoxes(); placeVennBoxes(); }
+  requestAnimationFrame(()=>{ layoutAll(); requestAnimationFrame(layoutAll); }); if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(layoutAll);} window.addEventListener('resize', ()=> requestAnimationFrame(layoutAll));
+
+  let round=1, mode='freq'; let a=0,b=0,c=0,d=0; const dgrid=[1,2,3,4,5,6,7,8,9]; const ri=(lo,hi)=>Math.floor(Math.random()*(hi-lo+1))+lo; const pick=(arr)=>arr[Math.floor(Math.random()*arr.length)];
+  function fix2(x){ return (Math.round(x*100)/100).toFixed(2);} function setField(el,state,value){ el.classList.remove('wrong','correct','given'); if(state==='given'){ el.value=(value!==undefined?value:(el.dataset.expected||'')); el.disabled=true; el.classList.add('given'); } else { el.value=''; el.disabled=false; }}
+  function allInputs(){ return [els.t_ab,els.t_aNotB,els.t_notA_B,els.t_notA_notB,els.t_row_A_total,els.t_row_notA_total,els.t_col_B_total,els.t_col_notB_total,els.t_total_total, els.v_aOnly,els.v_ab,els.v_bOnly,els.v_neither, els.tr_A,els.tr_notA,els.tr_A_B,els.tr_A_notB,els.tr_notA_B,els.tr_notA_notB]; }
+  function clearAll(){ allInputs().forEach(e=> setField(e,'blank')); }
+
+  function setExpectedFreq(){ els.t_ab.dataset.expected=a; els.t_aNotB.dataset.expected=b; els.t_notA_B.dataset.expected=c; els.t_notA_notB.dataset.expected=d; els.t_row_A_total.dataset.expected=a+b; els.t_row_notA_total.dataset.expected=c+d; els.t_col_B_total.dataset.expected=a+c; els.t_col_notB_total.dataset.expected=b+d; els.t_total_total.dataset.expected=a+b+c+d; els.v_aOnly.dataset.expected=b; els.v_ab.dataset.expected=a; els.v_bOnly.dataset.expected=c; els.v_neither.dataset.expected=d; els.tr_A.dataset.expected=a+b; els.tr_notA.dataset.expected=c+d; els.tr_A_B.dataset.expected=a; els.tr_A_notB.dataset.expected=b; els.tr_notA_B.dataset.expected=c; els.tr_notA_notB.dataset.expected=d; }
+  function setExpectedProbLeaves(){ const f=fix2; els.t_ab.dataset.expected=f(a); els.t_aNotB.dataset.expected=f(b); els.t_notA_B.dataset.expected=f(c); els.t_notA_notB.dataset.expected=f(d); els.t_row_A_total.dataset.expected=f(a+b); els.t_row_notA_total.dataset.expected=f(c+d); els.t_col_B_total.dataset.expected=f(a+c); els.t_col_notB_total.dataset.expected=f(b+d); els.t_total_total.dataset.expected=f(a+b+c+d); els.v_aOnly.dataset.expected=f(b); els.v_ab.dataset.expected=f(a); els.v_bOnly.dataset.expected=f(c); els.v_neither.dataset.expected=f(d); }
+  function setExpectedProbConditionals(pA,pBgA,pBgNA){ els.tr_A.dataset.expected=pA.toFixed(1); els.tr_notA.dataset.expected=(1-pA).toFixed(1); els.tr_A_B.dataset.expected=pBgA.toFixed(1); els.tr_A_notB.dataset.expected=(1-pBgA).toFixed(1); els.tr_notA_B.dataset.expected=pBgNA.toFixed(1); els.tr_notA_notB.dataset.expected=(1-pBgNA).toFixed(1); }
+
+  function genProbCore(){ const p=pick(dgrid), r=pick(dgrid); const pA=p/10, pBgA=r/10, pBgNA=(10-r)/10; a=(p*r)/100; b=(p*(10-r))/100; c=((10-p)*(10-r))/100; d=((10-p)*r)/100; setExpectedProbLeaves(); setExpectedProbConditionals(pA,pBgA,pBgNA); }
+
+  function genProbRound(){ genProbCore(); clearAll(); if(round===1){ [els.tr_A,els.tr_notA,els.tr_A_B,els.tr_A_notB,els.tr_notA_B,els.tr_notA_notB].forEach(e=> setField(e,'given', e.dataset.expected)); els.status.textContent='Round 1 (Prob): Tree is given. Complete Venn and Table.'; } else if(round===2){ [els.v_aOnly,els.v_ab,els.v_bOnly,els.v_neither].forEach(e=> setField(e,'given', e.dataset.expected)); els.status.textContent='Round 2 (Prob): Venn is given. Complete Tree and Table.'; } else if(round===3){ [els.t_ab,els.t_aNotB,els.t_notA_B,els.t_notA_notB,els.t_row_A_total,els.t_row_notA_total,els.t_col_B_total,els.t_col_notB_total,els.t_total_total].forEach(e=> setField(e,'given', e.dataset.expected)); els.status.textContent='Round 3 (Prob): Table is given. Complete Tree and Venn.'; } else { setField(els.tr_A,'given', els.tr_A.dataset.expected); setField(Math.random()<0.5?els.tr_A_B:els.tr_notA_B,'given', undefined); const leaves=[['v_ab','t_ab'],['v_aOnly','t_aNotB'],['v_bOnly','t_notA_B'],['v_neither','t_notA_notB']]; const i1=Math.floor(Math.random()*leaves.length); let i2=Math.floor(Math.random()*leaves.length); while(i2===i1) i2=Math.floor(Math.random()*leaves.length); setField(els[leaves[i1][0]],'given', els[leaves[i1][0]].dataset.expected); setField(els[leaves[i2][1]],'given', els[leaves[i2][1]].dataset.expected); els.status.textContent='Round '+round+' (Prob): Given two tree probabilities, one Venn leaf, and one distinct Table leaf. Fill the rest.'; } }
+
+  function genFreqRound(){ a=ri(1,30); b=ri(1,30); c=ri(1,30); d=ri(1,30); setExpectedFreq(); clearAll(); if(round===1){ [els.t_ab,els.t_aNotB,els.t_notA_B,els.t_notA_notB].forEach(e=> setField(e,'given')); [els.t_row_A_total,els.t_row_notA_total,els.t_col_B_total,els.t_col_notB_total,els.t_total_total].forEach(e=> setField(e,'given')); els.status.textContent='Round 1 (Freq): Table is given. Complete Venn and Tree.'; } else if(round===2){ [els.v_aOnly,els.v_ab,els.v_bOnly,els.v_neither].forEach(e=> setField(e,'given')); [els.t_row_A_total,els.t_row_notA_total,els.t_col_B_total,els.t_col_notB_total,els.t_total_total].forEach(e=> setField(e,'given')); els.status.textContent='Round 2 (Freq): Venn is given. Complete Table inner cells and Tree.'; } else if(round===3){ [els.tr_A,els.tr_notA,els.tr_A_B,els.tr_A_notB,els.tr_notA_B,els.tr_notA_notB].forEach(e=> setField(e,'given')); [els.t_row_A_total,els.t_row_notA_total,els.t_col_B_total,els.t_col_notB_total,els.t_total_total].forEach(e=> setField(e,'given')); els.status.textContent='Round 3 (Freq): Tree is given. Complete Table inner cells and Venn.'; } else { const pools={ a:[els.t_ab,els.v_ab,els.tr_A_B], b:[els.t_aNotB,els.v_aOnly,els.tr_A_notB], c:[els.t_notA_B,els.v_bOnly,els.tr_notA_B], d:[els.t_notA_notB,els.v_neither,els.tr_notA_notB] }; Object.values(pools).forEach(arr=> setField(arr[Math.floor(Math.random()*arr.length)],'given')); els.status.textContent='Round '+round+' (Freq): Mixed clues. Fill ALL blanks — including totals.'; } }
+
+  function regenerate(){ els.nextBtn.style.display='none'; els.countdown.textContent=''; document.title = `Equivalence Trainer — Round ${round}`; if(mode==='prob'){ document.getElementById('panel-tree').classList.add('order-1'); document.getElementById('panel-venn').classList.add('order-2'); document.getElementById('panel-table').classList.add('order-3'); genProbRound(); } else { document.getElementById('panel-table').classList.add('order-1'); document.getElementById('panel-venn').classList.add('order-2'); document.getElementById('panel-tree').classList.add('order-3'); genFreqRound(); } }
+  function nextRound(){ round++; regenerate(); }
+
+  function numericOK(x){ const n=Number(String(x||'').trim()); return Number.isFinite(n); }
+  function withinTol(x,y){ return Math.abs(Number(x)-Number(y))<=0.005; }
+
+  // custom consistency check for probability round 4+
+  function checkProbRound4Consistency(){
+    const vals = id=>{ const el=$(id); const s=(el.value||'').trim(); return s===''?null:Number(s); };
+    // Tree branch probs
+    const pA = vals('tr_A'); const pNotA = vals('tr_notA'); const pBgA = vals('tr_A_B'); const pNotBgA = vals('tr_A_notB'); const pBgNA = vals('tr_notA_B'); const pNotBgNA = vals('tr_notA_notB');
+    // Must be filled
+    const tAll=[pA,pNotA,pBgA,pNotBgA,pBgNA,pNotBgNA]; if(tAll.some(v=>v===null)) return {ok:false,why:'Tree not fully filled'};
+    // Complements
+    if(!(withinTol(pA+pNotA,1))) return {ok:false,why:'A split does not sum to 1'};
+    if(!(withinTol(pBgA+pNotBgA,1))) return {ok:false,why:'A branch pair not complementary'};
+    if(!(withinTol(pBgNA+pNotBgNA,1))) return {ok:false,why:'not A branch pair not complementary'};
+    // Compute leaves from tree
+    const aC = pA*pBgA, bC = pA*pNotBgA, cC = pNotA*pBgNA, dC = pNotA*pNotBgNA;
+    // Venn
+    const v_ab = vals('v_ab'), v_aOnly = vals('v_aOnly'), v_bOnly = vals('v_bOnly'), v_neither = vals('v_neither');
+    if([v_ab,v_aOnly,v_bOnly,v_neither].some(v=>v===null)) return {ok:false,why:'Venn not fully filled'};
+    if(!(withinTol(v_ab,aC) && withinTol(v_aOnly,bC) && withinTol(v_bOnly,cC) && withinTol(v_neither,dC))) return {ok:false,why:'Venn inconsistent with tree'};
+    // Table inner
+    const t_ab = vals('t_ab'), t_aNotB = vals('t_aNotB'), t_notA_B = vals('t_notA_B'), t_notA_notB = vals('t_notA_notB');
+    if([t_ab,t_aNotB,t_notA_B,t_notA_notB].some(v=>v===null)) return {ok:false,why:'Table inner not fully filled'};
+    // Cross and with tree
+    if(!(withinTol(t_ab,aC) && withinTol(t_aNotB,bC) && withinTol(t_notA_B,cC) && withinTol(t_notA_notB,dC))) return {ok:false,why:'Table inner inconsistent with tree'};
+    // Totals
+    const rowA = vals('t_row_A_total'), rowNA = vals('t_row_notA_total'), colB = vals('t_col_B_total'), colNotB = vals('t_col_notB_total'), grand = vals('t_total_total');
+    if([rowA,rowNA,colB,colNotB,grand].some(v=>v===null)) return {ok:false,why:'Table totals not filled'};
+    if(!(withinTol(rowA,t_ab+t_aNotB) && withinTol(rowNA,t_notA_B+t_notA_notB) && withinTol(colB,t_ab+t_notA_B) && withinTol(colNotB,t_aNotB+t_notA_notB) && withinTol(grand,rowA+rowNA) && withinTol(grand,1))) return {ok:false,why:'Totals inconsistent'};
+    return {ok:true};
+  }
+
+  let lockTimer=null, remain=0; function startLock(seconds){ if(lockTimer) clearInterval(lockTimer); remain=seconds; els.checkBtn.disabled=true; els.countdown.textContent=`⏳ Wait ${remain}s`; lockTimer=setInterval(()=>{ remain--; if(remain<=0){ clearInterval(lockTimer); lockTimer=null; els.checkBtn.disabled=false; els.countdown.textContent=''; } else { els.countdown.textContent=`⏳ Wait ${remain}s`; } },1000); }
+
+  function handleCheck(){ if(els.checkBtn.disabled) return; const inputs = allInputs().filter(e=>!e.disabled);
+    if(mode==='prob' && round>=4){ // accept any internally consistent completion
+      const done = inputs.every(el=> (el.value||'').trim()!=='');
+      if(!done){ els.status.textContent='✖ Some blanks remain.'; startLock(10); return; }
+      const res = checkProbRound4Consistency(); if(res.ok){ els.status.textContent='✔ Correct (consistent with given clues).'; els.nextBtn.style.display='inline-block'; } else { els.status.textContent='✖ Inconsistency: '+res.why+'.'; startLock(20); }
+      return;
+    }
+    // Default path (compare against expected)
+    let wrong=0, blank=0; inputs.forEach(el=>{ const v=(el.value||'').trim(); el.classList.remove('wrong','correct'); if(!v){ blank++; return; } const exp=el.dataset.expected||''; let ok=false; if(mode==='prob'){ ok = numericOK(v) && withinTol(v,exp); } else { ok = (String(Number(v))===String(Number(exp))); } if(ok) el.classList.add('correct'); else { el.classList.add('wrong'); wrong++; }}); if(wrong===0 && blank===0){ els.status.textContent='✔ Correct!'; els.nextBtn.style.display='inline-block'; } else { els.status.textContent = `✖ ${wrong} wrong, ${blank} blank${blank!==1?'s':''}. Next Round unlocks after a delay.`; const delay = Math.max(1, wrong) * 10; startLock(delay); } }
+
+  els.checkBtn.addEventListener('click', handleCheck); els.nextBtn.addEventListener('click', ()=>{ if(els.checkBtn.disabled) return; nextRound(); }); els.modeSel.addEventListener('change', ()=>{ mode=els.modeSel.value; round=1; regenerate(); });
+
+  // init
+  layoutAll(); regenerate();
+</script>
+</body>
+</html>

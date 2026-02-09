@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Numerical Integration Drag-and-Drop Game</title>
+
+  <!-- MathJax -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(','\\)'], ['$', '$']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020;
+      --ink:#eef2ff;
+      --muted:#b7c0ff;
+      --line:rgba(255,255,255,.14);
+      --good:#35d07f;
+      --bad:#ff4d4d;
+      --warn:#ffcc66;
+      --shadow: 0 12px 40px rgba(0,0,0,.35);
+      --radius: 16px;
+      --slotW: 104px;
+      --slotH: 36px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(106,163,255,.28), transparent 60%),
+                  radial-gradient(900px 500px at 80% 0%, rgba(53,208,127,.18), transparent 60%),
+                  var(--bg);
+      color: var(--ink);
+    }
+
+    /* Sticky top area (integral always visible) */
+    .topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+      background: rgba(11,16,32,.86);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbarInner{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 10px 14px 10px;
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px 14px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand{
+      display:flex;
+      flex-direction:column;
+      gap: 4px;
+      min-width: 260px;
+      flex: 1 1 320px;
+    }
+    .brand .title{
+      font-size: 15px;
+      font-weight: 900;
+      margin:0;
+      letter-spacing:.2px;
+    }
+    .integralLine{
+      font-size: 16px;
+      line-height: 1.4;
+      color: var(--ink);
+      overflow-x:auto;
+      white-space: nowrap;
+    }
+
+    .controls{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content:flex-end;
+      flex: 0 0 auto;
+    }
+
+    select, button, input{
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(17,26,51,.75);
+      color: var(--ink);
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    button{
+      cursor:pointer;
+      font-weight: 900;
+      background: linear-gradient(180deg, rgba(106,163,255,.22), rgba(106,163,255,.10));
+      border-color: rgba(106,163,255,.45);
+    }
+    button.secondary{
+      background: rgba(255,255,255,.05);
+      border-color: var(--line);
+      font-weight: 900;
+    }
+
+    .setupInfo{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 14px 10px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .pill{
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .page{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px 14px 32px;
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card .hd{
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card .hd .title{
+      font-weight: 900;
+      font-size: 14px;
+      letter-spacing:.2px;
+      margin:0;
+    }
+    .card .bd{ padding: 14px; }
+
+    .stepTag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-weight: 900;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      margin-bottom: 10px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      background: rgba(255,255,255,.28);
+      border:1px solid rgba(255,255,255,.25);
+    }
+    .dot.good{ background: rgba(53,208,127,.95); border-color: rgba(53,208,127,.8); }
+    .dot.lock{ background: rgba(255,204,102,.95); border-color: rgba(255,204,102,.85); }
+
+    .msg{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.16);
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .msg.good{ border-color: rgba(53,208,127,.5); }
+    .msg.bad{ border-color: rgba(255,77,77,.5); }
+    .msg.warn{ border-color: rgba(255,204,102,.55); }
+    .hidden{ display:none !important; }
+
+    .bank{
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.14);
+      min-height: 98px;
+    }
+    .bank .lbl{
+      font-weight: 900;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .tokens{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .token{
+      user-select: none;
+      -webkit-user-select:none;
+      touch-action: none;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.07);
+      font-weight: 900;
+      font-size: 13px;
+      cursor: grab;
+      box-shadow: 0 8px 18px rgba(0,0,0,.18);
+      white-space: nowrap;
+    }
+    .token.x{ border-color: rgba(106,163,255,.5); }
+    .token.y{ border-color: rgba(53,208,127,.5); }
+    .token.small{ font-size: 12px; padding: 6px 9px; }
+    .token.ghost{
+      position: fixed;
+      pointer-events: none;
+      opacity: .95;
+      z-index: 9999;
+      transform: translate(-50%,-50%);
+      cursor: grabbing;
+    }
+
+    /* Horizontal table */
+    .hTableWrap{
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(17,26,51,.45);
+      overflow-x: auto;
+      padding: 10px;
+    }
+    .hTable{
+      min-width: 720px;
+      display:grid;
+      grid-template-rows: auto auto auto;
+      gap: 10px;
+    }
+    .hRow{
+      display:flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    .hLabel{
+      width: 90px;
+      flex: 0 0 auto;
+      font-weight: 900;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+      padding-right: 6px;
+      white-space: nowrap;
+    }
+    .hCell{
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+      align-items:center;
+      justify-content:center;
+      min-width: 112px;
+      padding: 6px 6px 4px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.10);
+    }
+    .idxTag{
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .slot, .fSlot{
+      width: var(--slotW);
+      height: var(--slotH);
+      border-radius: 12px;
+      border: 1px dashed rgba(255,255,255,.22);
+      background: rgba(0,0,0,.12);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .slot.filled, .fSlot.filled{
+      border-style: solid;
+      background: rgba(255,255,255,.06);
+    }
+    .slot.ok, .fSlot.ok{ border-color: rgba(53,208,127,.75); }
+    .slot.bad, .fSlot.bad{ border-color: rgba(255,77,77,.75); }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .row input[type="text"]{ width: 240px; }
+
+    .formulaArea{
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(17,26,51,.45);
+      padding: 12px 12px;
+      overflow-x:auto;
+      max-width: 1020px;
+      margin: 0 auto;
+    }
+    .formulaLine{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 16px;
+      line-height: 1.85;
+      padding: 6px 0;
+      justify-content: center;
+      white-space: nowrap; /* fixes broken wrapping like screenshot */
+    }
+    .formulaLead{
+      width: 100%;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 13px;
+      padding: 2px 0 10px;
+      white-space: normal;
+    }
+    .formulaGiven{
+      width: 100%;
+      text-align:center;
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 13px;
+      margin-top: -6px;
+      padding-bottom: 8px;
+      white-space: normal;
+    }
+
+    .lockOverlay{
+      opacity: .55;
+      filter: grayscale(.2);
+      pointer-events: none;
+    }
+    .tiny{ font-size: 12px; color: var(--muted); }
+    .mjWarn{ display:none; }
+  </style>
+</head>
+
+<body>
+
+<div class="topbar">
+  <div class="topbarInner">
+    <div class="brand">
+      <p class="title">Numerical Integration Game</p>
+      <div class="integralLine" id="integralDisplay">Loading…</div>
+    </div>
+
+    <div class="controls">
+      <label class="tiny"><strong>Rule</strong></label>
+      <select id="ruleSelect">
+        <option value="trapezium">Trapezium rule</option>
+        <option value="mid">Mid-ordinate rule</option>
+        <option value="simpson">Simpson's rule</option>
+      </select>
+      <button id="btnNew">New integral</button>
+      <button class="secondary" id="btnFullscreen">Fullscreen</button>
+    </div>
+  </div>
+
+  <div class="setupInfo" id="setupInfo"></div>
+</div>
+
+<div class="page">
+  <div class="msg warn mjWarn" id="mjWarn">
+    If the maths looks unformatted, your device may be blocking MathJax’s CDN.
+  </div>
+
+  <!-- STEP 0 -->
+  <div class="card" id="panel0">
+    <div class="hd"><p class="title">Step 0 — Calculate \(h\)</p></div>
+    <div class="bd">
+      <div class="stepTag"><span class="dot lock" id="dot0"></span> Step 0</div>
+      <div class="msg" style="margin-top:0;">
+        Compute \(h=\dfrac{b-a}{n}\) and enter it <strong>correct to 3 d.p.</strong>
+      </div>
+      <div class="row">
+        <label class="tiny"><strong>Enter \(h\)</strong> (3 d.p.):</label>
+        <input type="text" id="hBox" placeholder="e.g. 0.250" />
+        <button id="btnCheck0">Check \(h\)</button>
+      </div>
+      <div class="msg hidden" id="msg0"></div>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card" id="panel1">
+    <div class="hd"><p class="title">Step 1 — Complete the table</p></div>
+    <div class="bd" id="step1Wrap">
+      <div class="stepTag"><span class="dot lock" id="dot1"></span> Step 1</div>
+
+      <div class="bank">
+        <div class="lbl">Drag the values into the table</div>
+        <div class="tokens" id="mixedBank"></div>
+      </div>
+
+      <div class="hTableWrap" style="margin-top:10px;">
+        <div class="hTable" id="hTable"></div>
+      </div>
+
+      <div class="row">
+        <button id="btnCheck1">Check table</button>
+        <button class="secondary" id="btnReset1">Reset table</button>
+      </div>
+      <div class="msg hidden" id="msg1"></div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card" id="panel2">
+    <div class="hd"><p class="title">Step 2 — Build the formula</p></div>
+    <div class="bd" id="step2Wrap">
+      <div class="stepTag"><span class="dot lock" id="dot2"></span> Step 2</div>
+
+      <div class="formulaArea">
+        <div class="formulaLead">where \(h=\dfrac{b-a}{n}\)</div>
+        <div class="formulaGiven" id="givenFormula"></div>
+        <div id="formulaArea"></div>
+      </div>
+
+      <div class="row">
+        <button id="btnCheck2">Check formula</button>
+        <button class="secondary" id="btnReset2">Reset formula</button>
+      </div>
+      <div class="msg hidden" id="msg2"></div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="card" id="panel3">
+    <div class="hd"><p class="title">Step 3 — Final answer</p></div>
+    <div class="bd" id="step3Wrap">
+      <div class="stepTag"><span class="dot lock" id="dot3"></span> Step 3</div>
+      <div class="msg" style="margin-top:0;">
+        Use the rounded values in your table for the final calculation.
+      </div>
+      <div class="row">
+        <label class="tiny"><strong>Approximation:</strong></label>
+        <input type="text" id="answerBox" placeholder="e.g. 2.718" />
+        <button id="btnCheck3">Check answer</button>
+      </div>
+      <div class="msg hidden" id="resultBox"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   Dragging
+   ========================= */
+let dragState=null;
+function makeDraggable(el){
+  el.addEventListener('pointerdown',(ev)=>{
+    if(ev.button!==undefined && ev.button!==0) return;
+    ev.preventDefault();
+    const tokenId=el.dataset.tokenId;
+    const tokenType=el.dataset.type;
+    if(!tokenId) return;
+
+    const ghost=el.cloneNode(true);
+    ghost.classList.add('ghost');
+    document.body.appendChild(ghost);
+
+    dragState={tokenId, tokenType, ghostEl:ghost};
+    moveGhost(ev.clientX, ev.clientY);
+    el.setPointerCapture(ev.pointerId);
+  });
+  el.addEventListener('pointermove',(ev)=>{
+    if(!dragState) return;
+    moveGhost(ev.clientX, ev.clientY);
+  });
+  el.addEventListener('pointerup',(ev)=>{
+    if(!dragState) return;
+    const dropTarget=droppableUnder(ev.clientX, ev.clientY);
+    if(dropTarget){
+      handleDropOn(dropTarget, dragState.tokenId, dragState.tokenType);
+    }
+    dragState.ghostEl.remove();
+    dragState=null;
+  });
+  el.addEventListener('pointercancel',()=>{
+    if(!dragState) return;
+    dragState.ghostEl.remove();
+    dragState=null;
+  });
+}
+function moveGhost(x,y){
+  dragState.ghostEl.style.left=x+'px';
+  dragState.ghostEl.style.top=y+'px';
+}
+function droppableUnder(x,y){
+  const el=document.elementFromPoint(x,y);
+  if(!el) return null;
+  return el.closest('.slot,.fSlot');
+}
+
+/* =========================
+   State
+   ========================= */
+const state={
+  rule:'trapezium',
+  f:null,
+  fLatex:'',
+  a:0,b:0,h:0,n:0,
+  xs:[], ys:[],
+  tokens:new Map(),
+  tableSlots:new Map(),
+  formulaSlots:new Map(),
+  correctTable:new Map(),
+  correctFormula:new Map(),
+  hOk:false,
+  tableComplete:false,
+  formulaComplete:false,
+  approxValueRounded:null,
+  trueValue:null
+};
+const $=(id)=>document.getElementById(id);
+
+/* =========================
+   Utility
+   ========================= */
+function rnd(min,max){ return min+Math.random()*(max-min); }
+function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function to3(x){ let v=Math.round(x*1000)/1000; if(Object.is(v,-0)) v=0; return v; }
+function fmt3(x){ return to3(x).toFixed(3); }
+function clamp(x,lo,hi){ return Math.min(hi, Math.max(lo,x)); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+
+/* =========================
+   Base function types
+   ========================= */
+function makeBaseFunction(kind){
+  if(kind==='expPow'){
+    const a=choice([0.5,0.8,1.2,-0.7,-1.1]);
+    const p=choice([1,2,3]);
+    return { f:(x)=>Math.exp(a*Math.pow(x,p)), latex:`e^{${a}x^{${p}}}` };
+  }
+  if(kind==='sin'){
+    const a=choice([0.5,1,1.5,2,3]);
+    return { f:(x)=>Math.sin(a*x), latex:`\\sin(${a}x)` };
+  }
+  if(kind==='cos'){
+    const a=choice([0.5,1,2,3]);
+    return { f:(x)=>Math.cos(a*x), latex:`\\cos(${a}x)` };
+  }
+  if(kind==='ln'){
+    const a=choice([0.5,1,1.5,2,-0.5,-1]);
+    return { f:(x)=>Math.log(5+a*x), latex:`\\ln(5+${a}x)` };
+  }
+  if(kind==='polyExp'){
+    const k=choice([1,2,3]);
+    const a=choice([0.5,-0.5,0.8,-0.8,1.2]);
+    return { f:(x)=>Math.pow(x,k)*Math.exp(a*x), latex:`x^{${k}}e^{${a}x}` };
+  }
+  const a=choice([0.5,1,1.5]);
+  return { f:(x)=>Math.tan(a*x), latex:`\\tan(${a}x)` };
+}
+
+/* Transformation with fewer brackets: prefer Ax + C without heavy \\left( \\right) */
+function transform(base){
+  const A=choice([1,1,-1,2,0.5,1.5]);
+  const D=choice([0,0,0,0.5,-0.5,1,-1]);
+  const B=choice([0.5,1,1,1.5,2]);
+  const C=choice([0,0,0.25,-0.25,0.5,-0.5]);
+
+  const comp=(x)=>A*base.f(B*x+C)+D;
+
+  const arg=(()=>{
+    const bx=(B===1)?'x':`${B}x`;
+    if(C===0) return bx;
+    return `${bx}${C>0?'+':'-'}${Math.abs(C)}`;
+  })();
+
+  // Replace x by (Bx+C) WITHOUT \\left \\right, keep simple parentheses
+  let inner = base.latex.replace(/x/g, `(${arg})`);
+
+  // A scaling
+  let expr = inner;
+  if(A === -1) expr = `-${expr}`;
+  else if(A !== 1) expr = `${A}${expr}`;
+
+  // D shift
+  if(D !== 0) expr = `${expr}${D>0?'+':''}${D}`;
+
+  return { f:comp, latex:expr };
+}
+
+/* Build combined integrand:
+   - either sum of two different types
+   - or product of two different types (NEW)
+*/
+function buildCombinedFunction(){
+  const kinds=['expPow','sin','ln','cos','polyExp','tanSafe'];
+  let k1=choice(kinds), k2=choice(kinds);
+  while(k2===k1) k2=choice(kinds);
+
+  const t1=transform(makeBaseFunction(k1));
+  const t2=transform(makeBaseFunction(k2));
+
+  const op = (Math.random()<0.5) ? 'sum' : 'prod';
+
+  if(op==='sum'){
+    return {
+      f:(x)=>t1.f(x)+t2.f(x),
+      latex:`${t1.latex}+${t2.latex}`
+    };
+  }
+  // product: add parentheses only if needed (contains + or - not at start)
+  const needsParens = (s) => {
+    // if expression has a + or - beyond the first character, wrap
+    for(let i=1;i<s.length;i++){
+      const ch=s[i];
+      if(ch==='+' || ch==='-') return true;
+    }
+    return false;
+  };
+  const a = needsParens(t1.latex) ? `(${t1.latex})` : t1.latex;
+  const b = needsParens(t2.latex) ? `(${t2.latex})` : t2.latex;
+
+  return {
+    f:(x)=>t1.f(x)*t2.f(x),
+    latex:`${a}${b}` // multiplication by adjacency (cleaner) e.g. (sin...)(e^{...}) or x^2e^x(sin...)
+  };
+}
+
+/* Grid picking */
+function pickGrid(rule, fInfo){
+  let h=choice([0.1,0.125,0.2,0.25,0.3]);
+  h=to3(h);
+
+  let nMax=(rule==='mid')?8:7;
+  if(rule==='simpson') nMax=8;
+  let n=Math.floor(rnd(2,nMax+1));
+  if(rule==='simpson' && (n%2===1)) n+=1;
+  n=clamp(n,2,nMax);
+  if(rule==='simpson' && (n%2===1)) n=n-1;
+
+  let a=to3(rnd(-1.2,1.2));
+  let b=to3(a+n*h);
+
+  const safeCheck=(a0,b0)=>{
+    const sample=90;
+    for(let i=0;i<=sample;i++){
+      const x=a0+(b0-a0)*i/sample;
+      const y=fInfo.f(x);
+      if(!Number.isFinite(y)) return false;
+      if(Math.abs(y)>1e6) return false;
+    }
+    return true;
+  };
+
+  let tries=0;
+  while(tries<160 && !safeCheck(a,b)){
+    a=to3(rnd(-1.0,1.0));
+    b=to3(a+n*h);
+    tries++;
+  }
+  return {a,b,h,n};
+}
+
+function trueIntegralSimpson(f,a,b){
+  const N=6000;
+  const h=(b-a)/N;
+  let s=f(a)+f(b);
+  for(let i=1;i<N;i++){
+    const x=a+i*h;
+    s += (i%2===0?2:4)*f(x);
+  }
+  return s*h/3;
+}
+
+function approxByRuleUsingRounded(rule, ysRounded, hRounded){
+  const h=hRounded;
+  if(rule==='trapezium'){
+    let sum=ysRounded[0]+ysRounded[ysRounded.length-1];
+    for(let i=1;i<ysRounded.length-1;i++) sum += 2*ysRounded[i];
+    return (h/2)*sum;
+  }
+  if(rule==='simpson'){
+    let s=ysRounded[0]+ysRounded[ysRounded.length-1];
+    for(let i=1;i<ysRounded.length-1;i++){
+      s += (i%2===1?4:2)*ysRounded[i];
+    }
+    return (h/3)*s;
+  }
+  let s=0; for(const y of ysRounded) s+=y;
+  return h*s;
+}
+
+/* Build question */
+function buildQuestion(rule){
+  state.rule=rule;
+
+  const fInfo=buildCombinedFunction(); // sum OR product
+  state.f=fInfo.f;
+  state.fLatex=fInfo.latex;
+
+  const grid=pickGrid(rule, fInfo);
+  state.a=grid.a; state.b=grid.b; state.h=grid.h; state.n=grid.n;
+
+  const xs=[], ys=[];
+  if(rule==='mid'){
+    for(let i=0;i<state.n;i++){
+      const x=to3(state.a+(i+0.5)*state.h);
+      xs.push(x);
+      ys.push(to3(state.f(x)));
+    }
+  }else{
+    for(let i=0;i<=state.n;i++){
+      const x=to3(state.a+i*state.h);
+      xs.push(x);
+      ys.push(to3(state.f(x)));
+    }
+  }
+  state.xs=xs; state.ys=ys;
+
+  state.approxValueRounded=approxByRuleUsingRounded(rule, ys, state.h);
+  state.trueValue=trueIntegralSimpson(state.f, state.a, state.b);
+
+  // reset progress
+  state.tokens.clear();
+  state.tableSlots.clear();
+  state.formulaSlots.clear();
+  state.correctTable.clear();
+  state.correctFormula.clear();
+  state.hOk=false;
+  state.tableComplete=false;
+  state.formulaComplete=false;
+
+  buildBanksMixed();
+  buildTableMappings();
+  buildFormulaMappings();
+
+  renderAll();
+  clearMessages();
+  updateLocks();
+  rerenderMath();
+}
+
+/* Mixed bank */
+function buildBanksMixed(){
+  const needX=state.xs.length;
+  const needY=state.ys.length;
+  const extra=Math.max(4, Math.round((needX+needY)*0.55));
+
+  let id=1;
+  for(const x of state.xs){
+    state.tokens.set(`x${id++}`, {type:'x', value:x, label:fmt3(x), isRed:false});
+  }
+  for(const y of state.ys){
+    state.tokens.set(`y${id++}`, {type:'y', value:y, label:fmt3(y), isRed:false});
+  }
+
+  const reqX=new Set(state.xs.map(v=>fmt3(v)));
+  const reqY=new Set(state.ys.map(v=>fmt3(v)));
+  for(let k=0;k<extra;k++){
+    const makeX = Math.random()<0.5;
+    if(makeX){
+      let x, tries=0;
+      const span=state.b-state.a;
+      do{
+        x=to3(rnd(state.a-0.35*span, state.b+0.35*span));
+        tries++;
+      }while(tries<60 && reqX.has(fmt3(x)));
+      state.tokens.set(`x${id++}`, {type:'x', value:x, label:fmt3(x), isRed:true});
+    }else{
+      const pickX=choice(state.xs);
+      const yTrue=state.f(pickX);
+      const noise=rnd(-0.8,0.8)*(Math.random()<0.7?1:0.35);
+      let y=to3(yTrue+noise);
+      let tries=0;
+      while(tries<60 && reqY.has(fmt3(y))){
+        y=to3(y+rnd(0.12,0.5));
+        tries++;
+      }
+      state.tokens.set(`y${id++}`, {type:'y', value:y, label:fmt3(y), isRed:true});
+    }
+  }
+}
+
+function findTokenId(type, value, nonRedOnly){
+  const target=fmt3(value);
+  for(const [id,tok] of state.tokens.entries()){
+    if(tok.type!==type) continue;
+    if(nonRedOnly && tok.isRed) continue;
+    if(tok.label===target) return id;
+  }
+  for(const [id,tok] of state.tokens.entries()){
+    if(tok.type===type && tok.label===target) return id;
+  }
+  return null;
+}
+
+function buildTableMappings(){
+  const cols=state.xs.length;
+  for(let c=0;c<cols;c++){
+    state.correctTable.set(`t_x_${c}`, findTokenId('x', state.xs[c], true));
+    state.correctTable.set(`t_y_${c}`, findTokenId('y', state.ys[c], true));
+  }
+}
+
+function buildFormulaMappings(){
+  if(state.rule==='mid'){
+    for(let i=0;i<state.ys.length;i++){
+      state.correctFormula.set(`f_mid_${i}`, findTokenId('y', state.ys[i], true));
+    }
+    return;
+  }
+  if(state.rule==='trapezium'){
+    state.correctFormula.set('f_trap_y0', findTokenId('y', state.ys[0], true));
+    state.correctFormula.set('f_trap_yn', findTokenId('y', state.ys[state.ys.length-1], true));
+    for(let i=1;i<state.ys.length-1;i++){
+      state.correctFormula.set(`f_trap_mid_${i}`, findTokenId('y', state.ys[i], true));
+    }
+    return;
+  }
+  state.correctFormula.set('f_simp_y0', findTokenId('y', state.ys[0], true));
+  state.correctFormula.set('f_simp_yn', findTokenId('y', state.ys[state.ys.length-1], true));
+  for(let i=1;i<state.ys.length-1;i++){
+    const key=(i%2===1)?`f_simp_odd_${i}`:`f_simp_even_${i}`;
+    state.correctFormula.set(key, findTokenId('y', state.ys[i], true));
+  }
+}
+
+/* Rendering */
+function renderAll(){
+  renderTopBar();
+  renderMixedBank();
+  renderHorizontalTable();
+  renderGivenFormulaLine();
+  renderFormulaBoxes();
+}
+
+function renderTopBar(){
+  const a=fmt3(state.a), b=fmt3(state.b);
+  $('integralDisplay').innerHTML = `\\(\\int_{${a}}^{${b}} ${state.fLatex}\\,dx\\)`;
+
+  const ruleName = state.rule==='trapezium' ? 'Trapezium' : state.rule==='mid' ? 'Mid-ordinate' : "Simpson's";
+  const numOrdinates = state.xs.length;
+
+  $('setupInfo').innerHTML = `
+    <span class="pill"><strong>Rule:</strong> ${ruleName}</span>
+    <span class="pill"><strong>Number of strips:</strong> ${state.n}</span>
+    <span class="pill"><strong>Number of ordinates:</strong> ${numOrdinates}</span>
+    <span class="pill"><strong>a:</strong> ${a}</span>
+    <span class="pill"><strong>b:</strong> ${b}</span>
+  `;
+}
+
+function renderMixedBank(){
+  const items=[];
+  for(const [id,tok] of state.tokens.entries()) items.push([id,tok]);
+  shuffle(items);
+
+  const bank=$('mixedBank');
+  bank.innerHTML='';
+  for(const [id,tok] of items){
+    const el=document.createElement('div');
+    el.className=`token ${tok.type}`;
+    el.textContent=tok.label;
+    el.dataset.tokenId=id;
+    el.dataset.type=tok.type;
+    makeDraggable(el);
+    bank.appendChild(el);
+  }
+}
+
+function renderHorizontalTable(){
+  const cols=state.xs.length;
+  const mid=(state.rule==='mid');
+  const idxs=[];
+  for(let i=0;i<cols;i++){
+    idxs.push(mid ? `\\(${i}+\\tfrac12\\)` : `\\(${i}\\)`);
+  }
+
+  const wrap=$('hTable');
+  wrap.innerHTML='';
+
+  const r0=document.createElement('div');
+  r0.className='hRow';
+  r0.innerHTML=`<div class="hLabel">Index</div>`;
+  for(let c=0;c<cols;c++){
+    const cell=document.createElement('div');
+    cell.className='hCell';
+    cell.innerHTML=`<div class="idxTag">${idxs[c]}</div>`;
+    r0.appendChild(cell);
+  }
+  wrap.appendChild(r0);
+
+  const r1=document.createElement('div');
+  r1.className='hRow';
+  r1.innerHTML=`<div class="hLabel">\\(${mid?'x_{i+\\tfrac12}':'x_i'}\\)</div>`;
+  for(let c=0;c<cols;c++){
+    const cell=document.createElement('div');
+    cell.className='hCell';
+    cell.innerHTML=`<div class="slot" data-slot-id="t_x_${c}" data-accept="x"></div>`;
+    r1.appendChild(cell);
+  }
+  wrap.appendChild(r1);
+
+  const r2=document.createElement('div');
+  r2.className='hRow';
+  r2.innerHTML=`<div class="hLabel">\\(${mid?'y_{i+\\tfrac12}':'y_i'}\\)</div>`;
+  for(let c=0;c<cols;c++){
+    const cell=document.createElement('div');
+    cell.className='hCell';
+    cell.innerHTML=`<div class="slot" data-slot-id="t_y_${c}" data-accept="y"></div>`;
+    r2.appendChild(cell);
+  }
+  wrap.appendChild(r2);
+
+  document.querySelectorAll('.slot').forEach(slot=>{
+    slot.addEventListener('click', ()=> clearSlot(slot));
+  });
+
+  redrawPlaced();
+}
+
+function renderGivenFormulaLine(){
+  // Provided correct formula template for n strips (generic a,b)
+  const n='n';
+  if(state.rule==='mid'){
+    $('givenFormula').innerHTML =
+      `\\(\\textbf{Mid-ordinate rule:}\\quad \\int_a^b y\\,dx \\approx h\\left(y_{\\tfrac12}+y_{\\tfrac32}+\\cdots+y_{n-\\tfrac12}\\right)\\)`;
+    return;
+  }
+  if(state.rule==='trapezium'){
+    $('givenFormula').innerHTML =
+      `\\(\\textbf{Trapezium rule:}\\quad \\int_a^b y\\,dx \\approx \\frac{h}{2}\\left\\{(y_0+y_n)+2(y_1+y_2+\\cdots+y_{n-1})\\right\\}\\)`;
+    return;
+  }
+  $('givenFormula').innerHTML =
+    `\\(\\textbf{Simpson's rule:}\\quad \\int_a^b y\\,dx \\approx \\frac{h}{3}\\left\\{(y_0+y_n)+4(y_1+y_3+\\cdots+y_{n-1})+2(y_2+y_4+\\cdots+y_{n-2})\\right\\}\\)`;
+}
+
+function renderFormulaBoxes(){
+  const area=$('formulaArea');
+  area.innerHTML='';
+
+  // Boxes only (the correct formula is shown above)
+  if(state.rule==='mid'){
+    const l=document.createElement('div');
+    l.className='formulaLine';
+    let inner=`<span>\\(h(\\)</span>`;
+    for(let i=0;i<state.ys.length;i++){
+      inner += `<span class="fSlot" data-slot-id="f_mid_${i}" data-accept="y"></span>`;
+      if(i<state.ys.length-1) inner += `<span>\\(+\\)</span>`;
+    }
+    inner += `<span>\\()\\)</span>`;
+    l.innerHTML=inner;
+    area.appendChild(l);
+  }
+
+  if(state.rule==='trapezium'){
+    const l=document.createElement('div');
+    l.className='formulaLine';
+    let mids='';
+    for(let i=1;i<state.ys.length-1;i++){
+      mids += `<span class="fSlot" data-slot-id="f_trap_mid_${i}" data-accept="y"></span>`;
+      if(i<state.ys.length-2) mids += `<span>\\(+\\)</span>`;
+    }
+    l.innerHTML = `
+      <span>\\(\\frac{h}{2}\\{(\\)</span>
+      <span class="fSlot" data-slot-id="f_trap_y0" data-accept="y"></span>
+      <span>\\(+\\)</span>
+      <span class="fSlot" data-slot-id="f_trap_yn" data-accept="y"></span>
+      <span>\\()\\,+\\,2(\\)</span>
+      ${mids || `<span class="tiny">(none)</span>`}
+      <span>\\()\\}\\)</span>
+    `;
+    area.appendChild(l);
+  }
+
+  if(state.rule==='simpson'){
+    const l=document.createElement('div');
+    l.className='formulaLine';
+
+    const odds=[], evens=[];
+    for(let i=1;i<state.ys.length-1;i++){
+      (i%2===1?odds:evens).push(i);
+    }
+    let oddBits='', evenBits='';
+    for(let k=0;k<odds.length;k++){
+      const i=odds[k];
+      oddBits += `<span class="fSlot" data-slot-id="f_simp_odd_${i}" data-accept="y"></span>`;
+      if(k<odds.length-1) oddBits += `<span>\\(+\\)</span>`;
+    }
+    for(let k=0;k<evens.length;k++){
+      const i=evens[k];
+      evenBits += `<span class="fSlot" data-slot-id="f_simp_even_${i}" data-accept="y"></span>`;
+      if(k<evens.length-1) evenBits += `<span>\\(+\\)</span>`;
+    }
+
+    l.innerHTML = `
+      <span>\\(\\frac{h}{3}\\{(\\)</span>
+      <span class="fSlot" data-slot-id="f_simp_y0" data-accept="y"></span>
+      <span>\\(+\\)</span>
+      <span class="fSlot" data-slot-id="f_simp_yn" data-accept="y"></span>
+      <span>\\()\\,+\\,4(\\)</span>
+      ${oddBits || `<span class="tiny">(none)</span>`}
+      <span>\\()\\,+\\,2(\\)</span>
+      ${evenBits || `<span class="tiny">(none)</span>`}
+      <span>\\()\\}\\)</span>
+    `;
+    area.appendChild(l);
+  }
+
+  document.querySelectorAll('.fSlot').forEach(slot=>{
+    slot.addEventListener('click', ()=> clearSlot(slot));
+  });
+
+  redrawPlaced();
+}
+
+/* MathJax */
+function rerenderMath(){
+  if(!window.MathJax || !window.MathJax.typesetPromise){
+    $('mjWarn').style.display='block';
+    return;
+  }
+  window.MathJax.typesetPromise().catch(()=> $('mjWarn').style.display='block');
+}
+
+/* Slots */
+function paintSlot(slotEl, tokenId){
+  const tok=state.tokens.get(tokenId);
+  slotEl.classList.add('filled');
+  slotEl.innerHTML='';
+  const t=document.createElement('div');
+  t.className=`token ${tok.type} small`;
+  t.textContent=tok.label;
+  t.dataset.tokenId=tokenId;
+  t.dataset.type=tok.type;
+  makeDraggable(t);
+  slotEl.appendChild(t);
+}
+
+function handleDropOn(slotEl, tokenId, tokenType){
+  const accept=slotEl.dataset.accept;
+  if(accept && accept!==tokenType) return;
+
+  const slotId=slotEl.dataset.slotId;
+  if(!slotId) return;
+
+  // gating
+  if(slotId.startsWith('t_') && !state.hOk) return;
+  if(slotId.startsWith('f_') && !state.tableComplete) return;
+
+  clearSlot(slotEl, true);
+
+  const map = slotId.startsWith('t_') ? state.tableSlots : state.formulaSlots;
+
+  // prevent reuse in same phase
+  for(const [sId, tId] of map.entries()){
+    if(tId===tokenId){
+      const old=document.querySelector(`[data-slot-id="${sId}"]`);
+      if(old) clearSlot(old, true);
+      break;
+    }
+  }
+
+  map.set(slotId, tokenId);
+  paintSlot(slotEl, tokenId);
+}
+
+function clearSlot(slotEl, silent=false){
+  const slotId=slotEl.dataset.slotId;
+  if(!slotId) return;
+  const map = slotId.startsWith('t_') ? state.tableSlots : state.formulaSlots;
+  map.delete(slotId);
+  slotEl.classList.remove('filled','ok','bad');
+  slotEl.innerHTML='';
+}
+
+function redrawPlaced(){
+  for(const [slotId, tokenId] of state.tableSlots.entries()){
+    const el=document.querySelector(`[data-slot-id="${slotId}"]`);
+    if(el) paintSlot(el, tokenId);
+  }
+  for(const [slotId, tokenId] of state.formulaSlots.entries()){
+    const el=document.querySelector(`[data-slot-id="${slotId}"]`);
+    if(el) paintSlot(el, tokenId);
+  }
+}
+
+/* Locks */
+function updateLocks(){
+  $('dot0').className='dot '+(state.hOk?'good':'lock');
+  $('dot1').className='dot '+(state.tableComplete?'good':'lock');
+  $('dot2').className='dot '+(state.formulaComplete?'good':'lock');
+  $('dot3').className='dot '+(state.formulaComplete?'lock':'lock');
+
+  $('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
+  $('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
+  $('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
+}
+
+/* Checks */
+function checkStep0(){
+  const raw=$('hBox').value.trim().replace(/,/g,'');
+  const val=Number(raw);
+  const msg=$('msg0');
+
+  if(!Number.isFinite(val)){
+    msg.className='msg warn';
+    msg.textContent='Enter a valid number for h (3 d.p.).';
+    msg.classList.remove('hidden');
+    state.hOk=false;
+    resetDownstream();
+    updateLocks();
+    return;
+  }
+
+  const target=to3(state.h);
+  const entered=to3(val);
+
+  if(entered===target){
+    msg.className='msg good';
+    msg.innerHTML=`<strong>Correct ✅</strong>  \\(h=${fmt3(target)}\\).`;
+    msg.classList.remove('hidden');
+    state.hOk=true;
+  }else{
+    msg.className='msg bad';
+    msg.innerHTML=`<strong>Not quite ❌</strong>  Try again.`;
+    msg.classList.remove('hidden');
+    state.hOk=false;
+    resetDownstream();
+  }
+  updateLocks();
+  rerenderMath();
+}
+
+function checkStep1(){
+  const msg=$('msg1');
+  let allFilled=true, allCorrect=true;
+
+  for(const [slotId, expected] of state.correctTable.entries()){
+    const el=document.querySelector(`[data-slot-id="${slotId}"]`);
+    const placed=state.tableSlots.get(slotId);
+
+    if(!placed){
+      allFilled=false;
+      if(el) el.classList.remove('ok','bad');
+      continue;
+    }
+    if(el){
+      el.classList.remove('ok','bad');
+      el.classList.add(placed===expected?'ok':'bad');
+    }
+    if(placed!==expected) allCorrect=false;
+  }
+
+  if(!allFilled){
+    msg.className='msg warn';
+    msg.textContent='Fill every table slot first.';
+    msg.classList.remove('hidden');
+    state.tableComplete=false;
+    resetStep2(true); resetStep3(true);
+    updateLocks();
+    return;
+  }
+  if(!allCorrect){
+    msg.className='msg bad';
+    msg.textContent='Some entries are incorrect — fix the red-outlined slots.';
+    msg.classList.remove('hidden');
+    state.tableComplete=false;
+    resetStep2(true); resetStep3(true);
+    updateLocks();
+    return;
+  }
+
+  msg.className='msg good';
+  msg.textContent='Perfect — Step 2 unlocked.';
+  msg.classList.remove('hidden');
+  state.tableComplete=true;
+  updateLocks();
+}
+
+function checkStep2(){
+  const msg=$('msg2');
+  let allFilled=true, allCorrect=true;
+
+  for(const [slotId, expected] of state.correctFormula.entries()){
+    const el=document.querySelector(`[data-slot-id="${slotId}"]`);
+    const placed=state.formulaSlots.get(slotId);
+
+    if(!placed){
+      allFilled=false;
+      if(el) el.classList.remove('ok','bad');
+      continue;
+    }
+    if(el){
+      el.classList.remove('ok','bad');
+      el.classList.add(placed===expected?'ok':'bad');
+    }
+    if(placed!==expected) allCorrect=false;
+  }
+
+  if(!allFilled){
+    msg.className='msg warn';
+    msg.textContent='Fill every formula box first.';
+    msg.classList.remove('hidden');
+    state.formulaComplete=false;
+    resetStep3(true);
+    updateLocks();
+    return;
+  }
+  if(!allCorrect){
+    msg.className='msg bad';
+    msg.textContent='Some placements are wrong — fix the red-outlined boxes.';
+    msg.classList.remove('hidden');
+    state.formulaComplete=false;
+    resetStep3(true);
+    updateLocks();
+    return;
+  }
+
+  msg.className='msg good';
+  msg.textContent='Great — Step 3 unlocked.';
+  msg.classList.remove('hidden');
+  state.formulaComplete=true;
+  updateLocks();
+}
+
+function checkStep3(){
+  const raw=$('answerBox').value.trim().replace(/,/g,'');
+  const val=Number(raw);
+  const box=$('resultBox');
+
+  if(!Number.isFinite(val)){
+    box.className='msg warn';
+    box.textContent='Please enter a valid number.';
+    box.classList.remove('hidden');
+    return;
+  }
+
+  const expected=state.approxValueRounded;
+  const tol=Math.max(0.01, 0.005*Math.abs(expected));
+  const err=Math.abs(val-expected);
+
+  if(err<=tol){
+    box.className='msg good';
+    box.innerHTML=
+      `<strong>Correct ✅</strong><br/>
+       Your answer: <strong>${val}</strong><br/>
+       Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong><br/>
+       (For interest) high-accuracy estimate: <strong>${state.trueValue.toFixed(4)}</strong>`;
+  }else{
+    box.className='msg bad';
+    box.innerHTML=
+      `<strong>Not quite ❌</strong><br/>
+       Your answer: <strong>${val}</strong><br/>
+       Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong><br/>
+       (For interest) high-accuracy estimate: <strong>${state.trueValue.toFixed(4)}</strong><br/>
+       Marked correct within <strong>${tol.toFixed(4)}</strong>.`;
+  }
+  box.classList.remove('hidden');
+}
+
+function resetDownstream(){
+  resetStep1(true); resetStep2(true); resetStep3(true);
+}
+
+function resetStep1(silent){
+  state.tableSlots.clear();
+  state.tableComplete=false;
+  document.querySelectorAll('.slot').forEach(s=>{
+    s.classList.remove('filled','ok','bad');
+    s.innerHTML='';
+  });
+  if(!silent) $('msg1').classList.add('hidden');
+}
+function resetStep2(silent){
+  state.formulaSlots.clear();
+  state.formulaComplete=false;
+  document.querySelectorAll('.fSlot').forEach(s=>{
+    s.classList.remove('filled','ok','bad');
+    s.innerHTML='';
+  });
+  if(!silent) $('msg2').classList.add('hidden');
+}
+function resetStep3(silent){
+  $('answerBox').value='';
+  $('resultBox').classList.add('hidden');
+  if(!silent) $('resultBox').textContent='';
+}
+
+function clearMessages(){
+  $('msg0').classList.add('hidden');
+  $('msg1').classList.add('hidden');
+  $('msg2').classList.add('hidden');
+  $('resultBox').classList.add('hidden');
+  $('hBox').value='';
+  $('answerBox').value='';
+}
+
+/* Buttons */
+$('btnNew').addEventListener('click', ()=>buildQuestion($('ruleSelect').value));
+$('ruleSelect').addEventListener('change', ()=>buildQuestion($('ruleSelect').value));
+
+$('btnCheck0').addEventListener('click', checkStep0);
+$('btnCheck1').addEventListener('click', checkStep1);
+$('btnCheck2').addEventListener('click', checkStep2);
+$('btnCheck3').addEventListener('click', checkStep3);
+
+$('btnReset1').addEventListener('click', ()=>{
+  resetStep1(false); resetStep2(true); resetStep3(true);
+  updateLocks();
+});
+$('btnReset2').addEventListener('click', ()=>{
+  resetStep2(false); resetStep3(true);
+  updateLocks();
+});
+
+/* Fullscreen */
+$('btnFullscreen').addEventListener('click', async ()=>{
+  try{
+    if(!document.fullscreenElement){
+      await document.documentElement.requestFullscreen();
+      $('btnFullscreen').textContent='Exit fullscreen';
+    }else{
+      await document.exitFullscreen();
+      $('btnFullscreen').textContent='Fullscreen';
+    }
+  }catch(e){
+    alert('Fullscreen not available on this device/browser.');
+  }
+});
+document.addEventListener('fullscreenchange', ()=>{
+  $('btnFullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+});
+
+/* Init */
+buildQuestion($('ruleSelect').value);
+window.addEventListener('load', ()=>rerenderMath());
+</script>
+
+</body>
+</html>
