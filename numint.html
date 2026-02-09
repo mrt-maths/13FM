@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Numerical Integration Drag-and-Drop</title>
+  <title>Numerical Integration Drag-and-Drop v2</title>
 
   <!-- MathJax -->
   <script>
@@ -234,7 +234,7 @@
     .token{
       user-select: none;
       -webkit-user-select:none;
-      touch-action: none;
+      touch-action: none; /* critical for touch drag */
       padding: 7px 10px;
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,.18);
@@ -332,7 +332,6 @@
     }
     .slot.ok, .fSlot.ok{ border-color: rgba(53,208,127,.75); }
     .slot.bad, .fSlot.bad{ border-color: rgba(255,77,77,.75); }
-
     .slot.hover, .fSlot.hover{
       border-color: rgba(255,204,102,.85);
       box-shadow: 0 0 0 4px rgba(255,204,102,.12);
@@ -387,11 +386,12 @@
       white-space: nowrap;
     }
 
+    /* IMPORTANT CHANGE: do NOT block pointer events, just dim */
     .lockOverlay{
       opacity: .55;
       filter: grayscale(.2);
-      pointer-events: none;
     }
+
     .tiny{ font-size: 12px; color: var(--muted); }
   </style>
 </head>
@@ -530,10 +530,25 @@ const state={
 const $=(id)=>document.getElementById(id);
 
 /* =========================
-   Touch-friendly drag + tap-to-place
+   Robust drag/drop (touch friendly)
+   - Uses window-level move/up so drop always triggers
+   - Includes touchstart/move/end fallback
+   - Also supports tap-to-place (token tap + slot tap)
    ========================= */
-let dragState = null;          // { tokenId, tokenType, ghostEl, lastX, lastY }
+let dragState = null;          // { tokenId, tokenType, ghostEl, lastX, lastY, pointerId }
 let selectedTokenId = null;    // tap-to-place selection
+let hoverSlotEl = null;
+
+function setSlotHover(slot){
+  if(hoverSlotEl === slot) return;
+  if(hoverSlotEl) hoverSlotEl.classList.remove('hover');
+  hoverSlotEl = slot;
+  if(hoverSlotEl) hoverSlotEl.classList.add('hover');
+}
+function clearSlotHover(){
+  if(hoverSlotEl) hoverSlotEl.classList.remove('hover');
+  hoverSlotEl = null;
+}
 
 function cleanupDrag(){
   if(!dragState) return;
@@ -557,7 +572,6 @@ function setSelectedToken(tokenId){
     $('selectedPill').style.display='inline-flex';
   }
 }
-
 function clearSelectedToken(){
   selectedTokenId = null;
   clearSelectionVisual();
@@ -578,14 +592,28 @@ function moveGhost(x,y){
   dragState.lastY = y;
   dragState.ghostEl.style.left = x+'px';
   dragState.ghostEl.style.top  = y+'px';
+  setSlotHover(droppableSlotAt(x,y));
+}
 
-  const slot = droppableSlotAt(x,y);
-  setSlotHover(slot);
+function startGhostDragFrom(el, clientX, clientY, pointerId){
+  cleanupDrag();
+  const tokenId = el.dataset.tokenId;
+  const tokenType = el.dataset.type;
+  if(!tokenId) return;
+
+  const ghost = el.cloneNode(true);
+  ghost.classList.add('ghost');
+  ghost.classList.remove('used','selected');
+  document.body.appendChild(ghost);
+
+  dragState = { tokenId, tokenType, ghostEl: ghost, lastX: clientX, lastY: clientY, pointerId };
+  moveGhost(clientX, clientY);
+  clearSelectedToken();
 }
 
 function makeDraggable(el){
-  // Tap-to-select (best on touch)
-  el.addEventListener('click', (ev)=>{
+  // Tap-to-select (good on touch)
+  el.addEventListener('click', ()=>{
     if(dragState) return;
     const tokenId = el.dataset.tokenId;
     if(!tokenId) return;
@@ -594,84 +622,79 @@ function makeDraggable(el){
     else setSelectedToken(tokenId);
   });
 
-  // Drag (mouse/pen/touch)
+  // Pointer drag start
   el.addEventListener('pointerdown', (ev)=>{
     if(ev.button!==undefined && ev.button!==0) return;
     if(el.classList.contains('used')) return;
-
-    ev.preventDefault(); // stop scroll hijack while dragging
-    cleanupDrag();
-
-    const tokenId = el.dataset.tokenId;
-    const tokenType = el.dataset.type;
-    if(!tokenId) return;
-
-    const ghost = el.cloneNode(true);
-    ghost.classList.add('ghost');
-    ghost.classList.remove('used','selected');
-    document.body.appendChild(ghost);
-
-    dragState = { tokenId, tokenType, ghostEl: ghost, lastX: ev.clientX, lastY: ev.clientY };
-    moveGhost(ev.clientX, ev.clientY);
-
-    // dragging clears tap selection
-    clearSelectedToken();
+    ev.preventDefault();
+    startGhostDragFrom(el, ev.clientX, ev.clientY, ev.pointerId);
+    // capture improves reliability on many browsers
+    try{ el.setPointerCapture(ev.pointerId); }catch(e){}
   }, { passive:false });
 
-  el.addEventListener('pointermove', (ev)=>{
-    if(!dragState) return;
+  // Touch fallback (some iOS configs are flaky with pointer events)
+  el.addEventListener('touchstart', (ev)=>{
+    if(el.classList.contains('used')) return;
+    if(ev.touches.length!==1) return;
+    const t = ev.touches[0];
     ev.preventDefault();
-    moveGhost(ev.clientX, ev.clientY);
+    startGhostDragFrom(el, t.clientX, t.clientY, 'touch');
   }, { passive:false });
 }
 
-// Global pointerup: reliable drop on iPad/Safari
+// Window-level move (CRITICAL FIX)
+window.addEventListener('pointermove', (ev)=>{
+  if(!dragState) return;
+  if(dragState.pointerId !== undefined && dragState.pointerId !== ev.pointerId) return;
+  ev.preventDefault();
+  moveGhost(ev.clientX, ev.clientY);
+}, { passive:false });
+
 window.addEventListener('pointerup', (ev)=>{
   if(!dragState) return;
-
-  const x = (typeof ev.clientX === 'number') ? ev.clientX : dragState.lastX;
-  const y = (typeof ev.clientY === 'number') ? ev.clientY : dragState.lastY;
-
-  const slot = droppableSlotAt(x,y);
-  if(slot){
-    handleDropOn(slot, dragState.tokenId, dragState.tokenType);
-  }
+  if(dragState.pointerId !== undefined && dragState.pointerId !== ev.pointerId) return;
+  const slot = droppableSlotAt(ev.clientX, ev.clientY);
+  if(slot) handleDropOn(slot, dragState.tokenId, dragState.tokenType);
   cleanupDrag();
-}, true);
+}, { passive:false });
 
 window.addEventListener('pointercancel', cleanupDrag, true);
 window.addEventListener('blur', cleanupDrag);
+
+// Touch move/end
+window.addEventListener('touchmove', (ev)=>{
+  if(!dragState || dragState.pointerId !== 'touch') return;
+  if(ev.touches.length!==1) return;
+  const t = ev.touches[0];
+  ev.preventDefault();
+  moveGhost(t.clientX, t.clientY);
+}, { passive:false });
+
+window.addEventListener('touchend', (ev)=>{
+  if(!dragState || dragState.pointerId !== 'touch') return;
+  const t = (ev.changedTouches && ev.changedTouches[0]) ? ev.changedTouches[0] : null;
+  if(t){
+    const slot = droppableSlotAt(t.clientX, t.clientY);
+    if(slot) handleDropOn(slot, dragState.tokenId, dragState.tokenType);
+  }
+  cleanupDrag();
+}, { passive:false });
 
 // Tap-to-place on slots
 function enableTapToPlaceOnSlots(){
   document.querySelectorAll('.slot,.fSlot').forEach(slot=>{
     if(slot.dataset.tapBound === '1') return;
     slot.dataset.tapBound = '1';
-
     slot.addEventListener('click', ()=>{
       if(!selectedTokenId) return;
       const tok = state.tokens.get(selectedTokenId);
       if(!tok) return;
-
       const accept = slot.dataset.accept;
       if(accept && accept !== tok.type) return;
-
       handleDropOn(slot, selectedTokenId, tok.type);
-      // keep selection for faster filling
+      // keep selection on for rapid filling
     });
   });
-}
-
-let hoverSlotEl = null;
-function setSlotHover(slot){
-  if(hoverSlotEl === slot) return;
-  if(hoverSlotEl) hoverSlotEl.classList.remove('hover');
-  hoverSlotEl = slot;
-  if(hoverSlotEl) hoverSlotEl.classList.add('hover');
-}
-function clearSlotHover(){
-  if(hoverSlotEl) hoverSlotEl.classList.remove('hover');
-  hoverSlotEl = null;
 }
 
 /* =========================
@@ -862,6 +885,7 @@ function integrandForCalculators(){
   s = s.replace(/\\times/g,'*').replace(/\\,/g,'');
   s = s.replace(/\s+/g,' ').trim();
 
+  // explicit multiplication for Desmos
   s = s.replace(/(\d)(x)/g, '$1*$2');
   s = s.replace(/(\d)\(/g, '$1*(');
   s = s.replace(/(\d)(sin|cos|tan|ln|exp)/g, '$1*$2');
@@ -895,58 +919,6 @@ async function copyTextToClipboard(text){
       return false;
     }
   }
-}
-
-/* =========================
-   Build question
-   ========================= */
-function buildQuestion(rule){
-  state.rule=rule;
-
-  const fInfo=buildCombinedFunction();
-  state.f=fInfo.f;
-  state.fLatex=fInfo.latex;
-
-  const grid=pickGrid(rule, fInfo);
-  state.a=grid.a; state.b=grid.b; state.h=grid.h; state.n=grid.n;
-
-  const xs=[], ys=[];
-  if(rule==='mid'){
-    for(let i=0;i<state.n;i++){
-      const x=to3(state.a+(i+0.5)*state.h);
-      xs.push(x);
-      ys.push(to3(state.f(x)));
-    }
-  } else {
-    for(let i=0;i<=state.n;i++){
-      const x=to3(state.a+i*state.h);
-      xs.push(x);
-      ys.push(to3(state.f(x)));
-    }
-  }
-  state.xs=xs; state.ys=ys;
-
-  state.approxValueRounded=approxByRuleUsingRounded(rule, ys, state.h);
-  state.trueValue=trueIntegralSimpson(state.f, state.a, state.b);
-
-  state.tokens.clear();
-  state.bankEls.clear();
-  state.tableSlots.clear();
-  state.formulaSlots.clear();
-  state.correctTable.clear();
-  state.correctFormula.clear();
-  state.hOk=false;
-  state.tableComplete=false;
-  state.formulaComplete=false;
-
-  buildBanksMixed();
-  buildTableMappings();
-  buildFormulaMappings();
-
-  renderAll();
-  clearMessages();
-  updateLocks();
-  rerenderMath();
 }
 
 /* =========================
@@ -1030,15 +1002,6 @@ function buildFormulaMappings(){
 /* =========================
    Rendering
    ========================= */
-function renderAll(){
-  renderTopBar();
-  renderMixedBank();
-  renderHorizontalTable();
-  renderFormula();
-  refreshBankUsedStates();
-  enableTapToPlaceOnSlots();
-}
-
 function renderTopBar(){
   const a=fmt3(state.a), b=fmt3(state.b);
   $('integralDisplay').innerHTML = `\\(\\int_{${a}}^{${b}} ${wrap(state.fLatex)}\\,dx\\)`;
@@ -1247,7 +1210,6 @@ function rerenderMath(){
    ========================= */
 function refreshBankUsedStates(){
   for(const el of state.bankEls.values()) el.classList.remove('used');
-
   for(const tokenId of state.tableSlots.values()){
     const el = state.bankEls.get(tokenId);
     if(el) el.classList.add('used');
@@ -1274,6 +1236,13 @@ function paintSlot(slotEl, tokenId){
   slotEl.appendChild(t);
 }
 
+function showLockMsg(text){
+  const msg = $('msg1');
+  msg.className = 'msg warn';
+  msg.textContent = text;
+  msg.classList.remove('hidden');
+}
+
 function handleDropOn(slotEl, tokenId, tokenType){
   const accept=slotEl.dataset.accept;
   if(accept && accept!==tokenType) return;
@@ -1281,9 +1250,18 @@ function handleDropOn(slotEl, tokenId, tokenType){
   const slotId=slotEl.dataset.slotId;
   if(!slotId) return;
 
-  // gating
-  if(slotId.startsWith('t_') && !state.hOk) return;
-  if(slotId.startsWith('f_') && !state.tableComplete) return;
+  // gating (NOW shows a message instead of failing silently)
+  if(slotId.startsWith('t_') && !state.hOk){
+    showLockMsg('Complete Step 0 (check h) before filling the table.');
+    return;
+  }
+  if(slotId.startsWith('f_') && !state.tableComplete){
+    const msg = $('msg2');
+    msg.className='msg warn';
+    msg.textContent='Complete Step 1 (correct table) before filling the formula.';
+    msg.classList.remove('hidden');
+    return;
+  }
 
   const map = slotId.startsWith('t_') ? state.tableSlots : state.formulaSlots;
 
@@ -1326,8 +1304,66 @@ function redrawPlaced(){
 }
 
 /* =========================
-   Locks
+   Build question
    ========================= */
+function buildQuestion(rule){
+  state.rule=rule;
+
+  const fInfo=buildCombinedFunction();
+  state.f=fInfo.f;
+  state.fLatex=fInfo.latex;
+
+  const grid=pickGrid(rule, fInfo);
+  state.a=grid.a; state.b=grid.b; state.h=grid.h; state.n=grid.n;
+
+  const xs=[], ys=[];
+  if(rule==='mid'){
+    for(let i=0;i<state.n;i++){
+      const x=to3(state.a+(i+0.5)*state.h);
+      xs.push(x);
+      ys.push(to3(state.f(x)));
+    }
+  } else {
+    for(let i=0;i<=state.n;i++){
+      const x=to3(state.a+i*state.h);
+      xs.push(x);
+      ys.push(to3(state.f(x)));
+    }
+  }
+  state.xs=xs; state.ys=ys;
+
+  state.approxValueRounded=approxByRuleUsingRounded(rule, ys, state.h);
+  state.trueValue=trueIntegralSimpson(state.f, state.a, state.b);
+
+  state.tokens.clear();
+  state.bankEls.clear();
+  state.tableSlots.clear();
+  state.formulaSlots.clear();
+  state.correctTable.clear();
+  state.correctFormula.clear();
+  state.hOk=false;
+  state.tableComplete=false;
+  state.formulaComplete=false;
+
+  buildBanksMixed();
+  buildTableMappings();
+  buildFormulaMappings();
+
+  renderAll();
+  clearMessages();
+  updateLocks();
+  rerenderMath();
+}
+
+function renderAll(){
+  renderTopBar();
+  renderMixedBank();
+  renderHorizontalTable();
+  renderFormula();
+  refreshBankUsedStates();
+  enableTapToPlaceOnSlots();
+}
+
 function updateLocks(){
   $('dot0').className='dot '+(state.hOk?'good':'lock');
   $('dot1').className='dot '+(state.tableComplete?'good':'lock');
@@ -1337,6 +1373,15 @@ function updateLocks(){
   $('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
   $('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
   $('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
+}
+
+function clearMessages(){
+  $('msg0').classList.add('hidden');
+  $('msg1').classList.add('hidden');
+  $('msg2').classList.add('hidden');
+  $('resultBox').classList.add('hidden');
+  $('hBox').value='';
+  $('answerBox').value='';
 }
 
 /* =========================
@@ -1516,15 +1561,6 @@ function resetStep3(silent){
   if(!silent) $('resultBox').textContent='';
 }
 
-function clearMessages(){
-  $('msg0').classList.add('hidden');
-  $('msg1').classList.add('hidden');
-  $('msg2').classList.add('hidden');
-  $('resultBox').classList.add('hidden');
-  $('hBox').value='';
-  $('answerBox').value='';
-}
-
 /* =========================
    Buttons
    ========================= */
@@ -1558,7 +1594,6 @@ $('btnCopyIntegrand').addEventListener('click', async ()=>{
   }
 });
 
-/* Fullscreen */
 $('btnFullscreen').addEventListener('click', async ()=>{
   try{
     if(!document.fullscreenElement){
@@ -1576,9 +1611,29 @@ document.addEventListener('fullscreenchange', ()=>{
   $('btnFullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
 });
 
-/* Init */
+/* =========================
+   Final bits
+   ========================= */
+function renderAll(){
+  renderTopBar();
+  renderMixedBank();
+  renderHorizontalTable();
+  renderFormula();
+  refreshBankUsedStates();
+  enableTapToPlaceOnSlots();
+}
+function rerenderMath(){
+  if(window.MathJax && window.MathJax.typesetPromise){
+    window.MathJax.typesetPromise().catch(()=>{});
+  }
+}
+
+/* =========================
+   Build / Init
+   ========================= */
 buildQuestion($('ruleSelect').value);
 window.addEventListener('load', ()=>rerenderMath());
+
 </script>
 
 </body>
