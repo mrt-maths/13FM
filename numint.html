@@ -23,7 +23,6 @@
       --good:#35d07f;
       --bad:#ff4d4d;
       --warn:#ffcc66;
-      --accent:#6aa3ff;
       --shadow: 0 12px 40px rgba(0,0,0,.35);
       --radius: 16px;
       --slotW: 104px;
@@ -39,7 +38,6 @@
       color: var(--ink);
     }
 
-    /* Sticky header: integral always visible */
     .topbar{
       position: sticky;
       top: 0;
@@ -245,7 +243,6 @@
       cursor: grabbing;
     }
 
-    /* Horizontal table */
     .hTableWrap{
       border: 1px solid var(--line);
       border-radius: 16px;
@@ -295,6 +292,7 @@
       white-space: nowrap;
     }
 
+    /* IMPORTANT: droppable element is the slot itself */
     .slot, .fSlot{
       width: var(--slotW);
       height: var(--slotH);
@@ -358,7 +356,7 @@
       line-height: 1.8;
       padding: 6px 0;
       justify-content: center;
-      white-space: nowrap; /* avoids ugly wraps */
+      white-space: nowrap;
     }
 
     .lockOverlay{
@@ -388,6 +386,7 @@
         <option value="simpson">Simpson's rule</option>
       </select>
       <button id="btnNew">New integral</button>
+      <button class="secondary" id="btnCopyIntegrand">Copy integrand</button>
       <button class="secondary" id="btnFullscreen">Fullscreen</button>
     </div>
   </div>
@@ -479,12 +478,7 @@
 </div>
 
 <script>
-/* =========================
-   Dragging (fix "ghosting"/duplication)
-   - Only one ghost at a time
-   - Guaranteed cleanup on window pointerup/blur
-   - Bank tokens become "used" (disabled) once placed
-   ========================= */
+/* ===== Dragging (robust snapping) ===== */
 let dragState = null;
 
 function cleanupDrag(){
@@ -500,8 +494,6 @@ function makeDraggable(el){
   el.addEventListener('pointerdown',(ev)=>{
     if(ev.button!==undefined && ev.button!==0) return;
     ev.preventDefault();
-
-    // if something went wrong previously, kill old ghost
     cleanupDrag();
 
     const tokenId = el.dataset.tokenId;
@@ -525,7 +517,7 @@ function makeDraggable(el){
 
   el.addEventListener('pointerup',(ev)=>{
     if(!dragState) return;
-    const dropTarget = droppableUnder(ev.clientX, ev.clientY);
+    const dropTarget = droppableSlotAt(ev.clientX, ev.clientY);
     if(dropTarget){
       handleDropOn(dropTarget, dragState.tokenId, dragState.tokenType);
     }
@@ -534,29 +526,34 @@ function makeDraggable(el){
 
   el.addEventListener('pointercancel', cleanupDrag);
 }
+
 function moveGhost(x,y){
   if(!dragState) return;
   dragState.ghostEl.style.left = x+'px';
   dragState.ghostEl.style.top  = y+'px';
 }
-function droppableUnder(x,y){
-  const el = document.elementFromPoint(x,y);
-  return el ? el.closest('.slot,.fSlot') : null;
+
+function droppableSlotAt(x,y){
+  // IMPORTANT: use elementsFromPoint to find slots even when something overlaps.
+  const els = document.elementsFromPoint(x,y);
+  for(const el of els){
+    const slot = el.closest?.('.slot,.fSlot');
+    if(slot && slot.dataset && slot.dataset.slotId) return slot;
+  }
+  return null;
 }
 
-/* =========================
-   State
-   ========================= */
+/* ===== State ===== */
 const state={
   rule:'trapezium',
   f:null,
   fLatex:'',
   a:0,b:0,h:0,n:0,
   xs:[], ys:[],
-  tokens:new Map(),             // tokenId -> {type,label,isRed}
-  bankEls:new Map(),            // tokenId -> DOM element in bank
-  tableSlots:new Map(),         // slotId -> tokenId
-  formulaSlots:new Map(),       // slotId -> tokenId
+  tokens:new Map(),
+  bankEls:new Map(),
+  tableSlots:new Map(),
+  formulaSlots:new Map(),
   correctTable:new Map(),
   correctFormula:new Map(),
   hOk:false,
@@ -567,57 +564,33 @@ const state={
 };
 const $=(id)=>document.getElementById(id);
 
-/* =========================
-   Utility
-   ========================= */
+/* ===== Utility ===== */
 function rnd(min,max){ return min+Math.random()*(max-min); }
 function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function to3(x){ let v=Math.round(x*1000)/1000; if(Object.is(v,-0)) v=0; return v; }
 function fmt3(x){ return to3(x).toFixed(3); }
 function clamp(x,lo,hi){ return Math.min(hi, Math.max(lo,x)); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
-
-/* minimal-brackets helpers */
-function needsParens(expr){
-  // needs parentheses if it contains + or - not at start
-  for(let i=1;i<expr.length;i++){
-    const ch=expr[i];
-    if(ch==='+' || ch==='-') return true;
-  }
-  return false;
-}
+function needsParens(expr){ for(let i=1;i<expr.length;i++){ const ch=expr[i]; if(ch==='+'||ch==='-') return true; } return false; }
 function wrap(expr){ return needsParens(expr) ? `\\left(${expr}\\right)` : expr; }
-function niceCoef(c){
-  if(c===1) return '';
-  if(c===-1) return '-';
-  return String(c);
-}
-function signJoin(a,bLatex){
-  // a is number coef; bLatex is expression
-  if(a===0) return '0';
-  if(a===1) return bLatex;
-  if(a===-1) return `-${wrap(bLatex)}`;
-  return `${a}${wrap(bLatex)}`;
-}
 function simplifyLinear(k,c){
-  // return latex string for kx+c with small simplifications (1x -> x, -1x -> -x, 0.5x etc)
-  let part = '';
-  if(k===0) part = '0';
-  else if(k===1) part = 'x';
-  else if(k===-1) part = '-x';
-  else part = `${k}x`;
-
+  let part='';
+  if(k===0) part='0';
+  else if(k===1) part='x';
+  else if(k===-1) part='-x';
+  else part=`${k}x`;
   if(c===0) return part;
   if(part==='0') return String(c);
   return `${part}${c>0?'+':'-'}${Math.abs(c)}`;
 }
-function simplifyPow(p){
-  return p===1 ? '' : `^{${p}}`;
+function signJoin(a, expr){
+  if(a===0) return '0';
+  if(a===1) return expr;
+  if(a===-1) return `-${wrap(expr)}`;
+  return `${a}${wrap(expr)}`;
 }
 
-/* =========================
-   Base functions (latex already simplified: no ^1)
-   ========================= */
+/* ===== Functions ===== */
 function makeBaseFunction(kind){
   if(kind==='expPow'){
     const a=choice([0.5,0.8,1.2,-0.7,-1.1]);
@@ -625,34 +598,23 @@ function makeBaseFunction(kind){
     const xp = p===1 ? 'x' : `x^{${p}}`;
     return { f:(x)=>Math.exp(a*Math.pow(x,p)), latex:`e^{${a}${xp}}` };
   }
-  if(kind==='sin'){
-    const a=choice([0.5,1,1.5,2,3]);
-    return { f:(x)=>Math.sin(a*x), latex:`\\sin(${a}x)` };
-  }
-  if(kind==='cos'){
-    const a=choice([0.5,1,2,3]);
-    return { f:(x)=>Math.cos(a*x), latex:`\\cos(${a}x)` };
-  }
-  if(kind==='ln'){
-    const a=choice([0.5,1,1.5,2,-0.5,-1]);
-    return { f:(x)=>Math.log(5+a*x), latex:`\\ln(5+${a}x)` };
-  }
+  if(kind==='sin'){ const a=choice([0.5,1,1.5,2,3]); return { f:(x)=>Math.sin(a*x), latex:`\\sin(${a}x)` }; }
+  if(kind==='cos'){ const a=choice([0.5,1,2,3]); return { f:(x)=>Math.cos(a*x), latex:`\\cos(${a}x)` }; }
+  if(kind==='ln'){ const a=choice([0.5,1,1.5,2,-0.5,-1]); return { f:(x)=>Math.log(5+a*x), latex:`\\ln(5+${a}x)` }; }
   if(kind==='polyExp'){
     const k=choice([1,2,3]);
     const a=choice([0.5,-0.5,0.8,-0.8,1.2]);
     const xk = k===1 ? 'x' : `x^{${k}}`;
     return { f:(x)=>Math.pow(x,k)*Math.exp(a*x), latex:`${xk}e^{${a}x}` };
   }
-  // tanSafe
   const a=choice([0.5,1,1.5]);
   return { f:(x)=>Math.tan(a*x), latex:`\\tan(${a}x)` };
 }
 
-/* apply x -> (kx+c) (with simplification), plus outer linear A*...+D */
 function transform(base){
   const A=choice([1,1,-1,2,0.5,1.5]);
   const D=choice([0,0,0,0.5,-0.5,1,-1]);
-  const B=choice([0.5,1,1,1.5,2,-0.5,-1,-2]); // allow negatives too
+  const B=choice([0.5,1,1,1.5,2,-0.5,-1,-2]);
   const C=choice([0,0,0.25,-0.25,0.5,-0.5]);
 
   const comp=(x)=>A*base.f(B*x+C)+D;
@@ -668,10 +630,6 @@ function transform(base){
   return { f:comp, latex:expr };
 }
 
-/* Combine TWO transformed functions:
-   - product: f(x) × g(x)
-   - linear combo: a f(x) + b g(x)
-*/
 function buildCombinedFunction(){
   const kinds=['expPow','sin','ln','cos','polyExp','tanSafe'];
   let k1=choice(kinds), k2=choice(kinds);
@@ -680,37 +638,28 @@ function buildCombinedFunction(){
   const t1=transform(makeBaseFunction(k1));
   const t2=transform(makeBaseFunction(k2));
 
-  const mode = choice(['prod','lin']); // product or linear combination
-
+  const mode = choice(['prod','lin']);
   if(mode==='prod'){
     return {
       f:(x)=>t1.f(x)*t2.f(x),
-      latex:`${wrap(t1.latex)}\\,\\times\\,${wrap(t2.latex)}`,
-      mode
+      latex:`${wrap(t1.latex)}\\,\\times\\,${wrap(t2.latex)}`
     };
   }
 
-  // linear combo af + bg
   const a = choice([-2,-1,-0.5,0.5,1,2]);
   let b = choice([-2,-1,-0.5,0.5,1,2]);
-  // avoid both same sign/zero-ish monotony sometimes? keep as-is but avoid a=b=0
   if(a===0 && b===0) b=1;
 
   const f=(x)=>a*t1.f(x)+b*t2.f(x);
-
   const Aterm = signJoin(a, t1.latex);
   const Bterm = signJoin(Math.abs(b), t2.latex);
   const latex = `${Aterm}${b>=0?'+':'-'}${Bterm}`;
 
-  return { f, latex, mode };
+  return { f, latex };
 }
 
-/* =========================
-   Grid + integration
-   - h now can be "awkward" (e.g. 0.124, 0.035)
-   ========================= */
+/* ===== h choices ===== */
 function pickGrid(rule, fInfo){
-  // include awkward 3dp options
   const hChoices = [
     0.035,0.041,0.062,0.073,0.083,0.095,
     0.124,0.137,0.148,0.157,0.163,0.175,
@@ -779,9 +728,61 @@ function approxByRuleUsingRounded(rule, ysRounded, hRounded){
   return h*s;
 }
 
-/* =========================
-   Build question
-   ========================= */
+/* ===== Copy integrand (Desmos/GeoGebra-friendly) ===== */
+function integrandForCalculators(){
+  let s = state.fLatex;
+
+  s = s.replace(/\\left/g,'').replace(/\\right/g,'');
+  s = s.replace(/\\sin/g,'sin')
+       .replace(/\\cos/g,'cos')
+       .replace(/\\tan/g,'tan')
+       .replace(/\\ln/g,'ln');
+
+  // e^{...} -> exp(...)
+  s = s.replace(/e\^\{([^}]+)\}/g, 'exp($1)');
+  // x^{n} -> x^n and generic ^{...} -> ^...
+  s = s.replace(/x\^\{([^}]+)\}/g, 'x^$1').replace(/\^\{([^}]+)\}/g, '^$1');
+
+  s = s.replace(/\\times/g,'*').replace(/\\,/g,'');
+  s = s.replace(/\s+/g,' ').trim();
+
+  // explicit multiplication for Desmos
+  s = s.replace(/(\d)(x)/g, '$1*$2');
+  s = s.replace(/(\d)\(/g, '$1*(');
+  s = s.replace(/(\d)(sin|cos|tan|ln|exp)/g, '$1*$2');
+  s = s.replace(/x\(/g, 'x*(');
+  s = s.replace(/x(sin|cos|tan|ln|exp)/g, 'x*$1');
+  s = s.replace(/\)\(/g, ')*(');
+  s = s.replace(/\)x/g, ')*x');
+  s = s.replace(/\)(sin|cos|tan|ln|exp)/g, ')*$1');
+  s = s.replace(/\)(\d)/g, ')*$1');
+
+  return s;
+}
+
+async function copyTextToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    return true;
+  }catch(e){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;
+      ta.style.position='fixed';
+      ta.style.left='-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok=document.execCommand('copy');
+      ta.remove();
+      return ok;
+    }catch(_){
+      return false;
+    }
+  }
+}
+
+/* ===== Build question ===== */
 function buildQuestion(rule){
   state.rule=rule;
 
@@ -811,7 +812,6 @@ function buildQuestion(rule){
   state.approxValueRounded=approxByRuleUsingRounded(rule, ys, state.h);
   state.trueValue=trueIntegralSimpson(state.f, state.a, state.b);
 
-  // reset progress
   state.tokens.clear();
   state.bankEls.clear();
   state.tableSlots.clear();
@@ -832,21 +832,15 @@ function buildQuestion(rule){
   rerenderMath();
 }
 
-/* =========================
-   Mixed bank (+ red herrings)
-   ========================= */
+/* ===== Tokens ===== */
 function buildBanksMixed(){
   const needX=state.xs.length;
   const needY=state.ys.length;
   const extra=Math.max(4, Math.round((needX+needY)*0.55));
 
   let id=1;
-  for(const x of state.xs){
-    state.tokens.set(`x${id++}`, {type:'x', label:fmt3(x), isRed:false});
-  }
-  for(const y of state.ys){
-    state.tokens.set(`y${id++}`, {type:'y', label:fmt3(y), isRed:false});
-  }
+  for(const x of state.xs) state.tokens.set(`x${id++}`, {type:'x', label:fmt3(x), isRed:false});
+  for(const y of state.ys) state.tokens.set(`y${id++}`, {type:'y', label:fmt3(y), isRed:false});
 
   const reqX=new Set(state.xs.map(v=>fmt3(v)));
   const reqY=new Set(state.ys.map(v=>fmt3(v)));
@@ -856,10 +850,8 @@ function buildBanksMixed(){
     if(makeX){
       let x, tries=0;
       const span=state.b-state.a;
-      do{
-        x=to3(rnd(state.a-0.35*span, state.b+0.35*span));
-        tries++;
-      }while(tries<80 && reqX.has(fmt3(x)));
+      do{ x=to3(rnd(state.a-0.35*span, state.b+0.35*span)); tries++; }
+      while(tries<80 && reqX.has(fmt3(x)));
       state.tokens.set(`x${id++}`, {type:'x', label:fmt3(x), isRed:true});
     }else{
       const pickX=choice(state.xs);
@@ -867,10 +859,7 @@ function buildBanksMixed(){
       const noise=rnd(-0.8,0.8)*(Math.random()<0.7?1:0.35);
       let y=to3(yTrue+noise);
       let tries=0;
-      while(tries<80 && reqY.has(fmt3(y))){
-        y=to3(y+rnd(0.12,0.5));
-        tries++;
-      }
+      while(tries<80 && reqY.has(fmt3(y))){ y=to3(y+rnd(0.12,0.5)); tries++; }
       state.tokens.set(`y${id++}`, {type:'y', label:fmt3(y), isRed:true});
     }
   }
@@ -919,9 +908,7 @@ function buildFormulaMappings(){
   }
 }
 
-/* =========================
-   Rendering
-   ========================= */
+/* ===== Rendering ===== */
 function renderAll(){
   renderTopBar();
   renderMixedBank();
@@ -969,7 +956,6 @@ function renderMixedBank(){
 function renderHorizontalTable(){
   const cols = state.xs.length;
   const mid = (state.rule==='mid');
-
   const wrapEl=$('hTable');
   wrapEl.innerHTML='';
 
@@ -995,7 +981,12 @@ function renderHorizontalTable(){
   for(let c=0;c<cols;c++){
     const cell=document.createElement('div');
     cell.className='hCell';
-    cell.innerHTML=`<div class="slot" data-slot-id="t_x_${c}" data-accept="x"></div>`;
+    const slot=document.createElement('div');
+    slot.className='slot';
+    slot.dataset.slotId=`t_x_${c}`;
+    slot.dataset.accept='x';
+    slot.addEventListener('click', ()=> clearSlot(slot));
+    cell.appendChild(slot);
     r1.appendChild(cell);
   }
   wrapEl.appendChild(r1);
@@ -1006,14 +997,15 @@ function renderHorizontalTable(){
   for(let c=0;c<cols;c++){
     const cell=document.createElement('div');
     cell.className='hCell';
-    cell.innerHTML=`<div class="slot" data-slot-id="t_y_${c}" data-accept="y"></div>`;
+    const slot=document.createElement('div');
+    slot.className='slot';
+    slot.dataset.slotId=`t_y_${c}`;
+    slot.dataset.accept='y';
+    slot.addEventListener('click', ()=> clearSlot(slot));
+    cell.appendChild(slot);
     r2.appendChild(cell);
   }
   wrapEl.appendChild(r2);
-
-  document.querySelectorAll('.slot').forEach(slot=>{
-    slot.addEventListener('click', ()=> clearSlot(slot));
-  });
 
   redrawPlaced();
 }
@@ -1028,13 +1020,11 @@ function buildGivenFormulaLatex(){
     }
     return `\\(\\int_a^b y\\,dx \\approx h\\left(${terms.join('+')}\\right)\\)`;
   }
-
   if(state.rule==='trapezium'){
     const mids=[];
     for(let i=1;i<=n-1;i++) mids.push(`y_{${i}}`);
     return `\\(\\int_a^b y\\,dx \\approx \\frac{h}{2}\\left\\{(y_0+y_${n})+2\\left(${mids.join('+')}\\right)\\right\\}\\)`;
   }
-
   const odds=[], evens=[];
   for(let i=1;i<=n-1;i++){
     (i%2===1 ? odds : evens).push(`y_{${i}}`);
@@ -1044,7 +1034,6 @@ function buildGivenFormulaLatex(){
 
 function renderFormula(){
   $('givenFormula').innerHTML = buildGivenFormulaLatex();
-
   const area=$('formulaArea');
   area.innerHTML='';
 
@@ -1070,7 +1059,6 @@ function renderFormula(){
       mids += `<span class="fSlot" data-slot-id="f_trap_mid_${i}" data-accept="y"></span>`;
       if(i<state.ys.length-2) mids += `<span>\\(+\\)</span>`;
     }
-
     l.innerHTML = `
       <span>\\(\\frac{h}{2}\\Big\\{(\\)</span>
       <span class="fSlot" data-slot-id="f_trap_y0" data-accept="y"></span>
@@ -1102,7 +1090,6 @@ function renderFormula(){
       evenBits += `<span class="fSlot" data-slot-id="f_simp_even_${i}" data-accept="y"></span>`;
       if(k<evens.length-1) evenBits += `<span>\\(+\\)</span>`;
     }
-
     l.innerHTML = `
       <span>\\(\\frac{h}{3}\\Big[\\,(\\)</span>
       <span class="fSlot" data-slot-id="f_simp_y0" data-accept="y"></span>
@@ -1117,6 +1104,7 @@ function renderFormula(){
     area.appendChild(l);
   }
 
+  // MAKE FORMULA BOXES REAL NODES and clickable
   document.querySelectorAll('.fSlot').forEach(slot=>{
     slot.addEventListener('click', ()=> clearSlot(slot));
   });
@@ -1126,46 +1114,36 @@ function renderFormula(){
 
 function rerenderMath(){
   if(!window.MathJax || !window.MathJax.typesetPromise){
-    $('mjWarn').style.display='block';
+    document.getElementById('mjWarn').style.display='block';
     return;
   }
-  window.MathJax.typesetPromise().catch(()=> $('mjWarn').style.display='block');
+  window.MathJax.typesetPromise().catch(()=> document.getElementById('mjWarn').style.display='block');
 }
 
-/* =========================
-   Used token disabling (prevents "duplicates")
-   - Table phase: any token placed into table disables that bank token
-   - Formula phase: any token placed into formula disables that bank token
-   ========================= */
+/* ===== Used state ===== */
 function refreshBankUsedStates(){
-  // clear used
   for(const el of state.bankEls.values()) el.classList.remove('used');
-
-  // mark used in table
   for(const tokenId of state.tableSlots.values()){
-    const el = state.bankEls.get(tokenId);
-    if(el) el.classList.add('used');
+    const el=state.bankEls.get(tokenId); if(el) el.classList.add('used');
   }
-  // mark used in formula
   for(const tokenId of state.formulaSlots.values()){
-    const el = state.bankEls.get(tokenId);
-    if(el) el.classList.add('used');
+    const el=state.bankEls.get(tokenId); if(el) el.classList.add('used');
   }
 }
 
-/* =========================
-   Slots
-   ========================= */
+/* ===== Slots: drop and paint ===== */
 function paintSlot(slotEl, tokenId){
   const tok=state.tokens.get(tokenId);
   slotEl.classList.add('filled');
   slotEl.innerHTML='';
+
   const t=document.createElement('div');
   t.className=`token ${tok.type} small`;
   t.textContent=tok.label;
   t.dataset.tokenId=tokenId;
   t.dataset.type=tok.type;
   makeDraggable(t);
+
   slotEl.appendChild(t);
 }
 
@@ -1180,10 +1158,9 @@ function handleDropOn(slotEl, tokenId, tokenType){
   if(slotId.startsWith('t_') && !state.hOk) return;
   if(slotId.startsWith('f_') && !state.tableComplete) return;
 
-  // choose map
   const map = slotId.startsWith('t_') ? state.tableSlots : state.formulaSlots;
 
-  // if token already used in SAME map, move it (clear old slot)
+  // if token already used in this map, move it
   for(const [sId, tId] of map.entries()){
     if(tId===tokenId && sId!==slotId){
       const old=document.querySelector(`[data-slot-id="${sId}"]`);
@@ -1195,7 +1172,6 @@ function handleDropOn(slotEl, tokenId, tokenType){
   clearSlot(slotEl, true);
   map.set(slotId, tokenId);
   paintSlot(slotEl, tokenId);
-
   refreshBankUsedStates();
 }
 
@@ -1221,30 +1197,23 @@ function redrawPlaced(){
   refreshBankUsedStates();
 }
 
-/* =========================
-   Locks
-   ========================= */
+/* ===== Locks ===== */
 function updateLocks(){
-  $('dot0').className='dot '+(state.hOk?'good':'lock');
-  $('dot1').className='dot '+(state.tableComplete?'good':'lock');
-  $('dot2').className='dot '+(state.formulaComplete?'good':'lock');
-  $('dot3').className='dot lock';
+  document.getElementById('dot0').className='dot '+(state.hOk?'good':'lock');
+  document.getElementById('dot1').className='dot '+(state.tableComplete?'good':'lock');
+  document.getElementById('dot2').className='dot '+(state.formulaComplete?'good':'lock');
+  document.getElementById('dot3').className='dot lock';
 
-  $('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
-  $('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
-  $('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
-
-  // once table is complete, bank should not distract — but still visible; we just fade it
-  $('bankWrap').classList.toggle('lockOverlay', state.tableComplete);
+  document.getElementById('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
+  document.getElementById('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
+  document.getElementById('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
 }
 
-/* =========================
-   Checks
-   ========================= */
+/* ===== Checks ===== */
 function checkStep0(){
-  const raw=$('hBox').value.trim().replace(/,/g,'');
+  const raw=document.getElementById('hBox').value.trim().replace(/,/g,'');
   const val=Number(raw);
-  const msg=$('msg0');
+  const msg=document.getElementById('msg0');
 
   if(!Number.isFinite(val)){
     msg.className='msg warn'; msg.textContent='Enter a valid number for h (3 d.p.).';
@@ -1275,7 +1244,7 @@ function checkStep0(){
 }
 
 function checkStep1(){
-  const msg=$('msg1');
+  const msg=document.getElementById('msg1');
   let allFilled=true, allCorrect=true;
 
   for(const [slotId, expected] of state.correctTable.entries()){
@@ -1318,7 +1287,7 @@ function checkStep1(){
 }
 
 function checkStep2(){
-  const msg=$('msg2');
+  const msg=document.getElementById('msg2');
   let allFilled=true, allCorrect=true;
 
   for(const [slotId, expected] of state.correctFormula.entries()){
@@ -1361,9 +1330,9 @@ function checkStep2(){
 }
 
 function checkStep3(){
-  const raw=$('answerBox').value.trim().replace(/,/g,'');
+  const raw=document.getElementById('answerBox').value.trim().replace(/,/g,'');
   const val=Number(raw);
-  const box=$('resultBox');
+  const box=document.getElementById('resultBox');
 
   if(!Number.isFinite(val)){
     box.className='msg warn'; box.textContent='Please enter a valid number.';
@@ -1377,15 +1346,10 @@ function checkStep3(){
 
   if(err<=tol){
     box.className='msg good';
-    box.innerHTML=
-      `<strong>Correct ✅</strong><br/>
-       Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong>`;
+    box.innerHTML=`<strong>Correct ✅</strong><br/>Expected: <strong>${expected.toFixed(4)}</strong>`;
   } else {
     box.className='msg bad';
-    box.innerHTML=
-      `<strong>Not quite ❌</strong><br/>
-       Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong><br/>
-       Marked correct within <strong>${tol.toFixed(4)}</strong>.`;
+    box.innerHTML=`<strong>Not quite ❌</strong><br/>Expected: <strong>${expected.toFixed(4)}</strong>`;
   }
   box.classList.remove('hidden');
 }
@@ -1402,7 +1366,7 @@ function resetStep1(silent){
     s.innerHTML='';
   });
   refreshBankUsedStates();
-  if(!silent) $('msg1').classList.add('hidden');
+  if(!silent) document.getElementById('msg1').classList.add('hidden');
 }
 function resetStep2(silent){
   state.formulaSlots.clear();
@@ -1412,63 +1376,74 @@ function resetStep2(silent){
     s.innerHTML='';
   });
   refreshBankUsedStates();
-  if(!silent) $('msg2').classList.add('hidden');
+  if(!silent) document.getElementById('msg2').classList.add('hidden');
 }
 function resetStep3(silent){
-  $('answerBox').value='';
-  $('resultBox').classList.add('hidden');
-  if(!silent) $('resultBox').textContent='';
+  document.getElementById('answerBox').value='';
+  document.getElementById('resultBox').classList.add('hidden');
+  if(!silent) document.getElementById('resultBox').textContent='';
 }
 
 function clearMessages(){
-  $('msg0').classList.add('hidden');
-  $('msg1').classList.add('hidden');
-  $('msg2').classList.add('hidden');
-  $('resultBox').classList.add('hidden');
-  $('hBox').value='';
-  $('answerBox').value='';
+  document.getElementById('msg0').classList.add('hidden');
+  document.getElementById('msg1').classList.add('hidden');
+  document.getElementById('msg2').classList.add('hidden');
+  document.getElementById('resultBox').classList.add('hidden');
+  document.getElementById('hBox').value='';
+  document.getElementById('answerBox').value='';
 }
 
-/* =========================
-   Buttons
-   ========================= */
-$('btnNew').addEventListener('click', ()=>buildQuestion($('ruleSelect').value));
-$('ruleSelect').addEventListener('change', ()=>buildQuestion($('ruleSelect').value));
+/* ===== Buttons ===== */
+document.getElementById('btnNew').addEventListener('click', ()=>buildQuestion(document.getElementById('ruleSelect').value));
+document.getElementById('ruleSelect').addEventListener('change', ()=>buildQuestion(document.getElementById('ruleSelect').value));
 
-$('btnCheck0').addEventListener('click', checkStep0);
-$('btnCheck1').addEventListener('click', checkStep1);
-$('btnCheck2').addEventListener('click', checkStep2);
-$('btnCheck3').addEventListener('click', checkStep3);
+document.getElementById('btnCheck0').addEventListener('click', checkStep0);
+document.getElementById('btnCheck1').addEventListener('click', checkStep1);
+document.getElementById('btnCheck2').addEventListener('click', checkStep2);
+document.getElementById('btnCheck3').addEventListener('click', checkStep3);
 
-$('btnReset1').addEventListener('click', ()=>{
+document.getElementById('btnReset1').addEventListener('click', ()=>{
   resetStep1(false); resetStep2(true); resetStep3(true);
   updateLocks();
 });
-$('btnReset2').addEventListener('click', ()=>{
+document.getElementById('btnReset2').addEventListener('click', ()=>{
   resetStep2(false); resetStep3(true);
   updateLocks();
 });
 
+document.getElementById('btnCopyIntegrand').addEventListener('click', async ()=>{
+  const txt = integrandForCalculators();
+  const ok = await copyTextToClipboard(txt);
+  const btn = document.getElementById('btnCopyIntegrand');
+  if(ok){
+    const old = btn.textContent;
+    btn.textContent = 'Copied ✅';
+    setTimeout(()=>btn.textContent=old, 900);
+  }else{
+    alert('Could not copy automatically. Here it is:\n\n' + txt);
+  }
+});
+
 /* Fullscreen */
-$('btnFullscreen').addEventListener('click', async ()=>{
+document.getElementById('btnFullscreen').addEventListener('click', async ()=>{
   try{
     if(!document.fullscreenElement){
       await document.documentElement.requestFullscreen();
-      $('btnFullscreen').textContent='Exit fullscreen';
+      document.getElementById('btnFullscreen').textContent='Exit fullscreen';
     } else {
       await document.exitFullscreen();
-      $('btnFullscreen').textContent='Fullscreen';
+      document.getElementById('btnFullscreen').textContent='Fullscreen';
     }
   } catch(e){
     alert('Fullscreen not available on this device/browser.');
   }
 });
 document.addEventListener('fullscreenchange', ()=>{
-  $('btnFullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+  document.getElementById('btnFullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
 });
 
 /* Init */
-buildQuestion($('ruleSelect').value);
+buildQuestion(document.getElementById('ruleSelect').value);
 window.addEventListener('load', ()=>rerenderMath());
 </script>
 
