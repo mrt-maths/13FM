@@ -23,6 +23,7 @@
       --good:#35d07f;
       --bad:#ff4d4d;
       --warn:#ffcc66;
+      --accent:#6aa3ff;
       --shadow: 0 12px 40px rgba(0,0,0,.35);
       --radius: 16px;
       --slotW: 104px;
@@ -38,7 +39,7 @@
       color: var(--ink);
     }
 
-    /* Sticky top area (integral always visible) */
+    /* Sticky header: integral always visible */
     .topbar{
       position: sticky;
       top: 0;
@@ -230,6 +231,11 @@
     .token.x{ border-color: rgba(106,163,255,.5); }
     .token.y{ border-color: rgba(53,208,127,.5); }
     .token.small{ font-size: 12px; padding: 6px 9px; }
+    .token.used{
+      opacity: .25;
+      pointer-events: none;
+      filter: grayscale(.2);
+    }
     .token.ghost{
       position: fixed;
       pointer-events: none;
@@ -322,19 +328,8 @@
       background: rgba(17,26,51,.45);
       padding: 12px 12px;
       overflow-x:auto;
-      max-width: 1020px;
+      max-width: 980px;
       margin: 0 auto;
-    }
-    .formulaLine{
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      flex-wrap: wrap;
-      font-size: 16px;
-      line-height: 1.85;
-      padding: 6px 0;
-      justify-content: center;
-      white-space: nowrap; /* fixes broken wrapping like screenshot */
     }
     .formulaLead{
       width: 100%;
@@ -342,18 +337,28 @@
       color: var(--muted);
       font-weight: 900;
       font-size: 13px;
-      padding: 2px 0 10px;
+      padding: 2px 0 8px;
       white-space: normal;
     }
     .formulaGiven{
       width: 100%;
-      text-align:center;
+      text-align: center;
       color: var(--ink);
-      font-weight: 800;
-      font-size: 13px;
-      margin-top: -6px;
-      padding-bottom: 8px;
+      font-weight: 900;
+      font-size: 14px;
+      padding: 4px 0 10px;
       white-space: normal;
+    }
+    .formulaLine{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 16px;
+      line-height: 1.8;
+      padding: 6px 0;
+      justify-content: center;
+      white-space: nowrap; /* avoids ugly wraps */
     }
 
     .lockOverlay{
@@ -399,13 +404,13 @@
   <div class="card" id="panel0">
     <div class="hd"><p class="title">Step 0 — Calculate \(h\)</p></div>
     <div class="bd">
-      <div class="stepTag"><span class="dot lock" id="dot0"></span> Step 0</div>
+      <div class="stepTag"><span class="dot lock" id="dot0"></span> Step 0 — Find the step size</div>
       <div class="msg" style="margin-top:0;">
         Compute \(h=\dfrac{b-a}{n}\) and enter it <strong>correct to 3 d.p.</strong>
       </div>
       <div class="row">
         <label class="tiny"><strong>Enter \(h\)</strong> (3 d.p.):</label>
-        <input type="text" id="hBox" placeholder="e.g. 0.250" />
+        <input type="text" id="hBox" placeholder="e.g. 0.124" />
         <button id="btnCheck0">Check \(h\)</button>
       </div>
       <div class="msg hidden" id="msg0"></div>
@@ -416,10 +421,10 @@
   <div class="card" id="panel1">
     <div class="hd"><p class="title">Step 1 — Complete the table</p></div>
     <div class="bd" id="step1Wrap">
-      <div class="stepTag"><span class="dot lock" id="dot1"></span> Step 1</div>
+      <div class="stepTag"><span class="dot lock" id="dot1"></span> Step 1 — Drag \(x\) and \(y\)</div>
 
-      <div class="bank">
-        <div class="lbl">Drag the values into the table</div>
+      <div class="bank" id="bankWrap">
+        <div class="lbl">Values</div>
         <div class="tokens" id="mixedBank"></div>
       </div>
 
@@ -439,11 +444,11 @@
   <div class="card" id="panel2">
     <div class="hd"><p class="title">Step 2 — Build the formula</p></div>
     <div class="bd" id="step2Wrap">
-      <div class="stepTag"><span class="dot lock" id="dot2"></span> Step 2</div>
+      <div class="stepTag"><span class="dot lock" id="dot2"></span> Step 2 — Drag into the formula</div>
 
       <div class="formulaArea">
-        <div class="formulaLead">where \(h=\dfrac{b-a}{n}\)</div>
-        <div class="formulaGiven" id="givenFormula"></div>
+        <div class="formulaLead" id="whereLine">where \(h=\dfrac{b-a}{n}\)</div>
+        <div class="formulaGiven" id="givenFormula">Loading formula…</div>
         <div id="formulaArea"></div>
       </div>
 
@@ -459,13 +464,13 @@
   <div class="card" id="panel3">
     <div class="hd"><p class="title">Step 3 — Final answer</p></div>
     <div class="bd" id="step3Wrap">
-      <div class="stepTag"><span class="dot lock" id="dot3"></span> Step 3</div>
+      <div class="stepTag"><span class="dot lock" id="dot3"></span> Step 3 — Approximate the integral</div>
       <div class="msg" style="margin-top:0;">
-        Use the rounded values in your table for the final calculation.
+        Use the <strong>rounded values in the table</strong>.
       </div>
       <div class="row">
         <label class="tiny"><strong>Approximation:</strong></label>
-        <input type="text" id="answerBox" placeholder="e.g. 2.718" />
+        <input type="text" id="answerBox" placeholder="e.g. 1.234" />
         <button id="btnCheck3">Check answer</button>
       </div>
       <div class="msg hidden" id="resultBox"></div>
@@ -475,52 +480,68 @@
 
 <script>
 /* =========================
-   Dragging
+   Dragging (fix "ghosting"/duplication)
+   - Only one ghost at a time
+   - Guaranteed cleanup on window pointerup/blur
+   - Bank tokens become "used" (disabled) once placed
    ========================= */
-let dragState=null;
+let dragState = null;
+
+function cleanupDrag(){
+  if(!dragState) return;
+  try{ dragState.ghostEl?.remove(); }catch(e){}
+  dragState = null;
+}
+window.addEventListener('pointerup', cleanupDrag, true);
+window.addEventListener('pointercancel', cleanupDrag, true);
+window.addEventListener('blur', cleanupDrag);
+
 function makeDraggable(el){
   el.addEventListener('pointerdown',(ev)=>{
     if(ev.button!==undefined && ev.button!==0) return;
     ev.preventDefault();
-    const tokenId=el.dataset.tokenId;
-    const tokenType=el.dataset.type;
+
+    // if something went wrong previously, kill old ghost
+    cleanupDrag();
+
+    const tokenId = el.dataset.tokenId;
+    const tokenType = el.dataset.type;
     if(!tokenId) return;
 
-    const ghost=el.cloneNode(true);
+    const ghost = el.cloneNode(true);
     ghost.classList.add('ghost');
+    ghost.classList.remove('used');
     document.body.appendChild(ghost);
 
-    dragState={tokenId, tokenType, ghostEl:ghost};
+    dragState = { tokenId, tokenType, ghostEl: ghost };
     moveGhost(ev.clientX, ev.clientY);
-    el.setPointerCapture(ev.pointerId);
+    el.setPointerCapture?.(ev.pointerId);
   });
+
   el.addEventListener('pointermove',(ev)=>{
     if(!dragState) return;
     moveGhost(ev.clientX, ev.clientY);
   });
+
   el.addEventListener('pointerup',(ev)=>{
     if(!dragState) return;
-    const dropTarget=droppableUnder(ev.clientX, ev.clientY);
+    const dropTarget = droppableUnder(ev.clientX, ev.clientY);
     if(dropTarget){
       handleDropOn(dropTarget, dragState.tokenId, dragState.tokenType);
     }
-    dragState.ghostEl.remove();
-    dragState=null;
+    cleanupDrag();
   });
-  el.addEventListener('pointercancel',()=>{
-    if(!dragState) return;
-    dragState.ghostEl.remove();
-    dragState=null;
-  });
+
+  el.addEventListener('pointercancel', cleanupDrag);
 }
 function moveGhost(x,y){
-  dragState.ghostEl.style.left=x+'px';
-  dragState.ghostEl.style.top=y+'px';
+  if(!dragState) return;
+  dragState.ghostEl.style.left = x+'px';
+  dragState.ghostEl.style.top  = y+'px';
 }
 function droppableUnder(x,y){
-  const el=document.elementFromPoint(x,y);
-  if(!el) return null;
-  return el.closest('.slot,.fSlot');
+  const el = document.elementFromPoint(x,y);
+  return el ? el.closest('.slot,.fSlot') : null;
 }
 
 /* =========================
@@ -532,9 +553,10 @@ const state={
   fLatex:'',
   a:0,b:0,h:0,n:0,
   xs:[], ys:[],
-  tokens:new Map(),
-  tableSlots:new Map(),
-  formulaSlots:new Map(),
+  tokens:new Map(),             // tokenId -> {type,label,isRed}
+  bankEls:new Map(),            // tokenId -> DOM element in bank
+  tableSlots:new Map(),         // slotId -> tokenId
+  formulaSlots:new Map(),       // slotId -> tokenId
   correctTable:new Map(),
   correctFormula:new Map(),
   hOk:false,
@@ -555,14 +577,53 @@ function fmt3(x){ return to3(x).toFixed(3); }
 function clamp(x,lo,hi){ return Math.min(hi, Math.max(lo,x)); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
+/* minimal-brackets helpers */
+function needsParens(expr){
+  // needs parentheses if it contains + or - not at start
+  for(let i=1;i<expr.length;i++){
+    const ch=expr[i];
+    if(ch==='+' || ch==='-') return true;
+  }
+  return false;
+}
+function wrap(expr){ return needsParens(expr) ? `\\left(${expr}\\right)` : expr; }
+function niceCoef(c){
+  if(c===1) return '';
+  if(c===-1) return '-';
+  return String(c);
+}
+function signJoin(a,bLatex){
+  // a is number coef; bLatex is expression
+  if(a===0) return '0';
+  if(a===1) return bLatex;
+  if(a===-1) return `-${wrap(bLatex)}`;
+  return `${a}${wrap(bLatex)}`;
+}
+function simplifyLinear(k,c){
+  // return latex string for kx+c with small simplifications (1x -> x, -1x -> -x, 0.5x etc)
+  let part = '';
+  if(k===0) part = '0';
+  else if(k===1) part = 'x';
+  else if(k===-1) part = '-x';
+  else part = `${k}x`;
+
+  if(c===0) return part;
+  if(part==='0') return String(c);
+  return `${part}${c>0?'+':'-'}${Math.abs(c)}`;
+}
+function simplifyPow(p){
+  return p===1 ? '' : `^{${p}}`;
+}
+
 /* =========================
-   Base function types
+   Base functions (latex already simplified: no ^1)
    ========================= */
 function makeBaseFunction(kind){
   if(kind==='expPow'){
     const a=choice([0.5,0.8,1.2,-0.7,-1.1]);
     const p=choice([1,2,3]);
-    return { f:(x)=>Math.exp(a*Math.pow(x,p)), latex:`e^{${a}x^{${p}}}` };
+    const xp = p===1 ? 'x' : `x^{${p}}`;
+    return { f:(x)=>Math.exp(a*Math.pow(x,p)), latex:`e^{${a}${xp}}` };
   }
   if(kind==='sin'){
     const a=choice([0.5,1,1.5,2,3]);
@@ -579,44 +640,37 @@ function makeBaseFunction(kind){
   if(kind==='polyExp'){
     const k=choice([1,2,3]);
     const a=choice([0.5,-0.5,0.8,-0.8,1.2]);
-    return { f:(x)=>Math.pow(x,k)*Math.exp(a*x), latex:`x^{${k}}e^{${a}x}` };
+    const xk = k===1 ? 'x' : `x^{${k}}`;
+    return { f:(x)=>Math.pow(x,k)*Math.exp(a*x), latex:`${xk}e^{${a}x}` };
   }
+  // tanSafe
   const a=choice([0.5,1,1.5]);
   return { f:(x)=>Math.tan(a*x), latex:`\\tan(${a}x)` };
 }
 
-/* Transformation with fewer brackets: prefer Ax + C without heavy \\left( \\right) */
+/* apply x -> (kx+c) (with simplification), plus outer linear A*...+D */
 function transform(base){
   const A=choice([1,1,-1,2,0.5,1.5]);
   const D=choice([0,0,0,0.5,-0.5,1,-1]);
-  const B=choice([0.5,1,1,1.5,2]);
+  const B=choice([0.5,1,1,1.5,2,-0.5,-1,-2]); // allow negatives too
   const C=choice([0,0,0.25,-0.25,0.5,-0.5]);
 
   const comp=(x)=>A*base.f(B*x+C)+D;
 
-  const arg=(()=>{
-    const bx=(B===1)?'x':`${B}x`;
-    if(C===0) return bx;
-    return `${bx}${C>0?'+':'-'}${Math.abs(C)}`;
-  })();
+  const arg = simplifyLinear(B,C);
+  const core = base.latex.replace(/x/g, needsParens(arg) ? `(${arg})` : arg);
 
-  // Replace x by (Bx+C) WITHOUT \\left \\right, keep simple parentheses
-  let inner = base.latex.replace(/x/g, `(${arg})`);
-
-  // A scaling
-  let expr = inner;
-  if(A === -1) expr = `-${expr}`;
-  else if(A !== 1) expr = `${A}${expr}`;
-
-  // D shift
-  if(D !== 0) expr = `${expr}${D>0?'+':''}${D}`;
+  let expr = core;
+  if(A===-1) expr = `-${wrap(expr)}`;
+  else if(A!==1) expr = `${A}${wrap(expr)}`;
+  if(D!==0) expr = `${wrap(expr)}${D>0?'+':'-'}${Math.abs(D)}`;
 
   return { f:comp, latex:expr };
 }
 
-/* Build combined integrand:
-   - either sum of two different types
-   - or product of two different types (NEW)
+/* Combine TWO transformed functions:
+   - product: f(x) × g(x)
+   - linear combo: a f(x) + b g(x)
 */
 function buildCombinedFunction(){
   const kinds=['expPow','sin','ln','cos','polyExp','tanSafe'];
@@ -626,39 +680,48 @@ function buildCombinedFunction(){
   const t1=transform(makeBaseFunction(k1));
   const t2=transform(makeBaseFunction(k2));
 
-  const op = (Math.random()<0.5) ? 'sum' : 'prod';
+  const mode = choice(['prod','lin']); // product or linear combination
 
-  if(op==='sum'){
+  if(mode==='prod'){
     return {
-      f:(x)=>t1.f(x)+t2.f(x),
-      latex:`${t1.latex}+${t2.latex}`
+      f:(x)=>t1.f(x)*t2.f(x),
+      latex:`${wrap(t1.latex)}\\,\\times\\,${wrap(t2.latex)}`,
+      mode
     };
   }
-  // product: add parentheses only if needed (contains + or - not at start)
-  const needsParens = (s) => {
-    // if expression has a + or - beyond the first character, wrap
-    for(let i=1;i<s.length;i++){
-      const ch=s[i];
-      if(ch==='+' || ch==='-') return true;
-    }
-    return false;
-  };
-  const a = needsParens(t1.latex) ? `(${t1.latex})` : t1.latex;
-  const b = needsParens(t2.latex) ? `(${t2.latex})` : t2.latex;
 
-  return {
-    f:(x)=>t1.f(x)*t2.f(x),
-    latex:`${a}${b}` // multiplication by adjacency (cleaner) e.g. (sin...)(e^{...}) or x^2e^x(sin...)
-  };
+  // linear combo af + bg
+  const a = choice([-2,-1,-0.5,0.5,1,2]);
+  let b = choice([-2,-1,-0.5,0.5,1,2]);
+  // avoid both same sign/zero-ish monotony sometimes? keep as-is but avoid a=b=0
+  if(a===0 && b===0) b=1;
+
+  const f=(x)=>a*t1.f(x)+b*t2.f(x);
+
+  const Aterm = signJoin(a, t1.latex);
+  const Bterm = signJoin(Math.abs(b), t2.latex);
+  const latex = `${Aterm}${b>=0?'+':'-'}${Bterm}`;
+
+  return { f, latex, mode };
 }
 
-/* Grid picking */
+/* =========================
+   Grid + integration
+   - h now can be "awkward" (e.g. 0.124, 0.035)
+   ========================= */
 function pickGrid(rule, fInfo){
-  let h=choice([0.1,0.125,0.2,0.25,0.3]);
-  h=to3(h);
+  // include awkward 3dp options
+  const hChoices = [
+    0.035,0.041,0.062,0.073,0.083,0.095,
+    0.124,0.137,0.148,0.157,0.163,0.175,
+    0.204,0.212,0.225,0.238,0.250,0.275,
+    0.100,0.125,0.200,0.300
+  ];
+  let h = to3(choice(hChoices));
 
   let nMax=(rule==='mid')?8:7;
   if(rule==='simpson') nMax=8;
+
   let n=Math.floor(rnd(2,nMax+1));
   if(rule==='simpson' && (n%2===1)) n+=1;
   n=clamp(n,2,nMax);
@@ -679,7 +742,7 @@ function pickGrid(rule, fInfo){
   };
 
   let tries=0;
-  while(tries<160 && !safeCheck(a,b)){
+  while(tries<220 && !safeCheck(a,b)){
     a=to3(rnd(-1.0,1.0));
     b=to3(a+n*h);
     tries++;
@@ -716,11 +779,13 @@ function approxByRuleUsingRounded(rule, ysRounded, hRounded){
   return h*s;
 }
 
-/* Build question */
+/* =========================
+   Build question
+   ========================= */
 function buildQuestion(rule){
   state.rule=rule;
 
-  const fInfo=buildCombinedFunction(); // sum OR product
+  const fInfo=buildCombinedFunction();
   state.f=fInfo.f;
   state.fLatex=fInfo.latex;
 
@@ -734,7 +799,7 @@ function buildQuestion(rule){
       xs.push(x);
       ys.push(to3(state.f(x)));
     }
-  }else{
+  } else {
     for(let i=0;i<=state.n;i++){
       const x=to3(state.a+i*state.h);
       xs.push(x);
@@ -748,6 +813,7 @@ function buildQuestion(rule){
 
   // reset progress
   state.tokens.clear();
+  state.bankEls.clear();
   state.tableSlots.clear();
   state.formulaSlots.clear();
   state.correctTable.clear();
@@ -766,7 +832,9 @@ function buildQuestion(rule){
   rerenderMath();
 }
 
-/* Mixed bank */
+/* =========================
+   Mixed bank (+ red herrings)
+   ========================= */
 function buildBanksMixed(){
   const needX=state.xs.length;
   const needY=state.ys.length;
@@ -774,14 +842,15 @@ function buildBanksMixed(){
 
   let id=1;
   for(const x of state.xs){
-    state.tokens.set(`x${id++}`, {type:'x', value:x, label:fmt3(x), isRed:false});
+    state.tokens.set(`x${id++}`, {type:'x', label:fmt3(x), isRed:false});
   }
   for(const y of state.ys){
-    state.tokens.set(`y${id++}`, {type:'y', value:y, label:fmt3(y), isRed:false});
+    state.tokens.set(`y${id++}`, {type:'y', label:fmt3(y), isRed:false});
   }
 
   const reqX=new Set(state.xs.map(v=>fmt3(v)));
   const reqY=new Set(state.ys.map(v=>fmt3(v)));
+
   for(let k=0;k<extra;k++){
     const makeX = Math.random()<0.5;
     if(makeX){
@@ -790,32 +859,31 @@ function buildBanksMixed(){
       do{
         x=to3(rnd(state.a-0.35*span, state.b+0.35*span));
         tries++;
-      }while(tries<60 && reqX.has(fmt3(x)));
-      state.tokens.set(`x${id++}`, {type:'x', value:x, label:fmt3(x), isRed:true});
+      }while(tries<80 && reqX.has(fmt3(x)));
+      state.tokens.set(`x${id++}`, {type:'x', label:fmt3(x), isRed:true});
     }else{
       const pickX=choice(state.xs);
       const yTrue=state.f(pickX);
       const noise=rnd(-0.8,0.8)*(Math.random()<0.7?1:0.35);
       let y=to3(yTrue+noise);
       let tries=0;
-      while(tries<60 && reqY.has(fmt3(y))){
+      while(tries<80 && reqY.has(fmt3(y))){
         y=to3(y+rnd(0.12,0.5));
         tries++;
       }
-      state.tokens.set(`y${id++}`, {type:'y', value:y, label:fmt3(y), isRed:true});
+      state.tokens.set(`y${id++}`, {type:'y', label:fmt3(y), isRed:true});
     }
   }
 }
 
-function findTokenId(type, value, nonRedOnly){
-  const target=fmt3(value);
+function findTokenId(type, label, nonRedOnly){
   for(const [id,tok] of state.tokens.entries()){
     if(tok.type!==type) continue;
     if(nonRedOnly && tok.isRed) continue;
-    if(tok.label===target) return id;
+    if(tok.label===label) return id;
   }
   for(const [id,tok] of state.tokens.entries()){
-    if(tok.type===type && tok.label===target) return id;
+    if(tok.type===type && tok.label===label) return id;
   }
   return null;
 }
@@ -823,50 +891,51 @@ function findTokenId(type, value, nonRedOnly){
 function buildTableMappings(){
   const cols=state.xs.length;
   for(let c=0;c<cols;c++){
-    state.correctTable.set(`t_x_${c}`, findTokenId('x', state.xs[c], true));
-    state.correctTable.set(`t_y_${c}`, findTokenId('y', state.ys[c], true));
+    state.correctTable.set(`t_x_${c}`, findTokenId('x', fmt3(state.xs[c]), true));
+    state.correctTable.set(`t_y_${c}`, findTokenId('y', fmt3(state.ys[c]), true));
   }
 }
 
 function buildFormulaMappings(){
   if(state.rule==='mid'){
     for(let i=0;i<state.ys.length;i++){
-      state.correctFormula.set(`f_mid_${i}`, findTokenId('y', state.ys[i], true));
+      state.correctFormula.set(`f_mid_${i}`, findTokenId('y', fmt3(state.ys[i]), true));
     }
     return;
   }
   if(state.rule==='trapezium'){
-    state.correctFormula.set('f_trap_y0', findTokenId('y', state.ys[0], true));
-    state.correctFormula.set('f_trap_yn', findTokenId('y', state.ys[state.ys.length-1], true));
+    state.correctFormula.set('f_trap_y0', findTokenId('y', fmt3(state.ys[0]), true));
+    state.correctFormula.set('f_trap_yn', findTokenId('y', fmt3(state.ys[state.ys.length-1]), true));
     for(let i=1;i<state.ys.length-1;i++){
-      state.correctFormula.set(`f_trap_mid_${i}`, findTokenId('y', state.ys[i], true));
+      state.correctFormula.set(`f_trap_mid_${i}`, findTokenId('y', fmt3(state.ys[i]), true));
     }
     return;
   }
-  state.correctFormula.set('f_simp_y0', findTokenId('y', state.ys[0], true));
-  state.correctFormula.set('f_simp_yn', findTokenId('y', state.ys[state.ys.length-1], true));
+  state.correctFormula.set('f_simp_y0', findTokenId('y', fmt3(state.ys[0]), true));
+  state.correctFormula.set('f_simp_yn', findTokenId('y', fmt3(state.ys[state.ys.length-1]), true));
   for(let i=1;i<state.ys.length-1;i++){
     const key=(i%2===1)?`f_simp_odd_${i}`:`f_simp_even_${i}`;
-    state.correctFormula.set(key, findTokenId('y', state.ys[i], true));
+    state.correctFormula.set(key, findTokenId('y', fmt3(state.ys[i]), true));
   }
 }
 
-/* Rendering */
+/* =========================
+   Rendering
+   ========================= */
 function renderAll(){
   renderTopBar();
   renderMixedBank();
   renderHorizontalTable();
-  renderGivenFormulaLine();
-  renderFormulaBoxes();
+  renderFormula();
+  refreshBankUsedStates();
 }
 
 function renderTopBar(){
   const a=fmt3(state.a), b=fmt3(state.b);
-  $('integralDisplay').innerHTML = `\\(\\int_{${a}}^{${b}} ${state.fLatex}\\,dx\\)`;
+  $('integralDisplay').innerHTML = `\\(\\int_{${a}}^{${b}} ${wrap(state.fLatex)}\\,dx\\)`;
 
   const ruleName = state.rule==='trapezium' ? 'Trapezium' : state.rule==='mid' ? 'Mid-ordinate' : "Simpson's";
   const numOrdinates = state.xs.length;
-
   $('setupInfo').innerHTML = `
     <span class="pill"><strong>Rule:</strong> ${ruleName}</span>
     <span class="pill"><strong>Number of strips:</strong> ${state.n}</span>
@@ -883,6 +952,8 @@ function renderMixedBank(){
 
   const bank=$('mixedBank');
   bank.innerHTML='';
+  state.bankEls.clear();
+
   for(const [id,tok] of items){
     const el=document.createElement('div');
     el.className=`token ${tok.type}`;
@@ -891,19 +962,21 @@ function renderMixedBank(){
     el.dataset.type=tok.type;
     makeDraggable(el);
     bank.appendChild(el);
+    state.bankEls.set(id, el);
   }
 }
 
 function renderHorizontalTable(){
-  const cols=state.xs.length;
-  const mid=(state.rule==='mid');
+  const cols = state.xs.length;
+  const mid = (state.rule==='mid');
+
+  const wrapEl=$('hTable');
+  wrapEl.innerHTML='';
+
   const idxs=[];
   for(let i=0;i<cols;i++){
     idxs.push(mid ? `\\(${i}+\\tfrac12\\)` : `\\(${i}\\)`);
   }
-
-  const wrap=$('hTable');
-  wrap.innerHTML='';
 
   const r0=document.createElement('div');
   r0.className='hRow';
@@ -914,7 +987,7 @@ function renderHorizontalTable(){
     cell.innerHTML=`<div class="idxTag">${idxs[c]}</div>`;
     r0.appendChild(cell);
   }
-  wrap.appendChild(r0);
+  wrapEl.appendChild(r0);
 
   const r1=document.createElement('div');
   r1.className='hRow';
@@ -925,7 +998,7 @@ function renderHorizontalTable(){
     cell.innerHTML=`<div class="slot" data-slot-id="t_x_${c}" data-accept="x"></div>`;
     r1.appendChild(cell);
   }
-  wrap.appendChild(r1);
+  wrapEl.appendChild(r1);
 
   const r2=document.createElement('div');
   r2.className='hRow';
@@ -936,7 +1009,7 @@ function renderHorizontalTable(){
     cell.innerHTML=`<div class="slot" data-slot-id="t_y_${c}" data-accept="y"></div>`;
     r2.appendChild(cell);
   }
-  wrap.appendChild(r2);
+  wrapEl.appendChild(r2);
 
   document.querySelectorAll('.slot').forEach(slot=>{
     slot.addEventListener('click', ()=> clearSlot(slot));
@@ -945,37 +1018,45 @@ function renderHorizontalTable(){
   redrawPlaced();
 }
 
-function renderGivenFormulaLine(){
-  // Provided correct formula template for n strips (generic a,b)
-  const n='n';
+function buildGivenFormulaLatex(){
+  const n = state.n;
   if(state.rule==='mid'){
-    $('givenFormula').innerHTML =
-      `\\(\\textbf{Mid-ordinate rule:}\\quad \\int_a^b y\\,dx \\approx h\\left(y_{\\tfrac12}+y_{\\tfrac32}+\\cdots+y_{n-\\tfrac12}\\right)\\)`;
-    return;
+    const terms=[];
+    for(let i=0;i<n;i++){
+      const idx = i===0 ? `\\tfrac12` : `${i}+\\tfrac12`;
+      terms.push(`y_{${idx}}`);
+    }
+    return `\\(\\int_a^b y\\,dx \\approx h\\left(${terms.join('+')}\\right)\\)`;
   }
+
   if(state.rule==='trapezium'){
-    $('givenFormula').innerHTML =
-      `\\(\\textbf{Trapezium rule:}\\quad \\int_a^b y\\,dx \\approx \\frac{h}{2}\\left\\{(y_0+y_n)+2(y_1+y_2+\\cdots+y_{n-1})\\right\\}\\)`;
-    return;
+    const mids=[];
+    for(let i=1;i<=n-1;i++) mids.push(`y_{${i}}`);
+    return `\\(\\int_a^b y\\,dx \\approx \\frac{h}{2}\\left\\{(y_0+y_${n})+2\\left(${mids.join('+')}\\right)\\right\\}\\)`;
   }
-  $('givenFormula').innerHTML =
-    `\\(\\textbf{Simpson's rule:}\\quad \\int_a^b y\\,dx \\approx \\frac{h}{3}\\left\\{(y_0+y_n)+4(y_1+y_3+\\cdots+y_{n-1})+2(y_2+y_4+\\cdots+y_{n-2})\\right\\}\\)`;
+
+  const odds=[], evens=[];
+  for(let i=1;i<=n-1;i++){
+    (i%2===1 ? odds : evens).push(`y_{${i}}`);
+  }
+  return `\\(\\int_a^b y\\,dx \\approx \\frac{h}{3}\\left[(y_0+y_${n})+4\\left(${odds.join('+')}\\right)+2\\left(${evens.join('+')}\\right)\\right]\\)`;
 }
 
-function renderFormulaBoxes(){
+function renderFormula(){
+  $('givenFormula').innerHTML = buildGivenFormulaLatex();
+
   const area=$('formulaArea');
   area.innerHTML='';
 
-  // Boxes only (the correct formula is shown above)
   if(state.rule==='mid'){
     const l=document.createElement('div');
     l.className='formulaLine';
-    let inner=`<span>\\(h(\\)</span>`;
+    let inner = `<span>\\(h\\big(\\)</span>`;
     for(let i=0;i<state.ys.length;i++){
       inner += `<span class="fSlot" data-slot-id="f_mid_${i}" data-accept="y"></span>`;
       if(i<state.ys.length-1) inner += `<span>\\(+\\)</span>`;
     }
-    inner += `<span>\\()\\)</span>`;
+    inner += `<span>\\(\\big)\\)</span>`;
     l.innerHTML=inner;
     area.appendChild(l);
   }
@@ -983,19 +1064,21 @@ function renderFormulaBoxes(){
   if(state.rule==='trapezium'){
     const l=document.createElement('div');
     l.className='formulaLine';
+
     let mids='';
     for(let i=1;i<state.ys.length-1;i++){
       mids += `<span class="fSlot" data-slot-id="f_trap_mid_${i}" data-accept="y"></span>`;
       if(i<state.ys.length-2) mids += `<span>\\(+\\)</span>`;
     }
+
     l.innerHTML = `
-      <span>\\(\\frac{h}{2}\\{(\\)</span>
+      <span>\\(\\frac{h}{2}\\Big\\{(\\)</span>
       <span class="fSlot" data-slot-id="f_trap_y0" data-accept="y"></span>
       <span>\\(+\\)</span>
       <span class="fSlot" data-slot-id="f_trap_yn" data-accept="y"></span>
       <span>\\()\\,+\\,2(\\)</span>
-      ${mids || `<span class="tiny">(none)</span>`}
-      <span>\\()\\}\\)</span>
+      ${mids}
+      <span>\\()\\Big\\}\\)</span>
     `;
     area.appendChild(l);
   }
@@ -1021,15 +1104,15 @@ function renderFormulaBoxes(){
     }
 
     l.innerHTML = `
-      <span>\\(\\frac{h}{3}\\{(\\)</span>
+      <span>\\(\\frac{h}{3}\\Big[\\,(\\)</span>
       <span class="fSlot" data-slot-id="f_simp_y0" data-accept="y"></span>
       <span>\\(+\\)</span>
       <span class="fSlot" data-slot-id="f_simp_yn" data-accept="y"></span>
       <span>\\()\\,+\\,4(\\)</span>
-      ${oddBits || `<span class="tiny">(none)</span>`}
+      ${oddBits}
       <span>\\()\\,+\\,2(\\)</span>
-      ${evenBits || `<span class="tiny">(none)</span>`}
-      <span>\\()\\}\\)</span>
+      ${evenBits}
+      <span>\\()\\Big]\\)</span>
     `;
     area.appendChild(l);
   }
@@ -1041,7 +1124,6 @@ function renderFormulaBoxes(){
   redrawPlaced();
 }
 
-/* MathJax */
 function rerenderMath(){
   if(!window.MathJax || !window.MathJax.typesetPromise){
     $('mjWarn').style.display='block';
@@ -1050,7 +1132,30 @@ function rerenderMath(){
   window.MathJax.typesetPromise().catch(()=> $('mjWarn').style.display='block');
 }
 
-/* Slots */
+/* =========================
+   Used token disabling (prevents "duplicates")
+   - Table phase: any token placed into table disables that bank token
+   - Formula phase: any token placed into formula disables that bank token
+   ========================= */
+function refreshBankUsedStates(){
+  // clear used
+  for(const el of state.bankEls.values()) el.classList.remove('used');
+
+  // mark used in table
+  for(const tokenId of state.tableSlots.values()){
+    const el = state.bankEls.get(tokenId);
+    if(el) el.classList.add('used');
+  }
+  // mark used in formula
+  for(const tokenId of state.formulaSlots.values()){
+    const el = state.bankEls.get(tokenId);
+    if(el) el.classList.add('used');
+  }
+}
+
+/* =========================
+   Slots
+   ========================= */
 function paintSlot(slotEl, tokenId){
   const tok=state.tokens.get(tokenId);
   slotEl.classList.add('filled');
@@ -1075,21 +1180,23 @@ function handleDropOn(slotEl, tokenId, tokenType){
   if(slotId.startsWith('t_') && !state.hOk) return;
   if(slotId.startsWith('f_') && !state.tableComplete) return;
 
-  clearSlot(slotEl, true);
-
+  // choose map
   const map = slotId.startsWith('t_') ? state.tableSlots : state.formulaSlots;
 
-  // prevent reuse in same phase
+  // if token already used in SAME map, move it (clear old slot)
   for(const [sId, tId] of map.entries()){
-    if(tId===tokenId){
+    if(tId===tokenId && sId!==slotId){
       const old=document.querySelector(`[data-slot-id="${sId}"]`);
       if(old) clearSlot(old, true);
       break;
     }
   }
 
+  clearSlot(slotEl, true);
   map.set(slotId, tokenId);
   paintSlot(slotEl, tokenId);
+
+  refreshBankUsedStates();
 }
 
 function clearSlot(slotEl, silent=false){
@@ -1099,6 +1206,7 @@ function clearSlot(slotEl, silent=false){
   map.delete(slotId);
   slotEl.classList.remove('filled','ok','bad');
   slotEl.innerHTML='';
+  refreshBankUsedStates();
 }
 
 function redrawPlaced(){
@@ -1110,29 +1218,36 @@ function redrawPlaced(){
     const el=document.querySelector(`[data-slot-id="${slotId}"]`);
     if(el) paintSlot(el, tokenId);
   }
+  refreshBankUsedStates();
 }
 
-/* Locks */
+/* =========================
+   Locks
+   ========================= */
 function updateLocks(){
   $('dot0').className='dot '+(state.hOk?'good':'lock');
   $('dot1').className='dot '+(state.tableComplete?'good':'lock');
   $('dot2').className='dot '+(state.formulaComplete?'good':'lock');
-  $('dot3').className='dot '+(state.formulaComplete?'lock':'lock');
+  $('dot3').className='dot lock';
 
   $('step1Wrap').classList.toggle('lockOverlay', !state.hOk);
   $('step2Wrap').classList.toggle('lockOverlay', !state.tableComplete);
   $('step3Wrap').classList.toggle('lockOverlay', !state.formulaComplete);
+
+  // once table is complete, bank should not distract — but still visible; we just fade it
+  $('bankWrap').classList.toggle('lockOverlay', state.tableComplete);
 }
 
-/* Checks */
+/* =========================
+   Checks
+   ========================= */
 function checkStep0(){
   const raw=$('hBox').value.trim().replace(/,/g,'');
   const val=Number(raw);
   const msg=$('msg0');
 
   if(!Number.isFinite(val)){
-    msg.className='msg warn';
-    msg.textContent='Enter a valid number for h (3 d.p.).';
+    msg.className='msg warn'; msg.textContent='Enter a valid number for h (3 d.p.).';
     msg.classList.remove('hidden');
     state.hOk=false;
     resetDownstream();
@@ -1148,9 +1263,9 @@ function checkStep0(){
     msg.innerHTML=`<strong>Correct ✅</strong>  \\(h=${fmt3(target)}\\).`;
     msg.classList.remove('hidden');
     state.hOk=true;
-  }else{
+  } else {
     msg.className='msg bad';
-    msg.innerHTML=`<strong>Not quite ❌</strong>  Try again.`;
+    msg.innerHTML=`<strong>Not quite ❌</strong>`;
     msg.classList.remove('hidden');
     state.hOk=false;
     resetDownstream();
@@ -1180,8 +1295,7 @@ function checkStep1(){
   }
 
   if(!allFilled){
-    msg.className='msg warn';
-    msg.textContent='Fill every table slot first.';
+    msg.className='msg warn'; msg.textContent='Fill every table slot first.';
     msg.classList.remove('hidden');
     state.tableComplete=false;
     resetStep2(true); resetStep3(true);
@@ -1189,8 +1303,7 @@ function checkStep1(){
     return;
   }
   if(!allCorrect){
-    msg.className='msg bad';
-    msg.textContent='Some entries are incorrect — fix the red-outlined slots.';
+    msg.className='msg bad'; msg.textContent='Some entries are incorrect — fix the red-outlined slots.';
     msg.classList.remove('hidden');
     state.tableComplete=false;
     resetStep2(true); resetStep3(true);
@@ -1198,8 +1311,7 @@ function checkStep1(){
     return;
   }
 
-  msg.className='msg good';
-  msg.textContent='Perfect — Step 2 unlocked.';
+  msg.className='msg good'; msg.textContent='Perfect — Step 2 unlocked.';
   msg.classList.remove('hidden');
   state.tableComplete=true;
   updateLocks();
@@ -1226,8 +1338,7 @@ function checkStep2(){
   }
 
   if(!allFilled){
-    msg.className='msg warn';
-    msg.textContent='Fill every formula box first.';
+    msg.className='msg warn'; msg.textContent='Fill every formula box first.';
     msg.classList.remove('hidden');
     state.formulaComplete=false;
     resetStep3(true);
@@ -1235,8 +1346,7 @@ function checkStep2(){
     return;
   }
   if(!allCorrect){
-    msg.className='msg bad';
-    msg.textContent='Some placements are wrong — fix the red-outlined boxes.';
+    msg.className='msg bad'; msg.textContent='Some placements are wrong — fix the red-outlined boxes.';
     msg.classList.remove('hidden');
     state.formulaComplete=false;
     resetStep3(true);
@@ -1244,8 +1354,7 @@ function checkStep2(){
     return;
   }
 
-  msg.className='msg good';
-  msg.textContent='Great — Step 3 unlocked.';
+  msg.className='msg good'; msg.textContent='Great — Step 3 unlocked.';
   msg.classList.remove('hidden');
   state.formulaComplete=true;
   updateLocks();
@@ -1257,8 +1366,7 @@ function checkStep3(){
   const box=$('resultBox');
 
   if(!Number.isFinite(val)){
-    box.className='msg warn';
-    box.textContent='Please enter a valid number.';
+    box.className='msg warn'; box.textContent='Please enter a valid number.';
     box.classList.remove('hidden');
     return;
   }
@@ -1271,16 +1379,12 @@ function checkStep3(){
     box.className='msg good';
     box.innerHTML=
       `<strong>Correct ✅</strong><br/>
-       Your answer: <strong>${val}</strong><br/>
-       Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong><br/>
-       (For interest) high-accuracy estimate: <strong>${state.trueValue.toFixed(4)}</strong>`;
-  }else{
+       Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong>`;
+  } else {
     box.className='msg bad';
     box.innerHTML=
       `<strong>Not quite ❌</strong><br/>
-       Your answer: <strong>${val}</strong><br/>
        Expected (using rounded table values): <strong>${expected.toFixed(4)}</strong><br/>
-       (For interest) high-accuracy estimate: <strong>${state.trueValue.toFixed(4)}</strong><br/>
        Marked correct within <strong>${tol.toFixed(4)}</strong>.`;
   }
   box.classList.remove('hidden');
@@ -1297,6 +1401,7 @@ function resetStep1(silent){
     s.classList.remove('filled','ok','bad');
     s.innerHTML='';
   });
+  refreshBankUsedStates();
   if(!silent) $('msg1').classList.add('hidden');
 }
 function resetStep2(silent){
@@ -1306,6 +1411,7 @@ function resetStep2(silent){
     s.classList.remove('filled','ok','bad');
     s.innerHTML='';
   });
+  refreshBankUsedStates();
   if(!silent) $('msg2').classList.add('hidden');
 }
 function resetStep3(silent){
@@ -1323,7 +1429,9 @@ function clearMessages(){
   $('answerBox').value='';
 }
 
-/* Buttons */
+/* =========================
+   Buttons
+   ========================= */
 $('btnNew').addEventListener('click', ()=>buildQuestion($('ruleSelect').value));
 $('ruleSelect').addEventListener('change', ()=>buildQuestion($('ruleSelect').value));
 
@@ -1347,11 +1455,11 @@ $('btnFullscreen').addEventListener('click', async ()=>{
     if(!document.fullscreenElement){
       await document.documentElement.requestFullscreen();
       $('btnFullscreen').textContent='Exit fullscreen';
-    }else{
+    } else {
       await document.exitFullscreen();
       $('btnFullscreen').textContent='Fullscreen';
     }
-  }catch(e){
+  } catch(e){
     alert('Fullscreen not available on this device/browser.');
   }
 });
