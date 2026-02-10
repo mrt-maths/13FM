@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Leibniz Drag & Drop – Sequenced Examples</title>
+
+<!-- MathJax (inline maths used to keep everything on the same line) -->
+<script>
+window.MathJax = { tex:{inlineMath:[['\\(','\\)'],['$','$']]} };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#fff; --ink:#111;
+    --line:#d6dbe8; --blue:#2f5fff; --tile:#e7efff;
+    --ok:#c8f7d2; --bad:#ffd6d6; --accent:#ff9800;
+    --lock:#9aa3b2;
+  }
+  body{margin:0;padding:20px;background:var(--bg);color:var(--ink);
+    font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  h1{margin:0 0 8px}
+  .note{opacity:.75;margin:0 0 14px}
+
+  .page{
+    display:grid;
+    grid-template-columns: 1.15fr .85fr;
+    gap:14px;
+    align-items:start;
+  }
+  @media (max-width: 980px){ .page{grid-template-columns:1fr} }
+
+  .leftCol{display:flex;flex-direction:column;gap:12px}
+  .rightCol{
+    position:sticky; top:14px;
+    align-self:start;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:0 8px 18px rgba(0,0,0,.06);
+    padding:14px;
+    position:relative;
+  }
+
+  .titleRow{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+  .badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    background:#ffe4c2;border:1px solid #ffb55b;color:#7a3c00;
+    font-weight:900;border-radius:999px;padding:4px 10px
+  }
+  .q{font-size:18px}
+  .small{font-size:13px;opacity:.8;margin-top:6px}
+
+  /* Work layout */
+  .work{border:1px dashed #c7cde2;border-radius:14px;padding:12px;background:#fbfcff}
+  .line{margin:10px 0; display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+  .mj{font-size:18px}
+  .indent{margin-left:18px}
+
+  /* Slots */
+  .slot{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:86px;min-height:40px;
+    border:2px solid #000;border-radius:6px;
+    padding:2px 6px;vertical-align:middle;background:#fff;
+  }
+  .slot.big{min-width:150px}
+  .slot.long{min-width:220px}
+  .slot.ok{background:var(--ok)}
+  .slot.bad{background:var(--bad)}
+
+  /* Tiles */
+  .tile{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:8px 10px;border-radius:10px;background:var(--tile);border:2px solid var(--blue);
+    user-select:none;touch-action:none;cursor:grab;position:relative;z-index:2;
+    max-width:100%;
+  }
+  .tile:active{cursor:grabbing}
+  .tile.floating{
+    position:fixed;left:0;top:0;transform:translate(-50%,-50%);
+    z-index:9999;box-shadow:0 10px 22px rgba(0,0,0,.18)
+  }
+
+  /* Controls */
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  button{border:none;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}
+  .btnCheck{background:var(--accent);color:#fff}
+  .btnReset{background:#e9eefc}
+  .btnClear{background:#f1f3f9}
+
+  /* Right tile bank (always visible) */
+  .bankCard{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:0 8px 18px rgba(0,0,0,.06);
+    padding:14px;
+  }
+  .bankTitle{font-weight:900;margin:0 0 10px}
+  .bankSub{font-size:13px;opacity:.8;margin:0 0 10px}
+  .bank{
+    display:flex;flex-wrap:wrap;gap:10px;
+    border:1px solid var(--line);border-radius:14px;
+    padding:12px;min-height:92px;background:#fafbff;
+  }
+
+  /* Locked overlays */
+  .locked{
+    opacity:.55;
+  }
+  .locked .work{pointer-events:none}
+  .lockedOverlay{
+    position:absolute; inset:0;
+    border-radius:16px;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+    background:linear-gradient(0deg, rgba(255,255,255,.55), rgba(255,255,255,.55));
+  }
+  .lockedPill{
+    background:#f2f4f8;border:1px solid #d4d9e6;color:#4b5566;
+    padding:10px 12px;border-radius:999px;font-weight:900;
+  }
+
+  /* Active highlight */
+  .activeCard{outline:3px solid rgba(255,152,0,.35)}
+</style>
+</head>
+
+<body>
+<h1>Leibniz’s Theorem – Drag & Drop</h1>
+<p class="note">
+Complete each section in order: <b>Formula → Example 1 → Example 2</b>.
+The tile pile on the right stays visible throughout.
+</p>
+
+<div class="page">
+  <div class="leftCol">
+
+    <!-- ===== Formula ===== -->
+    <div class="card activeCard" id="card-theorem" data-section="theorem">
+      <div class="titleRow">
+        <span class="badge">Formula</span>
+        <div class="q">\(\text{Construct Leibniz’s theorem for } y=uv.\)</div>
+      </div>
+
+      <div class="work" id="work-theorem">
+        <div class="line">
+          <span class="mj">\(\dfrac{d^n y}{dx^n}=\)</span>
+          <span class="slot big" data-ans="\sum_{k=0}^{n}"></span>
+          <span class="slot" data-ans="\binom{n}{k}"></span>
+          <span class="slot" data-ans="\frac{d^k u}{dx^k}"></span>
+          <span class="slot" data-ans="\frac{d^{n-k} v}{dx^{n-k}}"></span>
+        </div>
+
+        <div class="controls">
+          <button class="btnCheck" onclick="checkSection('theorem', true)">Check</button>
+          <button class="btnReset" onclick="resetSection('theorem')">Reset</button>
+          <button class="btnClear" onclick="clearMarks('theorem')">Clear marks</button>
+        </div>
+        <div class="small">When this is correct, Example 1 will unlock automatically.</div>
+      </div>
+    </div>
+
+    <!-- ===== Example 1 (locked until Formula complete) ===== -->
+    <div class="card locked" id="card-ex1" data-section="ex1">
+      <div class="titleRow">
+        <span class="badge">Example 1</span>
+        <div class="q">\(\text{Use Leibniz’s theorem to calculate }\dfrac{d^4y}{dx^4}\text{ for }y=e^x\sin x.\)</div>
+      </div>
+
+      <div class="work" id="work-ex1">
+        <div class="line">
+          <span class="mj">\(\text{Let }u=\)</span>
+          <span class="slot" data-ans="e^x"></span>
+          <span class="mj">\(\text{ and }v=\)</span>
+          <span class="slot" data-ans="\sin x"></span>
+        </div>
+
+        <div class="line">
+          <span class="mj">\(\dfrac{d^n u}{dx^n}=\)</span>
+          <span class="slot" data-ans="e^x"></span>
+          <span class="mj">\(\text{ for every }n\)</span>
+        </div>
+
+        <div class="line">
+          <span class="mj">\(\dfrac{dv}{dx}=\)</span>
+          <span class="slot" data-ans="\cos x"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^2v}{dx^2}=\)</span>
+          <span class="slot" data-ans="-\sin x"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^3v}{dx^3}=\)</span>
+          <span class="slot" data-ans="-\cos x"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^4v}{dx^4}=\)</span>
+          <span class="slot" data-ans="\sin x"></span>
+        </div>
+
+        <div class="line">
+          <span class="mj">\(\dfrac{d^4y}{dx^4}=\)</span>
+          <span class="slot long" data-ans="u\frac{d^4v}{dx^4}"></span>
+          <span class="slot long" data-ans="+4\frac{du}{dx}\frac{d^3v}{dx^3}"></span>
+          <span class="slot long" data-ans="+6\frac{d^2u}{dx^2}\frac{d^2v}{dx^2}"></span>
+          <span class="slot long" data-ans="+4\frac{d^3u}{dx^3}\frac{dv}{dx}"></span>
+          <span class="slot long" data-ans="+v\frac{d^4u}{dx^4}"></span>
+        </div>
+
+        <div class="line indent">
+          <span class="mj">\(=\)</span>
+          <span class="slot long" data-ans="e^x\sin x"></span>
+          <span class="slot long" data-ans="-4e^x\cos x"></span>
+          <span class="slot long" data-ans="-6e^x\sin x"></span>
+          <span class="slot long" data-ans="+4e^x\cos x"></span>
+          <span class="slot long" data-ans="+e^x\sin x"></span>
+        </div>
+
+        <div class="line indent">
+          <span class="mj">\(=\)</span>
+          <span class="slot long" data-ans="-4e^x\sin x"></span>
+        </div>
+
+        <div class="controls">
+          <button class="btnCheck" onclick="checkSection('ex1', true)">Check</button>
+          <button class="btnReset" onclick="resetSection('ex1')">Reset</button>
+          <button class="btnClear" onclick="clearMarks('ex1')">Clear marks</button>
+        </div>
+        <div class="small">When this is correct, Example 2 will unlock automatically.</div>
+      </div>
+
+      <div class="lockedOverlay"><div class="lockedPill">Locked — complete Formula first</div></div>
+    </div>
+
+    <!-- ===== Example 2 (locked until Example 1 complete) ===== -->
+    <div class="card locked" id="card-ex2" data-section="ex2">
+      <div class="titleRow">
+        <span class="badge">Example 2</span>
+        <div class="q">\(\text{Use Leibniz’s theorem to calculate }\dfrac{d^3y}{dx^3}\text{ for }y=x^3\cosh 2x.\)</div>
+      </div>
+
+      <div class="work" id="work-ex2">
+        <div class="line">
+          <span class="mj">\(\text{Let }u=\)</span>
+          <span class="slot" data-ans="x^3"></span>
+          <span class="mj">\(\text{ and }v=\)</span>
+          <span class="slot" data-ans="\cosh 2x"></span>
+        </div>
+
+        <div class="line">
+          <span class="mj">\(\dfrac{du}{dx}=\)</span>
+          <span class="slot" data-ans="3x^2"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^2u}{dx^2}=\)</span>
+          <span class="slot" data-ans="6x"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^3u}{dx^3}=\)</span>
+          <span class="slot" data-ans="6"></span>
+        </div>
+
+        <div class="line">
+          <span class="mj">\(\dfrac{dv}{dx}=\)</span>
+          <span class="slot" data-ans="2\sinh 2x"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^2v}{dx^2}=\)</span>
+          <span class="slot" data-ans="4\cosh 2x"></span>
+          <span class="mj">\(\ ,\ \dfrac{d^3v}{dx^3}=\)</span>
+          <span class="slot" data-ans="8\sinh 2x"></span>
+        </div>
+
+        <div class="line">
+          <span class="mj">\(\dfrac{d^3y}{dx^3}=\)</span>
+          <span class="slot long" data-ans="u\frac{d^3v}{dx^3}"></span>
+          <span class="slot long" data-ans="+3\frac{du}{dx}\frac{d^2v}{dx^2}"></span>
+          <span class="slot long" data-ans="+3\frac{d^2u}{dx^2}\frac{dv}{dx}"></span>
+          <span class="slot long" data-ans="+v\frac{d^3u}{dx^3}"></span>
+        </div>
+
+        <div class="line indent">
+          <span class="mj">\(=\)</span>
+          <span class="slot long" data-ans="8x^3\sinh 2x"></span>
+          <span class="slot long" data-ans="+36x^2\cosh 2x"></span>
+          <span class="slot long" data-ans="+36x\sinh 2x"></span>
+          <span class="slot long" data-ans="+6\cosh 2x"></span>
+        </div>
+
+        <div class="controls">
+          <button class="btnCheck" onclick="checkSection('ex2', true)">Check</button>
+          <button class="btnReset" onclick="resetSection('ex2')">Reset</button>
+          <button class="btnClear" onclick="clearMarks('ex2')">Clear marks</button>
+        </div>
+      </div>
+
+      <div class="lockedOverlay"><div class="lockedPill">Locked — complete Example 1 first</div></div>
+    </div>
+
+  </div>
+
+  <!-- ===== Right: ALWAYS VISIBLE TILE BANK ===== -->
+  <div class="rightCol">
+    <div class="bankCard">
+      <div class="bankTitle">Tiles</div>
+      <div class="bankSub" id="bankSub">Active: Formula</div>
+      <div class="bank" id="tileBank"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   Key fixes:
+   1) Correct-check now normalises answers: "\sin" vs "\\sin" etc.
+      (This was the reason correct solutions weren’t being recognised.)
+   2) Duplicate tiles are accepted automatically (same value string).
+   3) Sequencing: Example 1 unlocks after Formula; Example 2 after Ex1.
+   4) Tile bank stays on screen always (single sticky bank on right).
+   ========================================================= */
+
+function typesetSoon(){
+  if(window.MathJax && MathJax.typeset) MathJax.typeset();
+}
+
+// Single source of truth for tile strings (use single backslashes)
+const SECTIONS = {
+  theorem: {
+    label: "Formula",
+    workId: "work-theorem",
+    cardId: "card-theorem",
+    tiles: [
+      {id:"t_sum",  tex:"\\sum_{k=0}^{n}"},
+      {id:"t_bin",  tex:"\\binom{n}{k}"},
+      {id:"t_dku",  tex:"\\frac{d^k u}{dx^k}"},
+      {id:"t_dnv",  tex:"\\frac{d^{n-k} v}{dx^{n-k}}"},
+    ]
+  },
+  ex1: {
+    label: "Example 1",
+    workId: "work-ex1",
+    cardId: "card-ex1",
+    tiles: [
+      {id:"e1_u",   tex:"e^x"},
+      {id:"e1_v",   tex:"\\sin x"},
+      {id:"e1_un",  tex:"e^x"},
+      {id:"e1_dv1", tex:"\\cos x"},
+      {id:"e1_dv2", tex:"-\\sin x"},
+      {id:"e1_dv3", tex:"-\\cos x"},
+      {id:"e1_dv4", tex:"\\sin x"},
+      {id:"e1_L1",  tex:"u\\frac{d^4v}{dx^4}"},
+      {id:"e1_L2",  tex:"+4\\frac{du}{dx}\\frac{d^3v}{dx^3}"},
+      {id:"e1_L3",  tex:"+6\\frac{d^2u}{dx^2}\\frac{d^2v}{dx^2}"},
+      {id:"e1_L4",  tex:"+4\\frac{d^3u}{dx^3}\\frac{dv}{dx}"},
+      {id:"e1_L5",  tex:"+v\\frac{d^4u}{dx^4}"},
+      {id:"e1_E1",  tex:"e^x\\sin x"},
+      {id:"e1_E2",  tex:"-4e^x\\cos x"},
+      {id:"e1_E3",  tex:"-6e^x\\sin x"},
+      {id:"e1_E4",  tex:"+4e^x\\cos x"},
+      {id:"e1_E5",  tex:"+e^x\\sin x"},
+      {id:"e1_F",   tex:"-4e^x\\sin x"},
+    ]
+  },
+  ex2: {
+    label: "Example 2",
+    workId: "work-ex2",
+    cardId: "card-ex2",
+    tiles: [
+      {id:"e2_u",   tex:"x^3"},
+      {id:"e2_v",   tex:"\\cosh 2x"},
+      {id:"e2_du",  tex:"3x^2"},
+      {id:"e2_d2u", tex:"6x"},
+      {id:"e2_d3u", tex:"6"},
+      {id:"e2_dv",  tex:"2\\sinh 2x"},
+      {id:"e2_d2v", tex:"4\\cosh 2x"},
+      {id:"e2_d3v", tex:"8\\sinh 2x"},
+      {id:"e2_L1",  tex:"u\\frac{d^3v}{dx^3}"},
+      {id:"e2_L2",  tex:"+3\\frac{du}{dx}\\frac{d^2v}{dx^2}"},
+      {id:"e2_L3",  tex:"+3\\frac{d^2u}{dx^2}\\frac{dv}{dx}"},
+      {id:"e2_L4",  tex:"+v\\frac{d^3u}{dx^3}"},
+      {id:"e2_E1",  tex:"8x^3\\sinh 2x"},
+      {id:"e2_E2",  tex:"+36x^2\\cosh 2x"},
+      {id:"e2_E3",  tex:"+36x\\sinh 2x"},
+      {id:"e2_E4",  tex:"+6\\cosh 2x"},
+    ]
+  }
+};
+
+const ORDER = ["theorem","ex1","ex2"];
+let active = "theorem";
+let unlocked = new Set(["theorem"]);
+
+// Helpers
+function q(sel, root=document){ return root.querySelector(sel); }
+function qa(sel, root=document){ return Array.from(root.querySelectorAll(sel)); }
+
+// Normalise for checking (fixes the “not recognising correct solutions” issue)
+function norm(s){
+  return (s ?? "")
+    .trim()
+    .replace(/\s+/g," ")
+    .replace(/\\\\/g,"\\"); // treat "\\sin" and "\sin" as the same
+}
+
+function createTileEl(sectionKey, tile){
+  const el = document.createElement("div");
+  el.className = "tile";
+  el.dataset.section = sectionKey;
+  el.dataset.value = tile.tex;       // already in normal LaTeX form
+  el.dataset.tileId = tile.id;
+  el.innerHTML = `\\(${tile.tex}\\)`;
+  el.addEventListener("pointerdown", onPointerDown);
+  return el;
+}
+
+function setActive(sectionKey){
+  active = sectionKey;
+
+  // Card highlight
+  ORDER.forEach(k=>{
+    const card = document.getElementById(SECTIONS[k].cardId);
+    card.classList.toggle("activeCard", k === sectionKey);
+  });
+
+  // Build the right-hand bank for the active section
+  rebuildBank(sectionKey);
+
+  // Subtitle
+  q("#bankSub").textContent = "Active: " + SECTIONS[sectionKey].label;
+
+  typesetSoon();
+}
+
+function rebuildBank(sectionKey){
+  const bank = q("#tileBank");
+  bank.innerHTML = "";
+
+  // Collect all tiles currently placed in slots for this section (so we don't duplicate them)
+  const work = document.getElementById(SECTIONS[sectionKey].workId);
+  const placedTiles = new Set(qa(".slot .tile", work).map(t => t.dataset.tileId));
+
+  // Start from canonical list; add only those not currently in slots
+  const tiles = [...SECTIONS[sectionKey].tiles].filter(t => !placedTiles.has(t.id));
+  tiles.sort(()=>Math.random()-0.5).forEach(t => bank.appendChild(createTileEl(sectionKey, t)));
+
+  // Also append any “returned” tiles already in bank that belong to this section (none initially)
+  typesetSoon();
+}
+
+function lockCards(){
+  ORDER.forEach(k=>{
+    const card = document.getElementById(SECTIONS[k].cardId);
+    const isUnlocked = unlocked.has(k);
+    card.classList.toggle("locked", !isUnlocked);
+    const overlay = q(".lockedOverlay", card);
+    if(overlay) overlay.style.display = isUnlocked ? "none" : "flex";
+  });
+}
+
+function unlockNext(afterKey){
+  const idx = ORDER.indexOf(afterKey);
+  if(idx >= 0 && idx < ORDER.length-1){
+    const next = ORDER[idx+1];
+    unlocked.add(next);
+    lockCards();
+    setActive(next);
+    // scroll to next card (nice but not required)
+    document.getElementById(SECTIONS[next].cardId).scrollIntoView({behavior:"smooth", block:"start"});
+  }
+}
+
+function init(){
+  // Stamp section on slots (used to route drops)
+  ORDER.forEach(k=>{
+    const work = document.getElementById(SECTIONS[k].workId);
+    qa(".slot", work).forEach(s => s.dataset.section = k);
+  });
+
+  lockCards();
+  setActive("theorem");
+}
+window.addEventListener("load", init);
+
+// ---------- Pointer Dragging ----------
+let drag = null;
+
+function onPointerDown(e){
+  const tile = e.currentTarget;
+
+  // Only allow dragging tiles for active section
+  if(tile.dataset.section !== active) return;
+
+  tile.setPointerCapture(e.pointerId);
+  drag = { tile, pointerId: e.pointerId, fromBank: true };
+
+  tile.classList.add("floating");
+  moveFloating(tile, e.clientX, e.clientY);
+
+  document.addEventListener("pointermove", onPointerMove);
+  document.addEventListener("pointerup", onPointerUp, {once:true});
+}
+
+function onPointerMove(e){
+  if(!drag || e.pointerId !== drag.pointerId) return;
+  moveFloating(drag.tile, e.clientX, e.clientY);
+}
+
+function moveFloating(tile, x, y){
+  tile.style.left = x + "px";
+  tile.style.top  = y + "px";
+}
+
+function onPointerUp(e){
+  document.removeEventListener("pointermove", onPointerMove);
+  if(!drag) return;
+
+  const tile = drag.tile;
+  tile.classList.remove("floating");
+  tile.style.left = "";
+  tile.style.top = "";
+
+  const sectionKey = tile.dataset.section;
+  const work = document.getElementById(SECTIONS[sectionKey].workId);
+
+  // detect target
+  tile.style.visibility = "hidden";
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  tile.style.visibility = "visible";
+  const slot = under ? under.closest(".slot") : null;
+
+  if(slot && slot.dataset.section === sectionKey){
+    // if slot already has a tile, return it to bank
+    if(slot.firstElementChild){
+      const returning = slot.firstElementChild;
+      returning.remove();
+      q("#tileBank").appendChild(returning);
+    }
+    slot.appendChild(tile);
+    slot.classList.remove("ok","bad");
+  }else{
+    // return tile to bank
+    q("#tileBank").appendChild(tile);
+  }
+
+  drag = null;
+  typesetSoon();
+}
+
+// ---------- Check / Reset ----------
+function clearMarks(sectionKey){
+  const work = document.getElementById(SECTIONS[sectionKey].workId);
+  qa(".slot", work).forEach(s => s.classList.remove("ok","bad"));
+}
+
+function sectionComplete(sectionKey){
+  const work = document.getElementById(SECTIONS[sectionKey].workId);
+  const slots = qa(".slot", work);
+  return slots.every(slot=>{
+    const tile = slot.firstElementChild;
+    return tile && norm(tile.dataset.value) === norm(slot.dataset.ans);
+  });
+}
+
+function checkSection(sectionKey, autoAdvance){
+  // Only check active section (prevents confusion)
+  if(sectionKey !== active) return;
+
+  const work = document.getElementById(SECTIONS[sectionKey].workId);
+  const slots = qa(".slot", work);
+
+  let allOk = true;
+
+  slots.forEach(slot=>{
+    const tile = slot.firstElementChild;
+    slot.classList.remove("ok","bad");
+
+    if(!tile){
+      slot.classList.add("bad");
+      allOk = false;
+      return;
+    }
+
+    // Accept duplicates naturally (same tex string). Also normalise slashes/spaces.
+    const got = norm(tile.dataset.value);
+    const want = norm(slot.dataset.ans);
+
+    if(got === want){
+      slot.classList.add("ok");
+    }else{
+      slot.classList.add("bad");
+      allOk = false;
+    }
+  });
+
+  if(allOk){
+    alert("Excellent — fully correct!");
+    if(autoAdvance){
+      unlockNext(sectionKey);
+    }
+  }else{
+    // keep bank visible (already sticky); no state change
+  }
+}
+
+function resetSection(sectionKey){
+  // Only reset active section (so pupils can’t wipe earlier work accidentally)
+  if(sectionKey !== active) return;
+
+  const work = document.getElementById(SECTIONS[sectionKey].workId);
+
+  // Move all tiles back to bank
+  qa(".slot", work).forEach(slot=>{
+    slot.classList.remove("ok","bad");
+    if(slot.firstElementChild){
+      q("#tileBank").appendChild(slot.firstElementChild);
+    }
+  });
+
+  // Rebuild bank from canonical list (ensures none missing)
+  rebuildBank(sectionKey);
+  typesetSoon();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Monty Hall with 100 Doors</title>
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#fff; --ink:#111; --muted:#666; --line:#ddd;
+      --ok:#2e7d32; --bad:#c62828; --blue:#1e88e5; --amber:#f9a825;
+    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:var(--ink)}
+    .wrap{max-width:1100px;margin:0 auto;padding:22px}
+    h1{margin:0 0 6px;font-size:26px}
+    p{margin:0 0 14px;color:var(--muted);line-height:1.4}
+    .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 6px 16px rgba(0,0,0,.05)}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    button, select, input{
+      font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;cursor:pointer
+    }
+    button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    button.warn{background:var(--amber);border-color:var(--amber);color:#111}
+    button.good{background:var(--ok);border-color:var(--ok);color:#fff}
+    button.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .small{font-size:13px;color:var(--muted)}
+    .status{padding:10px 12px;border-radius:12px;background:#f1f3f8;border:1px dashed #cfd5e3}
+    .status b{color:var(--ink)}
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(20, minmax(0,1fr));
+      gap:6px;
+      user-select:none;
+    }
+    .door{
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:#fff;
+      padding:8px 0;
+      text-align:center;
+      font-size:12px;
+      line-height:1;
+      cursor:pointer;
+      transition:transform .08s, box-shadow .08s, border-color .08s;
+    }
+    .door:hover{transform:translateY(-1px);box-shadow:0 6px 10px rgba(0,0,0,.05)}
+    .door.selected{border-color:var(--blue);box-shadow:0 0 0 3px rgba(30,136,229,.15)}
+    .door.opened{background:#f7f7f7;color:#999;border-color:#eee;cursor:default}
+    .door.remaining{border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.07)}
+    .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:13px}
+    .swatch{width:14px;height:14px;border-radius:4px;border:1px solid var(--line);background:#fff}
+    .swatch.sel{border-color:var(--blue); box-shadow:0 0 0 3px rgba(30,136,229,.15) inset}
+    .swatch.open{background:#f7f7f7;border-color:#eee}
+    .swatch.rem{border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.07) inset}
+    .two-col{display:grid;grid-template-columns:1.15fr .85fr;gap:12px}
+    @media (max-width: 900px){
+      .grid{grid-template-columns: repeat(10, minmax(0,1fr))}
+      .two-col{grid-template-columns:1fr}
+    }
+    .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .kpi .box{border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px}
+    .kpi .num{font-size:22px;font-weight:700;margin-top:6px}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Monty Hall with <span id="nLabel">100</span> doors</h1>
+    <p>
+      Pick a door, confirm your choice, then the host opens <b>98</b> goat doors (never the car and never your pick),
+      leaving <b>2</b> unopened doors. Choose to <b>stay</b> or <b>switch</b>.
+    </p>
+
+    <div class="panel two-col">
+      <div>
+        <div class="row" style="justify-content:space-between">
+          <div class="status" style="flex:1">
+            <div><b>Stage:</b> <span id="stageText">Pick a door</span></div>
+            <div class="small" id="detailText">Click any door below to select it.</div>
+          </div>
+          <button id="resetBtn" class="warn">Reset</button>
+        </div>
+
+        <div class="legend">
+          <span class="pill"><span class="swatch"></span> unopened</span>
+          <span class="pill"><span class="swatch sel"></span> your pick</span>
+          <span class="pill"><span class="swatch open"></span> opened goat</span>
+          <span class="pill"><span class="swatch rem"></span> other remaining</span>
+        </div>
+
+        <div class="panel" style="margin:12px 0 0">
+          <div class="row" style="gap:8px">
+            <button id="confirmBtn" class="primary" disabled>Confirm pick</button>
+            <button id="stayBtn" class="good" disabled>Stay</button>
+            <button id="switchBtn" class="primary" disabled>Switch</button>
+            <button id="revealBtn" class="bad" disabled>Reveal</button>
+          </div>
+          <div class="small" style="margin-top:8px">
+            Your selected door: <span class="mono" id="pickedOut">—</span> &nbsp;|&nbsp;
+            Remaining other door: <span class="mono" id="otherOut">—</span>
+          </div>
+        </div>
+
+        <div class="panel" style="margin:12px 0 0">
+          <div class="row">
+            <div style="min-width:250px">
+              <div class="small">Quick simulation (repeats the 100-door game many times)</div>
+              <div class="row" style="gap:8px;margin-top:6px">
+                <label class="small" for="trials">Trials:</label>
+                <input id="trials" type="number" min="1" max="50000" value="1000" style="width:120px" />
+                <button id="simStay" class="">Simulate stay</button>
+                <button id="simSwitch" class="primary">Simulate switch</button>
+              </div>
+            </div>
+            <div class="kpi" style="flex:1">
+              <div class="box">
+                <div class="small">Stay win rate</div>
+                <div class="num" id="stayRate">—</div>
+              </div>
+              <div class="box">
+                <div class="small">Switch win rate</div>
+                <div class="num" id="switchRate">—</div>
+              </div>
+              <div class="box">
+                <div class="small">Expected (100 doors)</div>
+                <div class="num"><span class="mono">Stay 1/100</span><br/><span class="mono">Switch 99/100</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="small" id="simNote" style="margin-top:8px;color:var(--muted)"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel" style="margin:0">
+          <div class="small">Doors (1–100)</div>
+          <div id="grid" class="grid" aria-label="door grid"></div>
+        </div>
+
+        <div class="panel">
+          <div class="small">Outcome</div>
+          <div id="outcome" class="status" style="margin-top:8px">
+            No outcome yet.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const N = 100; // fixed as requested
+  const grid = document.getElementById('grid');
+
+  const stageText = document.getElementById('stageText');
+  const detailText = document.getElementById('detailText');
+
+  const confirmBtn = document.getElementById('confirmBtn');
+  const stayBtn = document.getElementById('stayBtn');
+  const switchBtn = document.getElementById('switchBtn');
+  const revealBtn = document.getElementById('revealBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const pickedOut = document.getElementById('pickedOut');
+  const otherOut = document.getElementById('otherOut');
+  const outcome = document.getElementById('outcome');
+
+  const trialsInp = document.getElementById('trials');
+  const simStay = document.getElementById('simStay');
+  const simSwitch = document.getElementById('simSwitch');
+  const stayRate = document.getElementById('stayRate');
+  const switchRate = document.getElementById('switchRate');
+  const simNote = document.getElementById('simNote');
+
+  let doors = []; // {i, state: 'closed'|'opened', el}
+  let carDoor = null;
+  let pickDoor = null;
+  let otherRemaining = null;
+  let stage = 'pick'; // 'pick' -> 'switch' -> 'revealed'
+  let finalChoice = null; // the door index the user ends with
+
+  function randInt(min, maxInclusive){
+    return Math.floor(Math.random() * (maxInclusive - min + 1)) + min;
+  }
+
+  function setStage(s){
+    stage = s;
+    if (s === 'pick'){
+      stageText.textContent = 'Pick a door';
+      detailText.textContent = 'Click any door below to select it.';
+    } else if (s === 'switch'){
+      stageText.textContent = 'Stay or switch';
+      detailText.textContent = 'The host has opened 98 goat doors. Choose stay or switch, then reveal.';
+    } else if (s === 'revealed'){
+      stageText.textContent = 'Revealed';
+      detailText.textContent = 'Reset to play again.';
+    }
+  }
+
+  function updateButtons(){
+    confirmBtn.disabled = !(stage === 'pick' && pickDoor !== null);
+    stayBtn.disabled = !(stage === 'switch' && finalChoice === null);
+    switchBtn.disabled = !(stage === 'switch' && finalChoice === null);
+    revealBtn.disabled = !(stage === 'switch' && finalChoice !== null);
+  }
+
+  function clearOutcome(){
+    outcome.innerHTML = 'No outcome yet.';
+    outcome.style.borderColor = '#cfd5e3';
+    outcome.style.background = '#f1f3f8';
+  }
+
+  function markDoorClasses(){
+    doors.forEach(d => {
+      d.el.classList.toggle('selected', d.i === pickDoor && stage !== 'revealed');
+      d.el.classList.toggle('opened', d.state === 'opened');
+      d.el.classList.toggle('remaining', stage !== 'pick' && d.i === otherRemaining);
+    });
+  }
+
+  function setPick(i){
+    if (stage !== 'pick') return;
+    pickDoor = i;
+    pickedOut.textContent = String(i);
+    updateButtons();
+    markDoorClasses();
+  }
+
+  function init(){
+    // build doors UI once
+    grid.innerHTML = '';
+    doors = [];
+    for (let i = 1; i <= N; i++){
+      const btn = document.createElement('div');
+      btn.className = 'door';
+      btn.textContent = i;
+      btn.role = 'button';
+      btn.tabIndex = 0;
+
+      btn.addEventListener('click', () => setPick(i));
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(i); }
+      });
+
+      grid.appendChild(btn);
+      doors.push({ i, state: 'closed', el: btn });
+    }
+    resetGame();
+  }
+
+  function resetGame(){
+    // reset states
+    carDoor = randInt(1, N);
+    pickDoor = null;
+    otherRemaining = null;
+    finalChoice = null;
+
+    doors.forEach(d => {
+      d.state = 'closed';
+      d.el.textContent = d.i;
+      d.el.style.color = '';
+      d.el.style.fontWeight = '';
+    });
+
+    pickedOut.textContent = '—';
+    otherOut.textContent = '—';
+
+    setStage('pick');
+    clearOutcome();
+    updateButtons();
+    markDoorClasses();
+  }
+
+  function hostOpens(){
+    // Determine the "other remaining" unopened door besides the user's pick.
+    // Host must avoid: the car door and the user's pick. Then opens 98 goats.
+    const candidates = [];
+    for (let i = 1; i <= N; i++){
+      if (i === pickDoor) continue;
+      if (i === carDoor) continue;
+      candidates.push(i);
+    }
+
+    // We need exactly one other door to remain closed besides pickDoor.
+    // If pickDoor is carDoor, then candidates are 99 goat doors; host leaves one goat closed.
+    // If pickDoor isn't carDoor, candidates are 98 goat doors; host must leave the carDoor closed.
+    if (pickDoor === carDoor){
+      otherRemaining = candidates[randInt(0, candidates.length - 1)];
+    } else {
+      otherRemaining = carDoor;
+    }
+    otherOut.textContent = String(otherRemaining);
+
+    // Now open all doors except pickDoor and otherRemaining (98 doors)
+    doors.forEach(d => {
+      if (d.i !== pickDoor && d.i !== otherRemaining){
+        d.state = 'opened';
+        d.el.textContent = '🐐';
+      }
+    });
+
+    setStage('switch');
+    markDoorClasses();
+    updateButtons();
+  }
+
+  function chooseStay(){
+    if (stage !== 'switch' || finalChoice !== null) return;
+    finalChoice = pickDoor;
+    // highlight final choice (bold)
+    doors.find(d => d.i === finalChoice).el.style.fontWeight = '800';
+    updateButtons();
+  }
+
+  function chooseSwitch(){
+    if (stage !== 'switch' || finalChoice !== null) return;
+    finalChoice = otherRemaining;
+    doors.find(d => d.i === finalChoice).el.style.fontWeight = '800';
+    updateButtons();
+  }
+
+  function reveal(){
+    if (stage !== 'switch' || finalChoice === null) return;
+
+    // reveal the two closed doors (final choice + the other closed one)
+    const closed = [pickDoor, otherRemaining];
+    closed.forEach(i => {
+      const d = doors.find(x => x.i === i);
+      if (!d) return;
+      d.el.textContent = (i === carDoor) ? '🚗' : '🐐';
+    });
+
+    const win = (finalChoice === carDoor);
+    outcome.style.borderColor = win ? 'rgba(46,125,50,.4)' : 'rgba(198,40,40,.4)';
+    outcome.style.background = win ? 'rgba(46,125,50,.08)' : 'rgba(198,40,40,.08)';
+    outcome.innerHTML = win
+      ? `<b>You WIN!</b> The car was behind door <span class="mono">${carDoor}</span>.`
+      : `<b>You lose.</b> The car was behind door <span class="mono">${carDoor}</span>.`;
+
+    setStage('revealed');
+    // lock visuals: show selection styles differently
+    doors.forEach(d => d.el.classList.remove('selected'));
+    updateButtons();
+  }
+
+  // Simulation helpers
+  function simulate(trials, doSwitch){
+    let wins = 0;
+    for (let t = 0; t < trials; t++){
+      const car = randInt(1, N);
+      const pick = randInt(1, N);
+
+      // host logic identical
+      let other;
+      if (pick === car){
+        // leave one random goat closed among the 99 goats
+        // pick a random door that isn't pick (car) => any goat
+        let r;
+        do { r = randInt(1, N); } while (r === pick);
+        other = r; // guaranteed goat
+      } else {
+        other = car; // leave car closed
+      }
+
+      const final = doSwitch ? other : pick;
+      if (final === car) wins++;
+    }
+    return wins / trials;
+  }
+
+  // Wire buttons
+  confirmBtn.addEventListener('click', () => {
+    if (pickDoor === null) return;
+    hostOpens();
+  });
+
+  stayBtn.addEventListener('click', chooseStay);
+  switchBtn.addEventListener('click', chooseSwitch);
+  revealBtn.addEventListener('click', reveal);
+  resetBtn.addEventListener('click', resetGame);
+
+  simStay.addEventListener('click', () => {
+    const T = Math.max(1, Math.min(50000, Number(trialsInp.value) || 1000));
+    const r = simulate(T, false);
+    stayRate.textContent = (r*100).toFixed(2) + '%';
+    simNote.textContent = `Stay: ${Math.round(r*T)} wins out of ${T}.`;
+  });
+
+  simSwitch.addEventListener('click', () => {
+    const T = Math.max(1, Math.min(50000, Number(trialsInp.value) || 1000));
+    const r = simulate(T, true);
+    switchRate.textContent = (r*100).toFixed(2) + '%';
+    simNote.textContent = `Switch: ${Math.round(r*T)} wins out of ${T}.`;
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
