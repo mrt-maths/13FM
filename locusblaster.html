@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Locus Blaster</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --ink:#eaf0ff;
+      --muted:#a8b3d6;
+      --line:rgba(255,255,255,.14);
+      --good:#22c55e;
+      --bad:#ef4444;
+      --warn:#f59e0b;
+      --cyan:#22d3ee;
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(1200px 800px at 20% 10%, #18235a 0%, var(--bg) 55%);
+      color:var(--ink);
+      overflow-x:hidden;
+    }
+    .wrap{max-width:1150px; margin:0 auto; padding:16px;}
+    .top{
+      display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+    h1{margin:0; font-size:18px; letter-spacing:.3px;}
+    .hud{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .pill{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:7px 10px;
+      font-size:13px;
+      color:var(--muted);
+      display:flex; gap:8px; align-items:center;
+      backdrop-filter: blur(6px);
+    }
+    .pill strong{color:var(--ink); font-weight:900;}
+    .btnrow{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    button{
+      border:0;
+      border-radius:12px;
+      padding:10px 14px;
+      font-weight:900;
+      cursor:pointer;
+      color:#081024;
+      background:linear-gradient(180deg, #ffd36a, #f59e0b);
+      box-shadow:0 12px 22px rgba(245,158,11,.2);
+      transition:.12s transform, .12s opacity;
+    }
+    button:hover{transform:translateY(-1px)}
+    button:disabled{opacity:.45; cursor:not-allowed; transform:none}
+    .ghost{
+      background:rgba(255,255,255,.08);
+      color:var(--ink);
+      border:1px solid var(--line);
+      box-shadow:none;
+    }
+    .layout{
+      display:grid;
+      grid-template-columns: 1.35fr .85fr;
+      gap:12px;
+      align-items:start;
+    }
+    @media (max-width:900px){ .layout{grid-template-columns: 1fr; } }
+
+    .panel{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow:0 14px 28px rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .panel .head{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .panel .head .title{font-weight:900;}
+    .panel .body{padding:12px 14px;}
+    .locusBox{
+      font-size:18px; line-height:1.35;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px dashed rgba(255,255,255,.20);
+      background:rgba(0,0,0,.18);
+      overflow:auto;
+    }
+    .hint{margin-top:8px; color:var(--muted); font-size:13px;}
+    .note{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--muted);
+      font-size:14px;
+    }
+    .note.bad{border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#ffd1d1;}
+
+    .canvasWrap{
+      position:relative;
+      padding:0;
+      background:linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.05));
+      min-height:320px;
+    }
+    canvas{display:block; width:100%; height:auto;}
+    .overlayTag{
+      position:absolute; left:12px; bottom:10px;
+      font-size:12px; color:rgba(234,240,255,.85);
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.14);
+      padding:6px 8px;
+      border-radius:999px;
+      backdrop-filter: blur(6px);
+      user-select:none;
+    }
+
+    /* Modal */
+    .modalBack{
+      position:fixed; inset:0;
+      display:none;
+      align-items:center; justify-content:center;
+      background:rgba(0,0,0,.55);
+      z-index:50;
+      padding:16px;
+    }
+    .modal{
+      width:min(760px, 96vw);
+      background:rgba(15,23,51,.98);
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:18px;
+      box-shadow:0 22px 44px rgba(0,0,0,.45);
+      overflow:hidden;
+    }
+    .modal .mhead{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.14);
+      display:flex; justify-content:space-between; align-items:center; gap:12px;
+    }
+    .modal .mhead .mtitle{font-weight:1000;}
+    .modal .mbody{padding:14px;}
+    .modal .mbody p{margin:0 0 10px; color:var(--muted); line-height:1.45}
+    .badge{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:var(--ink);
+      font-weight:900;
+      font-size:12px;
+    }
+    .kbd{
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      padding:2px 6px; border-radius:8px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.25);
+      font-size:12px; color:rgba(234,240,255,.9);
+    }
+
+    /* Fullscreen tweaks */
+    body.fs .wrap{max-width:none; padding:10px;}
+    body.fs .layout{grid-template-columns: 1.6fr .8fr;}
+    body.fs canvas{touch-action:manipulation;}
+  </style>
+
+  <script>
+    window.MathJax = { tex: {inlineMath: [['\\(','\\)'], ['$', '$']]} };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+  <div class="wrap" id="appRoot">
+    <div class="top">
+      <h1>Locus Blaster</h1>
+      <div class="hud">
+        <div class="pill">Round: <strong id="roundLbl">1</strong></div>
+        <div class="pill">Best: <strong id="bestLbl">0</strong></div>
+        <div class="pill">Time: <strong id="timeLbl">2:00</strong></div>
+        <div class="pill">Targets: <strong>2</strong></div>
+        <div class="pill">Penalty: <strong>−10s</strong></div>
+      </div>
+      <div class="btnrow">
+        <button id="checkBtn" title="Check (Enter)">Check</button>
+        <button id="fsBtn" class="ghost" title="Fullscreen">Fullscreen</button>
+        <button id="startBtn" class="ghost">Restart</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="panel canvasWrap" id="canvasPanel">
+        <div class="head">
+          <div class="title">Argand diagram (click points)</div>
+          <div class="badge">Axes: −10 to 10</div>
+        </div>
+        <canvas id="cv"></canvas>
+        <div class="overlayTag">Click points • Press <span class="kbd">Enter</span> to check</div>
+      </div>
+
+      <div class="panel">
+        <div class="head">
+          <div class="title">Target locus</div>
+          <div class="badge" id="typeBadge">Type 1/4</div>
+        </div>
+        <div class="body">
+          <div class="locusBox" id="locusBox">Loading…</div>
+          <div class="hint">
+            Exactly <b>2</b> points are on the locus. Click them, then <b>Check</b>.
+            Each mistake costs 10 seconds.
+          </div>
+          <div class="note" id="noteBox">Tip: click again to deselect a point.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalBack" id="modalBack" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="mhead">
+        <div class="mtitle" id="modalTitle">Explanation</div>
+        <button id="modalBtn" class="ghost">Continue</button>
+      </div>
+      <div class="mbody">
+        <p id="modalText">…</p>
+        <div class="badge" id="modalMeta">Round info</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== MathJax =====
+  function typeset(){
+    if (window.MathJax && window.MathJax.typesetPromise){
+      window.MathJax.typesetPromise().catch(()=>{});
+    }
+  }
+
+  // ===== helpers =====
+  const choice = arr => arr[Math.floor(Math.random()*arr.length)];
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  function nearly(a,b,eps=1e-6){ return Math.abs(a-b)<=eps; }
+
+  function add(z,w){ return {re:z.re+w.re, im:z.im+w.im}; }
+  function sub(z,w){ return {re:z.re-w.re, im:z.im-w.im}; }
+  function mulScalar(z,t){ return {re:z.re*t, im:z.im*t}; }
+  function norm(z){ return Math.hypot(z.re,z.im); }
+  function dot(a,b){ return a.re*b.re + a.im*b.im; }
+  function cross(a,b){ return a.re*b.im - a.im*b.re; }
+  function arg(z){ return Math.atan2(z.im,z.re); }
+  function wrapPi(x){ while (x<=-Math.PI) x+=2*Math.PI; while (x>Math.PI) x-=2*Math.PI; return x; }
+  function sameArg(v1,v2){ return Math.abs(cross(v1,v2))<=1e-6 && dot(v1,v2)>1e-6; }
+
+  // ===== TeX formatting: integers only =====
+  function texInt(n){ return String(n); }
+  function texZMinus(a){
+    const parts=["z"];
+    if (a.re!==0) parts.push((a.re>0? "-" : "+") + texInt(Math.abs(a.re)));
+    if (a.im!==0){
+      const sign = (a.im>0) ? "-" : "+";
+      const mag = Math.abs(a.im);
+      const iPart = (mag===1) ? "\\mathrm{i}" : texInt(mag)+"\\mathrm{i}";
+      parts.push(sign + iPart);
+    }
+    return parts.join("");
+  }
+
+  // ===== integer grid =====
+  const LIM = 10;
+  function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  function randomGridPoint(){ return {re: randomInt(-LIM,LIM), im: randomInt(-LIM,LIM)}; }
+  function inBounds(z){ return z.re>=-LIM && z.re<=LIM && z.im>=-LIM && z.im<=LIM; }
+  function key(z){ return z.re + "," + z.im; }
+  function uniquePoints(list){
+    const out=[], seen=new Set();
+    for (const z of list){
+      const k=key(z);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(z);
+    }
+    return out;
+  }
+
+  // ===== angles (exact, integers only) =====
+  const ANGLES = [
+    {n:-3,d:4},{n:-2,d:3},{n:-1,d:2},{n:-1,d:3},{n:-1,d:4},
+    {n:0,d:1},
+    {n:1,d:4},{n:1,d:3},{n:1,d:2},{n:2,d:3},{n:3,d:4},{n:1,d:1}
+  ];
+  function angleToRad(fr){ return (fr.n/fr.d)*Math.PI; }
+  function angleToTex(fr){
+    const n=fr.n,d=fr.d;
+    if (n===0) return "0";
+    if (d===1) return (n===1? "\\pi" : "-\\pi");
+    const absN=Math.abs(n);
+    const num = (absN===1) ? "\\pi" : absN+"\\pi";
+    const frac = "\\frac{"+num+"}{"+d+"}";
+    return n<0 ? "-"+frac : frac;
+  }
+
+  // ===== locus types (cycle order) =====
+  // 0: |z-a|=k
+  // 1: arg(z-a)=k
+  // 2: |z-a|=|z-b|
+  // 3: arg(z-a)=arg(z-b)
+
+  // For circle: use integer 3-4-5 multiples => k in {5,10}
+  const SCALES_345 = [1,2]; // s -> dx=3s, dy=4s, k=5s
+
+  function buildCircleLocus(){
+    for (let tries=0; tries<20000; tries++){
+      const a = randomGridPoint();
+      const s = choice(SCALES_345);
+      const k = 5*s;
+      const dx=3*s, dy=4*s;
+      const test1 = add(a,{re:dx,im:dy});
+      const test2 = add(a,{re:-dx,im:-dy});
+      if (inBounds(test1) && inBounds(test2)){
+        const tex = `\\(\\left|${texZMinus(a)}\\right|=${texInt(k)}\\)`;
+        const checker = (z)=> nearly(norm(sub(z,a)), k, 2e-3);
+        return {typeId:0, a, b:null, k, theta:null, thetaTex:null, tex, checker, scale345:s};
+      }
+    }
+    const a={re:0,im:0}, k=5;
+    return {typeId:0,a,b:null,k,theta:null,thetaTex:null,
+      tex:`\\(\\left|${texZMinus(a)}\\right|=${texInt(k)}\\)`,
+      checker:(z)=> nearly(norm(sub(z,a)), k, 2e-3),
+      scale345:1
+    };
+  }
+
+  function buildArgRayLocus(){
+    for (let tries=0; tries<25000; tries++){
+      const a = randomGridPoint();
+      const fr = choice(ANGLES);
+      const theta = angleToRad(fr);
+      const thetaTex = angleToTex(fr);
+      const dir = {re:Math.cos(theta), im:Math.sin(theta)};
+      const r = choice([2,3,4,5,6,7,8,9]);
+      const z = {
+        re: Math.round(a.re + r*dir.re),
+        im: Math.round(a.im + r*dir.im)
+      };
+      if (!inBounds(z)) continue;
+      if (z.re===a.re && z.im===a.im) continue;
+
+      const tex = `\\(\\arg\\left(${texZMinus(a)}\\right)=${thetaTex}\\)`;
+      const checker = (w)=>{
+        const v=sub(w,a);
+        if (v.re===0 && v.im===0) return false;
+        return Math.abs(wrapPi(arg(v)-theta))<1e-3;
+      };
+      if (checker(z)) return {typeId:1,a,b:null,k:null,theta,thetaTex,tex,checker};
+    }
+    const a={re:0,im:0}, theta=0;
+    return {typeId:1,a,b:null,k:null,theta,thetaTex:"0",
+      tex:`\\(\\arg\\left(${texZMinus(a)}\\right)=0\\)`,
+      checker:(w)=>{ const v=sub(w,a); if(v.re===0&&v.im===0) return false; return Math.abs(wrapPi(arg(v)-theta))<1e-3; }
+    };
+  }
+
+  function buildEquidistantLocus(){
+    for (let tries=0; tries<30000; tries++){
+      const a=randomGridPoint();
+      const b=randomGridPoint();
+      if (a.re===b.re && a.im===b.im) continue;
+
+      // Try a point on perp bisector to ensure it exists in bounds
+      const m = mulScalar(add(a,b),0.5);
+      // require midpoint integer or half-integer? but points shown are integers;
+      // still fine: locus line exists; we just need 2 integer solutions in pool.
+      const tex = `\\(\\left|${texZMinus(a)}\\right|=\\left|${texZMinus(b)}\\right|\\)`;
+      const checker = (w)=> nearly(norm(sub(w,a)), norm(sub(w,b)), 2e-3);
+
+      // quick test: find at least one integer point satisfying
+      let found=0;
+      for (let t=-10;t<=10;t++){
+        for (let u=-10;u<=10;u++){
+          const z={re:t,im:u};
+          if (checker(z)){ found++; if (found>=2) break; }
+        }
+        if (found>=2) break;
+      }
+      if (found>=2) return {typeId:2,a,b,k:null,theta:null,thetaTex:null,tex,checker};
+    }
+    const a={re:-2,im:0}, b={re:2,im:0};
+    return {typeId:2,a,b,k:null,theta:null,thetaTex:null,
+      tex:`\\(\\left|${texZMinus(a)}\\right|=\\left|${texZMinus(b)}\\right|\\)`,
+      checker:(w)=> nearly(norm(sub(w,a)), norm(sub(w,b)), 2e-3)
+    };
+  }
+
+  function buildSameArgTwoPointsLocus(){
+    for (let tries=0; tries<35000; tries++){
+      const a=randomGridPoint();
+      const b=randomGridPoint();
+      if (a.re===b.re && a.im===b.im) continue;
+
+      const d=sub(b,a), dn=norm(d);
+      if (dn<1e-6) continue;
+      const dir=mulScalar(d, 1/dn);
+
+      const t = choice([2,3,4,5,6,7,8]);
+      const useA = Math.random()<0.5;
+      const z = useA
+        ? {re: Math.round(a.re - t*dir.re), im: Math.round(a.im - t*dir.im)}
+        : {re: Math.round(b.re + t*dir.re), im: Math.round(b.im + t*dir.im)};
+      if (!inBounds(z)) continue;
+
+      const tex = `\\(\\arg\\left(${texZMinus(a)}\\right)=\\arg\\left(${texZMinus(b)}\\right)\\)`;
+      const checker = (w)=>{
+        const v1=sub(w,a), v2=sub(w,b);
+        if ((v1.re===0&&v1.im===0) || (v2.re===0&&v2.im===0)) return false;
+        return sameArg(v1,v2);
+      };
+
+      // ensure at least 2 integer solutions exist in bounds
+      let found=0;
+      for (let x=-10;x<=10;x++){
+        for (let y=-10;y<=10;y++){
+          const p={re:x,im:y};
+          if (checker(p)){ found++; if(found>=2) break; }
+        }
+        if (found>=2) break;
+      }
+      if (found>=2 && checker(z)) return {typeId:3,a,b,k:null,theta:null,thetaTex:null,tex,checker};
+    }
+    const a={re:-3,im:0}, b={re:3,im:0};
+    return {typeId:3,a,b,k:null,theta:null,thetaTex:null,
+      tex:`\\(\\arg\\left(${texZMinus(a)}\\right)=\\arg\\left(${texZMinus(b)}\\right)\\)`,
+      checker:(w)=>{ const v1=sub(w,a), v2=sub(w,b); if((v1.re===0&&v1.im===0)||(v2.re===0&&v2.im===0)) return false; return sameArg(v1,v2); }
+    };
+  }
+
+  function buildLocus(typeId){
+    if (typeId===0) return buildCircleLocus();
+    if (typeId===1) return buildArgRayLocus();
+    if (typeId===2) return buildEquidistantLocus();
+    return buildSameArgTwoPointsLocus();
+  }
+
+  // ===== pool generation (all integer points visible are a small pool) =====
+  const POOL_SIZE = 20;
+  const TARGETS = 2;
+
+  function genCorrectCandidates(locus){
+    const out=[];
+    for (let x=-10;x<=10;x++){
+      for (let y=-10;y<=10;y++){
+        const z={re:x,im:y};
+        if (locus.checker(z)) out.push(z);
+      }
+    }
+    return out;
+  }
+
+  function genWrongPoints(locus, need, banned){
+    const out=[], seen=new Set(banned);
+    for (let tries=0; tries<400000 && out.length<need; tries++){
+      const z=randomGridPoint();
+      const k=key(z);
+      if (seen.has(k)) continue;
+      if (!locus.checker(z)){
+        seen.add(k); out.push(z);
+      }
+    }
+    return out;
+  }
+
+  function buildRound(roundIndex){
+    const typeId = (roundIndex-1) % 4;
+    const locus = buildLocus(typeId);
+
+    const candidates = genCorrectCandidates(locus);
+    if (candidates.length < TARGETS) return buildRound(roundIndex);
+
+    shuffle(candidates);
+    const correct = candidates.slice(0, TARGETS);
+    const correctSet = new Set(correct.map(key));
+
+    const wrong = genWrongPoints(locus, POOL_SIZE - TARGETS, correctSet);
+    const pool = uniquePoints(shuffle([...correct, ...wrong]));
+
+    return {
+      roundIndex, typeId, locus,
+      pool,
+      correctSet,
+      selected: new Set()
+    };
+  }
+
+  // ===== Explanations =====
+  function fmtA(z){
+    const re=z.re, im=z.im;
+    if (im===0) return String(re);
+    if (re===0) return (im===1? "i" : im===-1? "-i" : `${im}i`);
+    const s = im<0? "-" : "+";
+    const b = Math.abs(im)===1 ? "i" : `${Math.abs(im)}i`;
+    return `${re}${s}${b}`;
+  }
+
+  function explainWhy(locus, z, shouldBeOn){
+    const a=locus.a, b=locus.b;
+    if (locus.typeId===0){
+      const dist = norm(sub(z,a));
+      return shouldBeOn
+        ? `This point is on the locus because its distance from ${fmtA(a)} is ${dist.toFixed(2)}, which equals ${locus.k}.`
+        : `This point is not on the locus because its distance from ${fmtA(a)} is ${dist.toFixed(2)}, but the radius is ${locus.k}.`;
+    }
+    if (locus.typeId===1){
+      const v=sub(z,a);
+      const th=wrapPi(arg(v));
+      const want=wrapPi(locus.theta);
+      return shouldBeOn
+        ? `This point is on the locus because the direction from ${fmtA(a)} to the point has the required argument.`
+        : `This point is not on the locus because the direction from ${fmtA(a)} to the point has argument ${th.toFixed(2)}, not the required angle.`;
+    }
+    if (locus.typeId===2){
+      const da=norm(sub(z,a));
+      const db=norm(sub(z,b));
+      return shouldBeOn
+        ? `This point is on the locus because it is equally distant from ${fmtA(a)} and ${fmtA(b)}.`
+        : `This point is not on the locus because its distances differ: ${da.toFixed(2)} vs ${db.toFixed(2)}.`;
+    }
+    const v1=sub(z,a), v2=sub(z,b);
+    return shouldBeOn
+      ? `This point is on the locus because the rays from ${fmtA(a)} and ${fmtA(b)} to the point have the same direction (same argument).`
+      : `This point is not on the locus because the directions from ${fmtA(a)} and ${fmtA(b)} to the point do not match.`;
+  }
+
+  // ===== Canvas =====
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const canvasPanel = document.getElementById("canvasPanel");
+
+  function resizeCanvasToCSS(){
+    const rect = cv.getBoundingClientRect();
+    const w = rect.width;
+    if (!w || w < 10) return false;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width  = Math.round(w * dpr);
+    cv.height = Math.round(w * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return true;
+  }
+
+  function mapToCanvas(z, size){
+    const pad = 50;
+    const inner = size - 2*pad;
+    const s = inner/(2*LIM);
+    return { x: pad + (z.re + LIM)*s, y: pad + (LIM - z.im)*s };
+  }
+
+  function drawScene(st){
+    const rect = cv.getBoundingClientRect();
+    const size = rect.width;
+    if (!size || size < 10) return;
+
+    ctx.clearRect(0,0,size,size);
+
+    ctx.fillStyle = "rgba(0,0,0,.10)";
+    ctx.fillRect(0,0,size,size);
+
+    const pad=50;
+    const inner=size-2*pad;
+
+    // grid
+    ctx.save();
+    ctx.translate(pad,pad);
+    for (let i=0;i<=20;i++){
+      const x=i*inner/20, y=i*inner/20;
+      ctx.strokeStyle="rgba(255,255,255,.05)";
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,inner); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(inner,y); ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle="rgba(34,211,238,.65)";
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(inner/2,0); ctx.lineTo(inner/2,inner); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,inner/2); ctx.lineTo(inner,inner/2); ctx.stroke();
+    ctx.restore();
+
+    // axis labels (explicit Im/Re)
+    ctx.save();
+    ctx.fillStyle="rgba(234,240,255,.90)";
+    ctx.font="700 13px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText("Re", size-34, pad + inner/2 - 8);  // near +Re end
+    ctx.fillText("Im", pad + inner/2 + 8, 18);       // near +Im end
+    ctx.restore();
+
+    // tick labels (every 5)
+    ctx.save();
+    ctx.fillStyle="rgba(234,240,255,.55)";
+    ctx.font="12px system-ui,Segoe UI,Roboto,Arial";
+    for (let t=-10; t<=10; t+=5){
+      const p1 = mapToCanvas({re:t,im:0}, size);
+      ctx.fillText(String(t), p1.x-6, pad+inner/2+18);
+      const p2 = mapToCanvas({re:0,im:t}, size);
+      if (t!==0) ctx.fillText(String(t), pad+inner/2+8, p2.y+4);
+    }
+    ctx.restore();
+
+    // points
+    for (const p of st.pool){
+      const pos = mapToCanvas(p,size);
+      const k = key(p);
+      const isSel = st.selected.has(k);
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, isSel?11:9, 0, Math.PI*2);
+      ctx.fillStyle = isSel ? "rgba(245,158,11,.22)" : "rgba(34,211,238,.10)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, isSel?6:5, 0, Math.PI*2);
+      ctx.fillStyle = isSel ? "rgba(245,158,11,1)" : "rgba(34,211,238,.92)";
+      ctx.fill();
+      ctx.strokeStyle="rgba(255,255,255,.22)";
+      ctx.lineWidth=1;
+      ctx.stroke();
+    }
+  }
+
+  function hitTestPoint(st, mx, my){
+    const rect = cv.getBoundingClientRect();
+    const size = rect.width;
+    let best=null, bestD=1e9;
+    for (const p of st.pool){
+      const pos = mapToCanvas(p,size);
+      const d = Math.hypot(mx-pos.x, my-pos.y);
+      if (d < bestD){ bestD=d; best=p; }
+    }
+    return (best && bestD <= 14) ? best : null;
+  }
+
+  // ===== UI =====
+  const roundLbl = document.getElementById("roundLbl");
+  const bestLbl  = document.getElementById("bestLbl");
+  const timeLbl  = document.getElementById("timeLbl");
+  const locusBox = document.getElementById("locusBox");
+  const typeBadge= document.getElementById("typeBadge");
+  const noteBox  = document.getElementById("noteBox");
+  const checkBtn = document.getElementById("checkBtn");
+  const startBtn = document.getElementById("startBtn");
+  const fsBtn    = document.getElementById("fsBtn");
+  const appRoot  = document.getElementById("appRoot");
+
+  const modalBack  = document.getElementById("modalBack");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalText  = document.getElementById("modalText");
+  const modalMeta  = document.getElementById("modalMeta");
+  const modalBtn   = document.getElementById("modalBtn");
+
+  let best=0;
+  try{ best = Math.max(0, parseInt(localStorage.getItem("locusBlasterBest")||"0",10)||0); }catch{}
+  bestLbl.textContent = String(best);
+  function setBest(x){
+    best=x; bestLbl.textContent=String(best);
+    try{ localStorage.setItem("locusBlasterBest", String(best)); }catch{}
+  }
+
+  let timer=120;
+  let tickHandle=null;
+  let round=1;
+  let state=null;
+  let locked=false;
+
+  function fmtTime(sec){
+    sec = Math.max(0, Math.floor(sec));
+    const m=Math.floor(sec/60), s=sec%60;
+    return `${m}:${String(s).padStart(2,"0")}`;
+  }
+  function setTimeUI(){
+    timeLbl.textContent = fmtTime(timer);
+    timeLbl.style.color = timer<=20 ? "#ffb4b4" : "";
+  }
+
+  function showModal(title, text, meta){
+    modalTitle.textContent=title;
+    modalText.textContent=text;
+    modalMeta.textContent=meta||"";
+    modalBack.style.display="flex";
+  }
+  function hideModal(){ modalBack.style.display="none"; }
+
+  function updateHeader(){
+    roundLbl.textContent = String(round);
+    typeBadge.textContent = `Type ${((round-1)%4)+1}/4`;
+  }
+
+  function buildAndRenderRound(){
+    state = buildRound(round);
+    updateHeader();
+    locusBox.innerHTML = state.locus.tex;
+    typeset();
+    noteBox.className="note";
+    noteBox.textContent = `Exactly 2 points are on the locus.`;
+    drawScene(state);
+  }
+
+  function startTimer(){
+    if (tickHandle) clearInterval(tickHandle);
+    tickHandle = setInterval(() => {
+      if (locked) return;
+      timer -= 1;
+      setTimeUI();
+      if (timer<=0){
+        timer=0; setTimeUI();
+        endGame();
+      }
+    }, 1000);
+  }
+
+  function endGame(){
+    locked=true;
+    checkBtn.disabled=true;
+    const reached = round-1;
+    if (reached > best) setBest(reached);
+    showModal("Game over", `Time ran out. You reached round ${reached}. Best score is ${best}.`, "Press Continue to restart.");
+  }
+
+  function restart(){
+    locked=false;
+    checkBtn.disabled=false;
+    timer=120;
+    setTimeUI();
+    round=1;
+    buildAndRenderRound();
+    startTimer();
+  }
+
+  // ===== click points =====
+  cv.addEventListener("pointerdown", (e) => {
+    if (!state || locked) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const p = hitTestPoint(state, mx, my);
+    if (!p) return;
+
+    const k = key(p);
+    if (state.selected.has(k)) state.selected.delete(k);
+    else state.selected.add(k);
+
+    drawScene(state);
+  });
+
+  function applyPenalty(wrong){
+    if (wrong<=0) return;
+    timer -= 10*wrong;
+    setTimeUI();
+    if (timer<=0){
+      timer=0; setTimeUI();
+      endGame();
+    }
+  }
+
+  function buildFeedbackMessages(selectedKeys, correctSet){
+    const msgs=[];
+    for (const k of selectedKeys){
+      if (!correctSet.has(k)){
+        const z = state.pool.find(p=>key(p)===k);
+        msgs.push({title:"Incorrect selection", text: explainWhy(state.locus, z, false), meta:`You clicked ${fmtA(z)}`});
+      }
+    }
+    for (const k of correctSet){
+      if (!selectedKeys.has(k)){
+        const z = state.pool.find(p=>key(p)===k);
+        msgs.push({title:"Missed point", text: explainWhy(state.locus, z, true), meta:`You missed ${fmtA(z)}`});
+      }
+    }
+    return msgs;
+  }
+
+  function checkRound(){
+    if (!state || locked) return;
+
+    const selectedKeys = new Set(state.selected);
+    const correctSet = state.correctSet;
+
+    let wrong=0;
+    for (const k of selectedKeys) if (!correctSet.has(k)) wrong++;
+    for (const k of correctSet) if (!selectedKeys.has(k)) wrong++;
+
+    if (wrong===0){
+      if (round > best) setBest(round);
+      locked=true;
+      checkBtn.disabled=true;
+      showModal("Nice! Round cleared ✅", "Correct. Get ready for the next locus…", `Round ${round} complete • Press Continue`);
+      return;
+    }
+
+    applyPenalty(wrong);
+    noteBox.className="note bad";
+    noteBox.textContent=`Incorrect: ${wrong} mistake(s). Penalty applied.`;
+
+    locked=true;
+    checkBtn.disabled=true;
+
+    const msgs = buildFeedbackMessages(selectedKeys, correctSet);
+    const m = msgs.length ? msgs[0] : {title:"Incorrect", text:"Some selections were incorrect.", meta:`${wrong} mistake(s)`};
+
+    showModal(m.title, m.text, `${m.meta} • Penalty: −${10*wrong}s • Press Continue`);
+  }
+
+  function onContinue(){
+    hideModal();
+
+    if (timer<=0){
+      locked=false;
+      checkBtn.disabled=false;
+      restart();
+      return;
+    }
+
+    if (modalTitle.textContent.includes("cleared")){
+      setTimeout(() => {
+        round += 1;
+        buildAndRenderRound();
+        locked=false;
+        checkBtn.disabled=false;
+      }, 350);
+      return;
+    }
+
+    if (modalTitle.textContent === "Game over"){
+      locked=false;
+      checkBtn.disabled=false;
+      restart();
+      return;
+    }
+
+    // retry same round
+    state.selected = new Set();
+    drawScene(state);
+    locked=false;
+    checkBtn.disabled=false;
+    noteBox.className="note";
+    noteBox.textContent=`Try again. Exactly 2 points are on the locus.`;
+  }
+
+  // ===== fullscreen =====
+  async function toggleFullscreen(){
+    try{
+      if (!document.fullscreenElement){
+        await appRoot.requestFullscreen();
+        document.body.classList.add("fs");
+        fsBtn.textContent="Exit fullscreen";
+      } else {
+        await document.exitFullscreen();
+      }
+    }catch(e){
+      // ignore
+    }
+  }
+  document.addEventListener("fullscreenchange", () => {
+    const on = !!document.fullscreenElement;
+    if (!on){
+      document.body.classList.remove("fs");
+      fsBtn.textContent="Fullscreen";
+    }
+    // resizing after fullscreen change fixes blurry/blank canvases
+    setTimeout(() => {
+      resizeCanvasToCSS();
+      if (state) drawScene(state);
+    }, 120);
+  });
+
+  // ===== keys/buttons =====
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){
+      if (modalBack.style.display === "flex") onContinue();
+      else checkRound();
+    }
+  });
+
+  checkBtn.addEventListener("click", checkRound);
+  startBtn.addEventListener("click", restart);
+  modalBtn.addEventListener("click", onContinue);
+  modalBack.addEventListener("click", (e) => { if (e.target === modalBack) onContinue(); });
+  fsBtn.addEventListener("click", toggleFullscreen);
+
+  // ===== init =====
+  function init(){
+    requestAnimationFrame(() => {
+      resizeCanvasToCSS();
+      restart();
+    });
+    window.addEventListener("resize", () => {
+      resizeCanvasToCSS();
+      if (state) drawScene(state);
+    });
+  }
+  init();
+})();
+</script>
+</body>
+</html>
