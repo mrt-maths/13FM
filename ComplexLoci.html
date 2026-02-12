@@ -3,40 +3,41 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Complex Locus Selector</title>
+  <title>Complex Loci – Normal / Reverse</title>
   <style>
     :root{
       --bg:#f5f7fb; --card:#fff; --ink:#111; --muted:#667085;
       --line:#e6e8ee; --accent:#f59e0b; --good:#16a34a; --bad:#dc2626;
     }
     body{margin:0; font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink);}
-    .wrap{max-width:980px; margin:0 auto; padding:18px;}
+    .wrap{max-width:1150px; margin:0 auto; padding:18px;}
     .top{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
     h1{font-size:18px; margin:0;}
     .pillrow{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
     .pill{
       background:var(--card); border:1px solid var(--line); border-radius:999px;
       padding:6px 10px; font-size:13px; color:var(--muted);
+      display:flex; gap:8px; align-items:center;
     }
-    .pill strong{color:var(--ink); font-weight:700;}
-    select{
+    .pill strong{color:var(--ink); font-weight:900;}
+    select, input[type="text"]{
       border:1px solid var(--line);
-      border-radius:999px;
-      padding:6px 10px;
+      border-radius:12px;
+      padding:8px 10px;
       background:#fff;
       color:var(--ink);
       font-weight:700;
-      font-size:13px;
+      font-size:14px;
       outline:none;
-      cursor:pointer;
     }
+    select{border-radius:999px; padding:6px 10px; font-size:13px;}
     .card{
       margin-top:12px;
       background:var(--card); border:1px solid var(--line); border-radius:16px;
       box-shadow:0 10px 18px rgba(0,0,0,.05);
       padding:16px;
     }
-    .locus{
+    .prompt{
       font-size:18px;
       line-height:1.35;
       padding:10px 12px;
@@ -46,13 +47,9 @@
       overflow:auto;
     }
     .sub{margin:10px 0 0; color:var(--muted); font-size:13px;}
-    .grid{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin-top:12px;
-    }
-    @media (max-width:700px){ .grid{grid-template-columns:1fr;} .locus{font-size:17px;} }
+    .grid{display:grid; gap:10px; margin-top:12px;}
+    @media (max-width:720px){ .prompt{font-size:17px;} }
+
     .opt{
       border:1px solid var(--line);
       border-radius:14px;
@@ -70,21 +67,15 @@
       width:34px; height:34px; border-radius:10px;
       display:grid; place-items:center;
       border:1px solid var(--line); color:var(--muted);
-      font-weight:800;
+      font-weight:900;
       flex:0 0 auto;
     }
     .opt .txt{font-size:16px;}
-    .opt.selected{
-      border-color: rgba(245,158,11,.55);
-      background: rgba(245,158,11,.08);
-    }
-    .opt.selected .tag{
-      border-color: rgba(245,158,11,.65);
-      color: var(--ink);
-      background: rgba(245,158,11,.12);
-    }
+    .opt.selected{border-color: rgba(245,158,11,.55); background: rgba(245,158,11,.08);}
+    .opt.selected .tag{border-color: rgba(245,158,11,.65); color: var(--ink); background: rgba(245,158,11,.12);}
     .opt.reveal-good{border-color:rgba(22,163,74,.45); background:rgba(22,163,74,.06);}
     .opt.reveal-bad{border-color:rgba(220,38,38,.40); background:rgba(220,38,38,.05);}
+
     .controls{
       margin-top:14px;
       display:flex;
@@ -119,11 +110,24 @@
       border:1px solid var(--line);
       background:#fff;
       flex:1 1 auto;
-      min-width:240px;
+      min-width:280px;
     }
     .msg.good{border-color:rgba(22,163,74,.35); color:var(--good); background:rgba(22,163,74,.06);}
     .msg.bad{border-color:rgba(220,38,38,.35); color:var(--bad); background:rgba(220,38,38,.06);}
     .tiny{font-size:12px; color:var(--muted); margin-top:6px;}
+
+    .extra{
+      margin-top:12px;
+      border-top:1px solid var(--line);
+      padding-top:12px;
+      display:none;
+    }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .row label{font-size:13px; color:var(--muted); font-weight:900;}
+    .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+    .chk{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; font-weight:900; color:var(--ink);}
+    .chk input{transform:scale(1.1);}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
   </style>
 
   <script>
@@ -135,28 +139,36 @@
 <body>
   <div class="wrap">
     <div class="top">
-      <h1>Complex Locus: pick all \(z\) that satisfy</h1>
+      <h1>Complex Loci</h1>
       <div class="pillrow">
         <div class="pill">Level: <strong id="levelLbl">1</strong></div>
-        <div class="pill">Mode: <strong id="modeLbl">Fixed order</strong></div>
+        <div class="pill">Mode: <strong id="modeLbl">Normal</strong></div>
         <div class="pill">Options:
-          <select id="numOptSel" aria-label="Number of answer options">
-            <!-- filled by JS -->
-          </select>
+          <select id="numOptSel" aria-label="Number of options"></select>
+        </div>
+        <div class="pill">
+          <label class="chk" title="Reverse mode: a point is given; select which loci contain it">
+            <input id="reverseChk" type="checkbox" />
+            Reverse
+          </label>
         </div>
       </div>
     </div>
 
     <div class="card">
-      <div class="locus" id="locusBox">Loading…</div>
-      <div class="sub">Click one or more options, then click <b>Check</b>.</div>
+      <div class="prompt" id="promptBox">Loading…</div>
+      <div class="sub" id="subLine">Select answer(s), then click <b>Check</b>. (Hold <b>Shift</b> and click Check to reveal.)</div>
 
       <div class="grid" id="options"></div>
 
+      <div class="extra" id="extraPanel">
+        <div class="row" id="extraRow"></div>
+        <div class="hint" id="extraHint"></div>
+      </div>
+
       <div class="controls">
         <button id="checkBtn">Check</button>
-        <button id="newBtn" class="ghost" title="New question (same level)">New question</button>
-        <button id="moveOnBtn" class="ghost" style="display:none;">Move on</button>
+        <button id="nextBtn" class="ghost" style="display:none;">Next level</button>
         <div class="msg" id="msgBox">Select your answer(s).</div>
       </div>
 
@@ -166,62 +178,29 @@
 
 <script>
 (() => {
-  // ================== helpers ==================
-  const rnd = (a,b) => a + Math.random()*(b-a);
-  const rndi = (a,b) => Math.floor(rnd(a,b+1));
+  // ================== small helpers ==================
   const choice = arr => arr[Math.floor(Math.random()*arr.length)];
-  const EPS = 1e-6;
-
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
   function nearly(a,b,eps=1e-6){ return Math.abs(a-b) <= eps; }
   function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a||1; }
-  function rat(n, d){
-    if (n===0) return "0";
-    const sign = (n*d<0) ? -1 : 1;
-    n=Math.abs(n); d=Math.abs(d);
-    const g=gcd(n,d);
-    n/=g; d/=g;
-    const s = sign<0 ? "-" : "";
-    return d===1 ? s+String(n) : s+String(n)+"/"+String(d);
-  }
 
-  function fmtNumber(x){
-    const nearestInt = Math.round(x);
-    if (nearly(x, nearestInt, 1e-9)) return String(nearestInt);
-    const q = Math.round(x*4);
-    if (nearly(x, q/4, 1e-9)) return rat(q,4);
-    const h = Math.round(x*2);
-    if (nearly(x, h/2, 1e-9)) return rat(h,2);
-    return x.toFixed(2).replace(/\.00$/,'');
-  }
-
-  function C(re,im){ return {re,im}; }
-  function sub(z,w){ return {re:z.re-w.re, im:z.im-w.im}; }
   function add(z,w){ return {re:z.re+w.re, im:z.im+w.im}; }
+  function sub(z,w){ return {re:z.re-w.re, im:z.im-w.im}; }
   function mulScalar(z,t){ return {re:z.re*t, im:z.im*t}; }
   function norm(z){ return Math.hypot(z.re,z.im); }
   function dot(a,b){ return a.re*b.re + a.im*b.im; }
   function cross(a,b){ return a.re*b.im - a.im*b.re; }
   function arg(z){ return Math.atan2(z.im, z.re); }
-  function wrapPi(x){
-    while (x<=-Math.PI) x+=2*Math.PI;
-    while (x> Math.PI) x-=2*Math.PI;
-    return x;
-  }
-  function sameArg(v1,v2){
-    // same direction: collinear + dot positive
-    return Math.abs(cross(v1,v2)) <= 1e-6 && dot(v1,v2) > 1e-6;
-  }
+  function wrapPi(x){ while (x<=-Math.PI) x+=2*Math.PI; while (x> Math.PI) x-=2*Math.PI; return x; }
+  function sameArg(v1,v2){ return Math.abs(cross(v1,v2)) <= 1e-6 && dot(v1,v2) > 1e-6; }
 
   function randomComplex(range=6, step=0.5){
     const vals = [];
     for (let x=-range; x<=range+1e-9; x+=step) vals.push(+x.toFixed(3));
-    const re = choice(vals);
-    const im = choice(vals);
-    return {re,im};
+    return {re: choice(vals), im: choice(vals)};
   }
-
   function randomNonEqualComplex(existing, range=6, step=0.5){
-    for (let tries=0; tries<800; tries++){
+    for (let tries=0; tries<8000; tries++){
       const z = randomComplex(range, step);
       let ok = true;
       for (const e of existing){
@@ -232,102 +211,256 @@
     return randomComplex(range, step);
   }
 
-  // ================== "no brackets" complex expression ==================
-  // Returns a TeX string for: z - a  (expanded, no parentheses/brackets), e.g.
-  // a=3+2i -> z-3-2i
-  // a=-1+4i -> z+1-4i
-  // a=0-3i -> z+3i
+  // ================== TeX formatting (vertical fractions + upright i) ==================
+  function texNum(x){
+    const nearestInt = Math.round(x);
+    if (nearly(x, nearestInt, 1e-9)) return String(nearestInt);
+
+    const q = Math.round(x*4);
+    if (nearly(x, q/4, 1e-9)){
+      const n=q, d=4;
+      const s = n<0 ? "-" : "";
+      const an=Math.abs(n);
+      const g=gcd(an,d);
+      const nn=an/g, dd=d/g;
+      if (dd===1) return s+String(nn);
+      return s+"\\frac{"+nn+"}{"+dd+"}";
+    }
+    const h = Math.round(x*2);
+    if (nearly(x, h/2, 1e-9)){
+      const n=h, d=2;
+      const s = n<0 ? "-" : "";
+      const an=Math.abs(n);
+      const g=gcd(an,d);
+      const nn=an/g, dd=d/g;
+      if (dd===1) return s+String(nn);
+      return s+"\\frac{"+nn+"}{"+dd+"}";
+    }
+    const s = (x<0) ? "-" : "";
+    return s + Math.abs(x).toFixed(2).replace(/\.00$/,'');
+  }
+
   function texZMinus(a){
     const parts = ["z"];
-    const re = a.re;
-    const im = a.im;
-
-    if (!nearly(re,0,1e-9)){
-      const s = re>0 ? "-" : "+";
-      parts.push(s + fmtNumber(Math.abs(re)));
-    }
+    const re=a.re, im=a.im;
+    if (!nearly(re,0,1e-9)) parts.push((re>0 ? "-" : "+") + texNum(Math.abs(re)));
     if (!nearly(im,0,1e-9)){
-      // subtract (im i): z - (im i) => if im>0 then "- ...i" else "+ ...i"
-      const s = im>0 ? "-" : "+";
-      const mag = fmtNumber(Math.abs(im));
-      // avoid "1i" if you want: keep as i
-      const imTxt = (mag === "1") ? "i" : mag + "i";
-      parts.push(s + imTxt);
+      const sign = (im>0) ? "-" : "+";
+      const mag = Math.abs(im);
+      const magTex = texNum(mag);
+      const iTex = nearly(mag,1,1e-9) ? "\\mathrm{i}" : magTex + "\\mathrm{i}";
+      parts.push(sign + iTex);
     }
     return parts.join("");
   }
 
-  // TeX string for z = a (no brackets)
   function texZEquals(z){
-    const re0 = nearly(z.re,0,1e-9);
-    const im0 = nearly(z.im,0,1e-9);
-    const a = fmtNumber(z.re);
-    const b = fmtNumber(Math.abs(z.im));
-
-    if (im0) return `z=${a}`;
+    const re0=nearly(z.re,0,1e-9), im0=nearly(z.im,0,1e-9);
+    const a = texNum(z.re);
+    const b = texNum(Math.abs(z.im));
+    if (im0) return "z=" + a;
     if (re0){
       const sign = z.im<0 ? "-" : "";
-      const imTxt = (b === "1") ? "i" : b+"i";
-      return `z=${sign}${imTxt}`;
+      const iPart = nearly(Math.abs(z.im),1,1e-9) ? "\\mathrm{i}" : b + "\\mathrm{i}";
+      return "z=" + sign + iPart;
     }
     const sign = z.im<0 ? "-" : "+";
-    const imTxt = (b === "1") ? "i" : b+"i";
-    return `z=${a}${sign}${imTxt}`;
+    const iPart = nearly(Math.abs(z.im),1,1e-9) ? "\\mathrm{i}" : b + "\\mathrm{i}";
+    return "z=" + a + sign + iPart;
   }
 
-  // ================== exact radian angles in (-pi, pi] ==================
-  // choose from "nice" exact values
+  // ================== exact angles in (-pi, pi] ==================
   const ANGLES = [
     {n:-11, d:12},{n:-5,d:6},{n:-3,d:4},{n:-2,d:3},{n:-7,d:12},{n:-1,d:2},{n:-5,d:12},{n:-1,d:3},{n:-1,d:4},{n:-1,d:6},{n:-1,d:12},
     {n:0,d:1},
     {n:1,d:12},{n:1,d:6},{n:1,d:4},{n:1,d:3},{n:5,d:12},{n:1,d:2},{n:7,d:12},{n:2,d:3},{n:3,d:4},{n:5,d:6},{n:11,d:12},
     {n:1,d:1} // pi
   ];
-
   function angleToTex(fr){
-    // fr represents (n/d) * pi, reduced, in (-pi, pi]
-    const n = fr.n, d = fr.d;
-    if (n === 0) return "0";
-    if (d === 1){
-      if (n === 1) return "\\pi";
-      if (n === -1) return "-\\pi";
+    const n=fr.n, d=fr.d;
+    if (n===0) return "0";
+    if (d===1){
+      if (n===1) return "\\pi";
+      if (n===-1) return "-\\pi";
       return (n<0? "-" : "") + String(Math.abs(n)) + "\\pi";
     }
-    const absN = Math.abs(n);
-    const num = absN === 1 ? "\\pi" : absN + "\\pi";
-    const tex = "\\frac{" + num + "}{" + d + "}";
-    return n < 0 ? "-" + tex : tex;
+    const absN=Math.abs(n);
+    const num = (absN===1) ? "\\pi" : absN + "\\pi";
+    const tex = "\\frac{"+num+"}{"+d+"}";
+    return (n<0) ? "-" + tex : tex;
+  }
+  function angleToRadians(fr){ return (fr.n/fr.d)*Math.PI; }
+
+  // ================== parsing (complex + locus) ==================
+  function parseRational(t){
+    if (t === "" || t === "+") return 0;
+    if (t === "-") return 0;
+    const m = t.match(/^([+-]?\d+)(?:\/(\d+))?$/);
+    if (!m) return null;
+    const a = parseInt(m[1],10);
+    const b = m[2] ? parseInt(m[2],10) : 1;
+    if (b===0) return null;
+    return a/b;
   }
 
-  function angleToRadians(fr){ return (fr.n/fr.d) * Math.PI; }
+  function parseComplex(str){
+    if (!str) return null;
+    let s = str.replace(/\s+/g,'').toLowerCase().replace(/\u2212/g,'-').replace(/j/g,'i');
+    if (s==="i") return {re:0, im:1};
+    if (s==="-i") return {re:0, im:-1};
 
-  // ================== locus types & generators ==================
-  const TYPES = [
-    { id: 0, name: "|z-a|=k" },
-    { id: 1, name: "arg z-a = θ" },
-    { id: 2, name: "|z-a|=|z-b|" },
-    { id: 3, name: "arg z-a = arg z-b" }
-  ];
+    if (!s.includes('i')){
+      const re=parseRational(s);
+      if (re===null) return null;
+      return {re, im:0};
+    }
 
-  let level = 1;
-  let current = null;
-  let selected = new Set();
-  let cooldownTimer = null;
-  let cooldownUntil = 0;
-  let attempts = 0; // checks used on current question
+    if (s.endsWith('i')) s = s.slice(0,-1); else return null;
 
+    let split=-1;
+    for (let i=1;i<s.length;i++){
+      if (s[i]==='+' || s[i]==='-') split=i;
+    }
+
+    let reStr, imStr;
+    if (split===-1){ reStr="0"; imStr=s; }
+    else { reStr=s.slice(0,split); imStr=s.slice(split); }
+
+    if (imStr==="" || imStr==="+") imStr="1";
+    if (imStr==="-") imStr="-1";
+
+    const re=parseRational(reStr);
+    const im=parseRational(imStr);
+    if (re===null || im===null) return null;
+    return {re, im};
+  }
+
+  function parseAngleExpr(s){
+    if (!s) return null;
+    let t = s.replace(/\s+/g,'').toLowerCase().replace(/\u2212/g,'-').replace(/π/g,'pi');
+    if (t==="0") return 0;
+    if (t==="pi") return Math.PI;
+    if (t==="-pi") return -Math.PI;
+
+    if (!t.includes("pi")){
+      const v=Number(t);
+      if (!Number.isFinite(v)) return null;
+      let w=v; while (w<=-Math.PI) w+=2*Math.PI; while (w>Math.PI) w-=2*Math.PI;
+      return w;
+    }
+
+    let sign=1;
+    if (t.startsWith('-')){ sign=-1; t=t.slice(1); }
+    const parts=t.split("pi");
+    const before=parts[0], after=parts[1];
+    let coef=1;
+
+    if (before!==""){
+      const b=before.replace(/\*$/,'');
+      const r=parseRational(b);
+      if (r===null) return null;
+      coef=r;
+    }
+    let denom=1;
+    if (after){
+      const m=after.match(/^\/(\d+)$/);
+      if (!m) return null;
+      denom=parseInt(m[1],10);
+      if (!denom) return null;
+    }
+    let val = sign*coef*Math.PI/denom;
+    while (val<=-Math.PI) val+=2*Math.PI;
+    while (val>Math.PI) val-=2*Math.PI;
+    return val;
+  }
+
+  // Required formats:
+  // |z-a|=k
+  // arg(z-a)=k
+  // |z-a|=|z-b|
+  // arg(z-a)=arg(z-b)
+  function parseLocusString(input){
+    if (!input) return null;
+    let s = input.trim().toLowerCase().replace(/\u2212/g,'-');
+    s = s.replace(/∣/g,'|');
+    const t = s.replace(/\s+/g,'');
+
+    function extractZA(expr){
+      if (!expr.startsWith('z')) return null;
+      const rest = expr.slice(1);      // e.g. "-1+2i"
+      const w = parseComplex(rest);
+      if (!w) return null;
+      return {re:-w.re, im:-w.im};     // a = -rest
+    }
+
+    let m = t.match(/^arg\((z[^)]*)\)=arg\((z[^)]*)\)$/);
+    if (m){
+      const a = extractZA(m[1]);
+      const b = extractZA(m[2]);
+      if (!a || !b) return null;
+      return {typeId:3, a, b};
+    }
+
+    m = t.match(/^\|(z[^|]*)\|=\|(z[^|]*)\|$/);
+    if (m){
+      const a = extractZA(m[1]);
+      const b = extractZA(m[2]);
+      if (!a || !b) return null;
+      return {typeId:2, a, b};
+    }
+
+    m = t.match(/^arg\((z[^)]*)\)=([^]+)$/);
+    if (m){
+      const a = extractZA(m[1]);
+      if (!a) return null;
+      const k = parseAngleExpr(m[2]);
+      if (k===null) return null;
+      return {typeId:1, a, k};
+    }
+
+    m = t.match(/^\|(z[^|]*)\|=([^]+)$/);
+    if (m){
+      const a = extractZA(m[1]);
+      if (!a) return null;
+      const k = parseRational(m[2]);
+      if (k===null || k<0) return null;
+      return {typeId:0, a, k};
+    }
+
+    return null;
+  }
+
+  // ================== DOM refs ==================
   const el = {
     levelLbl: document.getElementById("levelLbl"),
     modeLbl: document.getElementById("modeLbl"),
-    locusBox: document.getElementById("locusBox"),
+    numOptSel: document.getElementById("numOptSel"),
+    reverseChk: document.getElementById("reverseChk"),
+    promptBox: document.getElementById("promptBox"),
+    subLine: document.getElementById("subLine"),
     options: document.getElementById("options"),
+    extraPanel: document.getElementById("extraPanel"),
+    extraRow: document.getElementById("extraRow"),
+    extraHint: document.getElementById("extraHint"),
     checkBtn: document.getElementById("checkBtn"),
-    newBtn: document.getElementById("newBtn"),
-    moveOnBtn: document.getElementById("moveOnBtn"),
+    nextBtn: document.getElementById("nextBtn"),
     msgBox: document.getElementById("msgBox"),
     cooldownLbl: document.getElementById("cooldownLbl"),
-    numOptSel: document.getElementById("numOptSel"),
   };
+
+  function typeset(){
+    if (window.MathJax && window.MathJax.typesetPromise){
+      window.MathJax.typesetPromise().catch(()=>{});
+    }
+  }
+
+  function setGridColumns(n){
+    if (n >= 25) el.options.style.gridTemplateColumns = "repeat(6, minmax(0,1fr))";
+    else if (n >= 21) el.options.style.gridTemplateColumns = "repeat(5, minmax(0,1fr))";
+    else if (n >= 16) el.options.style.gridTemplateColumns = "repeat(4, minmax(0,1fr))";
+    else if (n >= 10) el.options.style.gridTemplateColumns = "repeat(3, minmax(0,1fr))";
+    else el.options.style.gridTemplateColumns = (window.innerWidth <= 720) ? "1fr" : "repeat(2, minmax(0,1fr))";
+  }
 
   function setMsg(text, kind=""){
     el.msgBox.classList.remove("good","bad");
@@ -335,385 +468,635 @@
     el.msgBox.textContent = text;
   }
 
+  // ================== cooldown ==================
+  let cooldownTimer=null, cooldownUntil=0;
   function clearCooldown(){
     if (cooldownTimer) clearInterval(cooldownTimer);
-    cooldownTimer = null;
-    cooldownUntil = 0;
-    el.cooldownLbl.textContent = "";
-    el.checkBtn.disabled = false;
+    cooldownTimer=null; cooldownUntil=0;
+    el.cooldownLbl.textContent="";
+    el.checkBtn.disabled=false;
   }
-
   function startCooldown(seconds=60){
     cooldownUntil = Date.now() + seconds*1000;
-    el.checkBtn.disabled = true;
-
+    el.checkBtn.disabled=true;
     const tick = () => {
       const left = Math.max(0, Math.ceil((cooldownUntil - Date.now())/1000));
-      if (left <= 0){
-        clearCooldown();
-        // keep current message as-is
-        return;
-      }
+      if (left<=0){ clearCooldown(); return; }
       el.cooldownLbl.textContent = `Check locked for ${left}s after an incorrect answer.`;
     };
     tick();
     cooldownTimer = setInterval(tick, 250);
   }
 
+  function clearRevealStyles(){
+    [...el.options.children].forEach(node => node.classList.remove("reveal-good","reveal-bad"));
+  }
+
+  // ================== next level control ==================
+  let nextUnlocked = false;
+  function showNext(){ nextUnlocked = true; el.nextBtn.style.display = ""; }
+  function hideNext(){ nextUnlocked = false; el.nextBtn.style.display = "none"; }
+
+  // ================== final-option rapid click cheat (still supported) ==================
+  // 20 clicks in 2 seconds on the FINAL option reveals + unlocks
+  let lastOptClickTimes = [];
+  function noteFinalOptionClickAndMaybeReveal(){
+    const now = Date.now();
+    lastOptClickTimes.push(now);
+    lastOptClickTimes = lastOptClickTimes.filter(t => now - t <= 2000);
+    if (lastOptClickTimes.length >= 20){
+      revealSolution(true);
+      lastOptClickTimes = [];
+    }
+  }
+
+  // ================== locus generation ==================
   function pickTypeForLevel(level){
-    if (level === 1) return 0;
-    if (level === 2) return 1;
-    if (level === 3) return 2;
-    if (level === 4) return 3;
+    if (level===1) return 0;
+    if (level===2) return 1;
+    if (level===3) return 2;
+    if (level===4) return 3;
     return choice([0,1,2,3]);
   }
 
-  function makeQuestion(typeId, numOptions){
-    // ensure 1–3 correct among numOptions (up to 20)
-    for (let attempt=0; attempt<500; attempt++){
-      const a = randomComplex(6, 0.5);
-      let b = null;
+  function targetCorrectCount(n){
+    const t = Math.round(n/2);
+    return Math.max(1, Math.min(n-1, t)); // never 0 or n
+  }
 
-      if (typeId === 2 || typeId === 3){
-        b = randomNonEqualComplex([a], 6, 0.5);
-        if (norm(sub(a,b)) < 1.5) continue;
+  function snapHalf(z){ return {re: Math.round(z.re*2)/2, im: Math.round(z.im*2)/2}; }
+  function uniqPush(arr, z, used){
+    const key = z.re.toFixed(3)+","+z.im.toFixed(3);
+    if (used.has(key)) return false;
+    used.add(key); arr.push(z); return true;
+  }
+
+  // For |z-a|=k we use scaled 3-4-5 triangles:
+  // dx = 3s, dy = 4s, k = 5s, with s in {0.5,1,1.5,2,2.5,3}
+  const SCALES_345 = [0.5,1,1.5,2,2.5,3];
+
+  function buildLocusType(typeId){
+    const a = randomComplex(6,0.5);
+    let b=null, k=null, theta=null, thetaTex=null, tex="", checker=null;
+
+    if (typeId===0){
+      const s = choice(SCALES_345);
+      k = 5*s;
+      tex = `\\(\\left|${texZMinus(a)}\\right|=${texNum(k)}\\)`;
+      checker = (z) => nearly(norm(sub(z,a)), k, 2e-3);
+      return {typeId,a,b,k,theta,thetaTex,tex,checker, scale345:s};
+    }
+
+    if (typeId===1){
+      const fr = choice(ANGLES);
+      theta = angleToRadians(fr);
+      thetaTex = angleToTex(fr);
+      tex = `\\(\\arg\\left(${texZMinus(a)}\\right)=${thetaTex}\\)`;
+      checker = (z) => {
+        const v=sub(z,a);
+        if (norm(v)<1e-6) return false;
+        return Math.abs(wrapPi(arg(v)-theta))<1e-3;
+      };
+      return {typeId,a,b,k,theta,thetaTex,tex,checker};
+    }
+
+    if (typeId===2){
+      b = randomNonEqualComplex([a],6,0.5);
+      tex = `\\(\\left|${texZMinus(a)}\\right|=\\left|${texZMinus(b)}\\right|\\)`;
+      checker = (z) => nearly(norm(sub(z,a)), norm(sub(z,b)), 2e-3);
+      return {typeId,a,b,k,theta,thetaTex,tex,checker};
+    }
+
+    if (typeId===3){
+      b = randomNonEqualComplex([a],6,0.5);
+      tex = `\\(\\arg\\left(${texZMinus(a)}\\right)=\\arg\\left(${texZMinus(b)}\\right)\\)`;
+      checker = (z) => {
+        const v1=sub(z,a), v2=sub(z,b);
+        if (norm(v1)<1e-6 || norm(v2)<1e-6) return false;
+        return sameArg(v1,v2);
+      };
+      return {typeId,a,b,k,theta,thetaTex,tex,checker};
+    }
+
+    return null;
+  }
+
+  // Generate satisfying points
+  function genSatisfyingPoints(locus, want){
+    const out=[], used=new Set();
+    const typeId = locus.typeId;
+
+    if (typeId===0){
+      // Use 3-4-5 offsets to guarantee half-grid friendly points
+      const s = locus.scale345 ?? choice(SCALES_345);
+      const dx = 3*s, dy = 4*s;
+      const offs = [
+        {x: dx, y: dy},{x: dx, y:-dy},{x:-dx,y: dy},{x:-dx,y:-dy},
+        {x: dy, y: dx},{x: dy, y:-dx},{x:-dy,y: dx},{x:-dy,y:-dx}
+      ];
+      for (let tries=0; tries<4000 && out.length<want; tries++){
+        const o = choice(offs);
+        const z = snapHalf({re: locus.a.re + o.x, im: locus.a.im + o.y});
+        if (locus.checker(z)) uniqPush(out,z,used);
       }
+      // top-up with random circle points (less structured)
+      const angles = [];
+      for (let k=0;k<24;k++) angles.push((2*Math.PI*k)/24);
+      for (let tries=0; tries<8000 && out.length<want; tries++){
+        const t = choice(angles);
+        const z = snapHalf({re:locus.a.re + locus.k*Math.cos(t), im:locus.a.im + locus.k*Math.sin(t)});
+        if (locus.checker(z)) uniqPush(out,z,used);
+      }
+    }
 
-      let statementTex = "";
-      let checker = (z) => false;
+    if (typeId===1){
+      const dir = {re: Math.cos(locus.theta), im: Math.sin(locus.theta)};
+      const rs = [];
+      for (let r=0.5; r<=10; r+=0.5) rs.push(r);
+      for (let tries=0; tries<12000 && out.length<want; tries++){
+        const r = choice(rs);
+        const z = snapHalf(add(locus.a, mulScalar(dir, r)));
+        if (locus.checker(z)) uniqPush(out,z,used);
+      }
+    }
 
-      if (typeId === 0){
-        const k = choice([1,1.5,2,2.5,3,3.5,4]);
-        statementTex = `\\(\\left|${texZMinus(a)}\\right|=${fmtNumber(k)}\\)`;
-        checker = (z) => nearly(norm(sub(z,a)), k, 2e-3);
-
-        const angles = [0, Math.PI/2, Math.PI, 3*Math.PI/2, Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4];
-        const goodCandidates = angles.map(t => add(a, {re:k*Math.cos(t), im:k*Math.sin(t)}));
-        const pool = [];
-        const snap = (z) => ({re: Math.round(z.re*2)/2, im: Math.round(z.im*2)/2});
-        for (const g of goodCandidates) pool.push(snap(g));
-        while (pool.length < 40) pool.push(randomComplex(6,0.5));
-
-        const options = [];
-        const used = new Set();
-        const takeUnique = (z) => {
-          const key = z.re.toFixed(3)+","+z.im.toFixed(3);
-          if (used.has(key)) return false;
-          used.add(key);
-          options.push(z);
-          return true;
-        };
-        let tries=0;
-        while (options.length < numOptions && tries++<3000){
-          takeUnique(choice(pool));
+    if (typeId===2){
+      const a=locus.a, b=locus.b;
+      const m=mulScalar(add(a,b),0.5);
+      const d=sub(b,a);
+      const perp={re:-d.im, im:d.re};
+      const pn=norm(perp);
+      if (pn>1e-6){
+        const dir=mulScalar(perp, 1/pn);
+        const ts=[];
+        for (let t=-10; t<=10; t+=0.5) if (Math.abs(t)>0.1) ts.push(t);
+        for (let tries=0; tries<20000 && out.length<want; tries++){
+          const t=choice(ts);
+          const z=snapHalf(add(m, mulScalar(dir,t)));
+          if (locus.checker(z)) uniqPush(out,z,used);
         }
-
-        const correct = options.map(checker);
-        const count = correct.filter(Boolean).length;
-        if (count>=1 && count<=3) return {typeId,a,b,statementTex,options,correct};
       }
+    }
 
-      if (typeId === 1){
-        const fr = choice(ANGLES);
-        const theta = angleToRadians(fr);
-        const thetaTex = angleToTex(fr);
-
-        statementTex = `\\(\\arg\\,${texZMinus(a)}=${thetaTex}\\)`;
-        checker = (z) => {
-          const v = sub(z,a);
-          if (norm(v) < 1e-6) return false;
-          const d = wrapPi(arg(v) - theta);
-          return Math.abs(d) < 1e-3;
-        };
-
-        const dir = {re: Math.cos(theta), im: Math.sin(theta)};
-        const rs = choice([[1,2,3],[1.5,2.5,3.5],[2,4,5],[1,3,5]]);
-        const good = rs.map(r => add(a, mulScalar(dir, r)));
-        const bad = [
-          add(a, mulScalar({re:Math.cos(theta+Math.PI/6), im:Math.sin(theta+Math.PI/6)}, choice([2,3,4]))),
-          add(a, mulScalar({re:Math.cos(theta-Math.PI/5), im:Math.sin(theta-Math.PI/5)}, choice([2,3,4]))),
-          randomComplex(6,0.5),
-          randomComplex(6,0.5),
-        ];
-
-        const pool = [];
-        const snap = (z) => ({re: Math.round(z.re*2)/2, im: Math.round(z.im*2)/2});
-        [...good, ...bad].forEach(z => pool.push(snap(z)));
-        while (pool.length < 45) pool.push(randomComplex(6,0.5));
-
-        const options = [];
-        const used = new Set();
-        const takeUnique = (z) => {
-          const key = z.re.toFixed(3)+","+z.im.toFixed(3);
-          if (used.has(key)) return false;
-          used.add(key);
-          options.push(z);
-          return true;
-        };
-        let tries=0;
-        while (options.length < numOptions && tries++<3500){
-          takeUnique(choice(pool));
+    if (typeId===3){
+      const a=locus.a, b=locus.b;
+      const d=sub(b,a), dn=norm(d);
+      if (dn>1e-6){
+        const dir=mulScalar(d, 1/dn);
+        const ts=[];
+        for (let t=0.5; t<=10; t+=0.5) ts.push(t);
+        for (let tries=0; tries<24000 && out.length<want; tries++){
+          const t=choice(ts);
+          const useA = Math.random()<0.5;
+          const z = useA ? snapHalf(add(a, mulScalar(dir,-t))) : snapHalf(add(b, mulScalar(dir, +t)));
+          if (locus.checker(z)) uniqPush(out,z,used);
         }
-
-        const correct = options.map(checker);
-        const count = correct.filter(Boolean).length;
-        if (count>=1 && count<=3) return {typeId,a,b,statementTex,options,correct};
       }
+    }
 
-      if (typeId === 2){
-        statementTex = `\\(\\left|${texZMinus(a)}\\right|=\\left|${texZMinus(b)}\\right|\\)`;
-        checker = (z) => nearly(norm(sub(z,a)), norm(sub(z,b)), 2e-3);
+    // last-resort top up
+    for (let tries=0; tries<60000 && out.length<want; tries++){
+      const z=randomComplex(6,0.5);
+      if (locus.checker(z)) uniqPush(out,z,used);
+    }
 
-        const m = mulScalar(add(a,b), 0.5);
-        const d = sub(b,a);
-        const perp = {re:-d.im, im:d.re};
-        const perpNorm = norm(perp);
-        if (perpNorm < 1e-6) continue;
+    return out;
+  }
 
-        const dir = mulScalar(perp, 1/perpNorm);
-        const ts = choice([[ -4,-2,2,4],[-3,-1,1,3],[-5,-2.5,2.5,5]]);
-        const good = ts.map(t => add(m, mulScalar(dir, t)));
+  function genNonSatisfyingPoints(locus, want){
+    const out=[], used=new Set();
+    for (let tries=0; tries<80000 && out.length<want; tries++){
+      const z=randomComplex(6,0.5);
+      if (!locus.checker(z)) uniqPush(out,z,used);
+    }
+    return out;
+  }
 
-        const pool = [];
-        const snap = (z) => ({re: Math.round(z.re*2)/2, im: Math.round(z.im*2)/2});
-        good.forEach(z => pool.push(snap(z)));
-        while (pool.length < 55) pool.push(randomComplex(6,0.5));
+  function makeNormalQuestion(level, n){
+    const typeId = pickTypeForLevel(level);
+    for (let attempt=0; attempt<2500; attempt++){
+      const locus = buildLocusType(typeId);
+      const tc = targetCorrectCount(n);
+      const good = genSatisfyingPoints(locus, tc);
+      const bad  = genNonSatisfyingPoints(locus, n-tc);
+      if (good.length===tc && bad.length===n-tc){
+        const options = shuffle([...good, ...bad]);
+        const correct = options.map(locus.checker);
+        const count = correct.filter(Boolean).length;
+        if (count===tc) return {mode:"normal", level, locus, options, correct, tc};
+      }
+    }
+    // fallback
+    const locus=buildLocusType(0);
+    const tc=targetCorrectCount(n);
+    const options = shuffle([...genSatisfyingPoints(locus, tc).slice(0,tc), ...genNonSatisfyingPoints(locus, n-tc).slice(0,n-tc)]);
+    const correct = options.map(locus.checker);
+    return {mode:"normal", level, locus, options, correct, tc};
+  }
 
-        const options = [];
-        const used = new Set();
-        const takeUnique = (z) => {
-          const key = z.re.toFixed(3)+","+z.im.toFixed(3);
-          if (used.has(key)) return false;
-          used.add(key);
-          options.push(z);
-          return true;
+  // Reverse mode: build loci that are true/false for given point
+  function buildTrueLocusForPoint(typeId, z0){
+    if (typeId===0){
+      // force 3-4-5: choose s, choose offset (±3s,±4s) (or swapped), set a = z0 - offset, k=5s
+      const s = choice(SCALES_345);
+      const dx = 3*s, dy = 4*s;
+      const offs = [
+        {x: dx, y: dy},{x: dx, y:-dy},{x:-dx,y: dy},{x:-dx,y:-dy},
+        {x: dy, y: dx},{x: dy, y:-dx},{x:-dy,y: dx},{x:-dy,y:-dx}
+      ];
+      const o = choice(offs);
+      const a = snapHalf({re: z0.re - o.x, im: z0.im - o.y});
+      const k = 5*s;
+      const tex = `\\(\\left|${texZMinus(a)}\\right|=${texNum(k)}\\)`;
+      const checker = (z) => nearly(norm(sub(z,a)), k, 2e-3);
+      return {typeId, a, b:null, k, theta:null, thetaTex:null, tex, checker, scale345:s};
+    }
+
+    if (typeId===1){
+      const fr = choice(ANGLES);
+      const theta = angleToRadians(fr);
+      const thetaTex = angleToTex(fr);
+      const dir = {re: Math.cos(theta), im: Math.sin(theta)};
+      const rs = [];
+      for (let r=0.5; r<=10; r+=0.5) rs.push(r);
+      for (let tries=0; tries<4000; tries++){
+        const r = choice(rs);
+        const a = snapHalf(sub(z0, mulScalar(dir,r)));
+        if (norm(sub(z0,a))<1e-6) continue;
+        const tex = `\\(\\arg\\left(${texZMinus(a)}\\right)=${thetaTex}\\)`;
+        const checker = (z) => {
+          const v=sub(z,a);
+          if (norm(v)<1e-6) return false;
+          return Math.abs(wrapPi(arg(v)-theta))<1e-3;
         };
-        let tries=0;
-        while (options.length < numOptions && tries++<5000){
-          takeUnique(choice(pool));
-        }
-
-        const correct = options.map(checker);
-        const count = correct.filter(Boolean).length;
-        if (count>=1 && count<=3) return {typeId,a,b,statementTex,options,correct};
+        if (checker(z0)) return {typeId, a, b:null, k:null, theta, thetaTex, tex, checker};
       }
+      return buildLocusType(1);
+    }
 
-      if (typeId === 3){
-        statementTex = `\\(\\arg\\,${texZMinus(a)}=\\arg\\,${texZMinus(b)}\\)`;
-        checker = (z) => {
-          const v1 = sub(z,a);
-          const v2 = sub(z,b);
-          if (norm(v1) < 1e-6 || norm(v2) < 1e-6) return false;
+    if (typeId===2){
+      const a = randomNonEqualComplex([z0],6,0.5);
+      const v = sub(z0,a);
+      let b = snapHalf({re: z0.re + v.im, im: z0.im - v.re});
+      if (norm(sub(a,b))<1e-6 || norm(sub(z0,b))<1e-6) b = randomNonEqualComplex([a,z0],6,0.5);
+      const tex = `\\(\\left|${texZMinus(a)}\\right|=\\left|${texZMinus(b)}\\right|\\)`;
+      const checker = (z) => nearly(norm(sub(z,a)), norm(sub(z,b)), 2e-3);
+      return {typeId, a, b, k:null, theta:null, thetaTex:null, tex, checker};
+    }
+
+    if (typeId===3){
+      const fr = choice(ANGLES);
+      const theta = angleToRadians(fr);
+      const dir = {re: Math.cos(theta), im: Math.sin(theta)};
+      const rs=[]; for (let r=0.5;r<=10;r+=0.5) rs.push(r);
+      for (let tries=0; tries<12000; tries++){
+        const r1=choice(rs), r2=choice(rs);
+        if (Math.abs(r1-r2)<1e-9) continue;
+        const a=snapHalf(sub(z0, mulScalar(dir,r1)));
+        const b=snapHalf(sub(z0, mulScalar(dir,r2)));
+        if (norm(sub(a,b))<1e-6) continue;
+        if (norm(sub(z0,a))<1e-6 || norm(sub(z0,b))<1e-6) continue;
+        const tex = `\\(\\arg\\left(${texZMinus(a)}\\right)=\\arg\\left(${texZMinus(b)}\\right)\\)`;
+        const checker = (z) => {
+          const v1=sub(z,a), v2=sub(z,b);
+          if (norm(v1)<1e-6 || norm(v2)<1e-6) return false;
           return sameArg(v1,v2);
         };
-
-        const d = sub(b,a);
-        const dn = norm(d);
-        if (dn < 1e-6) continue;
-        const dir = mulScalar(d, 1/dn);
-
-        const ts = choice([[1,2,3],[1.5,2.5,3.5],[2,4,5]]);
-        const good = [];
-        ts.forEach(t => good.push(add(a, mulScalar(dir, -t))));
-        ts.forEach(t => good.push(add(b, mulScalar(dir, +t))));
-
-        const between = [];
-        [0.25, 0.5, 0.75].forEach(u => between.push(add(a, mulScalar(d, u))));
-
-        const pool = [];
-        const snap = (z) => ({re: Math.round(z.re*2)/2, im: Math.round(z.im*2)/2});
-        [...good, ...between].forEach(z => pool.push(snap(z)));
-        while (pool.length < 60) pool.push(randomComplex(6,0.5));
-
-        const options = [];
-        const used = new Set();
-        const takeUnique = (z) => {
-          const key = z.re.toFixed(3)+","+z.im.toFixed(3);
-          if (used.has(key)) return false;
-          used.add(key);
-          options.push(z);
-          return true;
-        };
-        let tries=0;
-        while (options.length < numOptions && tries++<6000){
-          takeUnique(choice(pool));
-        }
-
-        const correct = options.map(checker);
-        const count = correct.filter(Boolean).length;
-        if (count>=1 && count<=3) return {typeId,a,b,statementTex,options,correct};
+        if (checker(z0)) return {typeId, a, b, k:null, theta:null, thetaTex:null, tex, checker};
       }
+      return buildLocusType(3);
+    }
+
+    return buildLocusType(0);
+  }
+
+  function buildFalseLocusForPoint(typeId, z0){
+    for (let tries=0; tries<4000; tries++){
+      const L = buildLocusType(typeId);
+      if (!L.checker(z0)) return L;
+    }
+    // forced miss
+    if (typeId===0){
+      const s = choice(SCALES_345);
+      const k = 5*s;
+      const a = randomNonEqualComplex([z0],6,0.5);
+      const tex = `\\(\\left|${texZMinus(a)}\\right|=${texNum(k)}\\)`;
+      const checker = (z) => nearly(norm(sub(z,a)), k, 2e-3);
+      return {typeId, a, b:null, k, theta:null, thetaTex:null, tex, checker, scale345:s};
+    }
+    return buildLocusType(typeId);
+  }
+
+  function makeReverseQuestion(level, n){
+    for (let attempt=0; attempt<2500; attempt++){
+      const z0 = randomComplex(6,0.5);
+      const tc = targetCorrectCount(n);
+
+      // choose types, roughly mixed
+      const types = [];
+      const base = [0,1,2,3];
+      shuffle(base);
+      for (let i=0;i<Math.min(4,n);i++) types.push(base[i]);
+      while (types.length<n) types.push(choice([0,1,2,3]));
+      shuffle(types);
+
+      // which indices should be true
+      const idxs = [...Array(n).keys()];
+      shuffle(idxs);
+      const trueSet = new Set(idxs.slice(0,tc));
+
+      const loci = [];
+      for (let i=0;i<n;i++){
+        const t = types[i];
+        loci.push(trueSet.has(i) ? buildTrueLocusForPoint(t,z0) : buildFalseLocusForPoint(t,z0));
+      }
+
+      const correct = loci.map(L => L.checker(z0));
+      const count = correct.filter(Boolean).length;
+      if (count===tc) return {mode:"reverse", level, z0, loci, correct, tc};
     }
 
     // fallback
-    const a = randomComplex(6,0.5);
-    const statementTex = `\\(\\left|${texZMinus(a)}\\right|=2\\)`;
-    const options = Array.from({length:numOptions}, () => randomComplex(6,0.5));
-    const correct = options.map(_=>false); correct[0]=true;
-    return {typeId:0,a,b:null,statementTex,options,correct};
-  }
-
-  // ================== UI ==================
-  function typeset(){
-    if (window.MathJax && window.MathJax.typesetPromise){
-      window.MathJax.typesetPromise().catch(()=>{});
+    const z0 = randomComplex(6,0.5);
+    const tc = targetCorrectCount(n);
+    const loci = [];
+    for (let i=0;i<n;i++){
+      loci.push(i<tc ? buildTrueLocusForPoint(choice([0,1,2,3]), z0) : buildFalseLocusForPoint(choice([0,1,2,3]), z0));
     }
+    shuffle(loci);
+    const correct = loci.map(L => L.checker(z0));
+    return {mode:"reverse", level, z0, loci, correct, tc};
   }
 
-  function clearRevealStyles(){
-    [...el.options.children].forEach(node => {
-      node.classList.remove("reveal-good","reveal-bad");
-    });
+  // ================== extra inputs REQUIRED for every level >= 5 ==================
+  function showExtraPanel(html, hint){
+    el.extraPanel.style.display = "";
+    el.extraRow.innerHTML = html;
+    el.extraHint.innerHTML = hint || "";
+  }
+  function hideExtraPanel(){
+    el.extraPanel.style.display = "none";
+    el.extraRow.innerHTML = "";
+    el.extraHint.textContent = "";
   }
 
-  function revealSolution(){
+  function checkExtraNormal(current){
+    const zInput = document.getElementById("zInput");
+    if (!zInput) return {ok:true, reason:""};
+    const z = parseComplex(zInput.value);
+    if (!z) return {ok:false, reason:"Your entered point isn't in a valid a+bi format."};
+
+    const L = current.locus;
+    if ((L.typeId===1 || L.typeId===3) && norm(sub(z, L.a)) < 1e-6) return {ok:false, reason:"Your entered point cannot equal a (arg undefined)."};
+    if (L.typeId===3 && L.b && norm(sub(z, L.b)) < 1e-6) return {ok:false, reason:"Your entered point cannot equal b (arg undefined)."};
+    if (!L.checker(z)) return {ok:false, reason:"Your entered point does not satisfy the locus."};
+    return {ok:true, reason:""};
+  }
+
+  function checkerFromParsedLocus(p){
+    const a=p.a;
+    if (p.typeId===0){
+      const k=p.k;
+      return (z) => nearly(norm(sub(z,a)), k, 2e-3);
+    }
+    if (p.typeId===1){
+      const th=p.k;
+      return (z) => {
+        const v=sub(z,a);
+        if (norm(v)<1e-6) return false;
+        return Math.abs(wrapPi(arg(v)-th))<1e-3;
+      };
+    }
+    if (p.typeId===2){
+      const b=p.b;
+      return (z) => nearly(norm(sub(z,a)), norm(sub(z,b)), 2e-3);
+    }
+    if (p.typeId===3){
+      const b=p.b;
+      return (z) => {
+        const v1=sub(z,a), v2=sub(z,b);
+        if (norm(v1)<1e-6 || norm(v2)<1e-6) return false;
+        return sameArg(v1,v2);
+      };
+    }
+    return null;
+  }
+
+  function checkExtraReverse(current){
+    const locusInput = document.getElementById("locusInput");
+    if (!locusInput) return {ok:true, reason:""};
+    const parsed = parseLocusString(locusInput.value);
+    if (!parsed) return {ok:false, reason:"Your locus is not in the required formats: |z-a|=k, arg(z-a)=k, |z-a|=|z-b|, arg(z-a)=arg(z-b)."};
+    if ((parsed.typeId===2 || parsed.typeId===3) && Math.hypot(parsed.a.re-parsed.b.re, parsed.a.im-parsed.b.im) < 1e-6){
+      return {ok:false, reason:"In your locus, a and b must be different."};
+    }
+    const checker = checkerFromParsedLocus(parsed);
+    if (!checker) return {ok:false, reason:"Could not interpret your locus."};
+    if (!checker(current.z0)) return {ok:false, reason:"Your locus does not contain the given point."};
+    if ((parsed.typeId===1 || parsed.typeId===3) && norm(sub(current.z0, parsed.a)) < 1e-6){
+      return {ok:false, reason:"Your locus uses arg(z-a) but the point equals a (arg undefined)."};
+    }
+    if (parsed.typeId===3 && norm(sub(current.z0, parsed.b)) < 1e-6){
+      return {ok:false, reason:"Your locus uses arg(z-b) but the point equals b (arg undefined)."};
+    }
+    return {ok:true, reason:""};
+  }
+
+  // ================== app state ==================
+  let level = 1;
+  let reverse = false;
+  let current = null;
+  let selected = new Set();
+  let attempts = 0;
+
+  function revealSolution(unlockNext=false){
     clearRevealStyles();
-    const wanted = current.correct
-      .map((ok,i)=> ok?i:null)
-      .filter(v=>v!==null);
-
-    // mark correct/incorrect relative to truth (not relative to user's selection)
+    const wanted = current.correct.map((ok,i)=> ok?i:null).filter(v=>v!==null);
     [...el.options.children].forEach((node, idx) => {
       if (wanted.includes(idx)) node.classList.add("reveal-good");
       else node.classList.add("reveal-bad");
     });
-
-    const wantedHuman = wanted.map(i => i+1).join(", ");
+    const wantedHuman = wanted.map(i=>i+1).join(", ");
     setMsg(`Correct option(s): ${wantedHuman}. Do you need to ask for help before moving on?`, "bad");
-    el.moveOnBtn.style.display = "";
+    if (unlockNext) showNext();
   }
 
-  function renderQuestion(q){
-    current = q;
+  function render(){
+    reverse = el.reverseChk.checked;
+    el.modeLbl.textContent = reverse ? "Reverse" : "Normal";
+    el.levelLbl.textContent = String(level);
+
     selected.clear();
     attempts = 0;
-    el.moveOnBtn.style.display = "none";
     clearCooldown();
+    clearRevealStyles();
+    hideNext();
+    lastOptClickTimes = [];
 
-    const fixed = level <= 4;
-    el.levelLbl.textContent = String(level);
-    el.modeLbl.textContent = fixed ? "Fixed order" : "Random";
+    const n = parseInt(el.numOptSel.value, 10);
 
-    el.locusBox.innerHTML = q.statementTex;
+    if (!reverse){
+      current = makeNormalQuestion(level, n);
+      el.promptBox.innerHTML = current.locus.tex;
+      el.subLine.innerHTML = `Select answer(s), then click <b>Check</b>. (Hold <b>Shift</b> and click Check to reveal.)`;
+
+      el.options.innerHTML = "";
+      setGridColumns(current.options.length);
+
+      current.options.forEach((z, idx) => {
+        const card=document.createElement("div");
+        card.className="opt";
+        const tag=document.createElement("div");
+        tag.className="tag";
+        tag.textContent=String(idx+1);
+        const txt=document.createElement("div");
+        txt.className="txt";
+        txt.innerHTML = `\\(${texZEquals(z)}\\)`;
+        card.appendChild(tag); card.appendChild(txt);
+
+        card.addEventListener("click", () => {
+          if (idx === current.options.length - 1) noteFinalOptionClickAndMaybeReveal();
+          if (card.classList.contains("selected")){ card.classList.remove("selected"); selected.delete(idx); }
+          else { card.classList.add("selected"); selected.add(idx); }
+          if (!nextUnlocked) setMsg("Select your answer(s).");
+        });
+
+        el.options.appendChild(card);
+      });
+
+      if (level >= 5){
+        showExtraPanel(
+          `<label for="zInput">Enter a new point that satisfies the locus (a+bi):</label>
+           <input id="zInput" type="text" placeholder="e.g. 1/2+i or 3/2-2i" style="min-width:260px;" />`,
+          `This entered point is part of the mark. Use i (not j). Fractions like 3/2 are allowed.`
+        );
+      } else hideExtraPanel();
+
+      setMsg("Select your answer(s).");
+      typeset();
+      return;
+    }
+
+    // reverse
+    current = makeReverseQuestion(level, n);
+    el.promptBox.innerHTML = `Given \\(${texZEquals(current.z0)}\\), which loci contain this point?`;
+    el.subLine.innerHTML = `Select answer(s), then click <b>Check</b>. (Hold <b>Shift</b> and click Check to reveal.)`;
+
     el.options.innerHTML = "";
+    setGridColumns(current.loci.length);
 
-    // responsive columns: 1 col on small, 2 on mid, 3+ on big when many options
-    const n = q.options.length;
-    if (n >= 13) el.options.style.gridTemplateColumns = "repeat(4, minmax(0,1fr))";
-    else if (n >= 9) el.options.style.gridTemplateColumns = "repeat(3, minmax(0,1fr))";
-    else el.options.style.gridTemplateColumns = (window.innerWidth <= 700) ? "1fr" : "repeat(2, minmax(0,1fr))";
-
-    q.options.forEach((z, idx) => {
-      const card = document.createElement("div");
-      card.className = "opt";
-      card.dataset.idx = String(idx);
-
-      const tag = document.createElement("div");
-      tag.className = "tag";
-      tag.textContent = String(idx+1);
-
-      const txt = document.createElement("div");
-      txt.className = "txt";
-      // Answer option in MathJax
-      txt.innerHTML = `\\(${texZEquals(z)}\\)`;
-
-      card.appendChild(tag);
-      card.appendChild(txt);
+    current.loci.forEach((L, idx) => {
+      const card=document.createElement("div");
+      card.className="opt";
+      const tag=document.createElement("div");
+      tag.className="tag";
+      tag.textContent=String(idx+1);
+      const txt=document.createElement("div");
+      txt.className="txt";
+      txt.innerHTML = L.tex;
+      card.appendChild(tag); card.appendChild(txt);
 
       card.addEventListener("click", () => {
-        // allow selection even after reveal, but it won't matter
-        if (card.classList.contains("selected")){
-          card.classList.remove("selected");
-          selected.delete(idx);
-        } else {
-          card.classList.add("selected");
-          selected.add(idx);
-        }
-        // if already revealed, keep reveal message
-        if (el.moveOnBtn.style.display === "none") setMsg("Select your answer(s).");
+        if (idx === current.loci.length - 1) noteFinalOptionClickAndMaybeReveal();
+        if (card.classList.contains("selected")){ card.classList.remove("selected"); selected.delete(idx); }
+        else { card.classList.add("selected"); selected.add(idx); }
+        if (!nextUnlocked) setMsg("Select your answer(s).");
       });
 
       el.options.appendChild(card);
     });
 
+    if (level >= 5){
+      showExtraPanel(
+        `<label for="locusInput">Enter a locus satisfied by the point (exact format):</label>
+         <input id="locusInput" type="text"
+           placeholder="|z-a|=k  or  arg(z-a)=k  or  |z-a|=|z-b|  or  arg(z-a)=arg(z-b)"
+           style="min-width:600px; flex:1 1 600px;" />`,
+        `Examples (spaces allowed): <span class="mono">|z-2-3i|=5/2</span> &nbsp; <span class="mono">arg(z+1-i)=pi/3</span> &nbsp; <span class="mono">|z-2|=|z+3i|</span> &nbsp; <span class="mono">arg(z-1)=arg(z+2i)</span>.`
+      );
+    } else hideExtraPanel();
+
     setMsg("Select your answer(s).");
     typeset();
   }
 
-  function nextQuestion(sameLevel=false){
-    const typeId = pickTypeForLevel(level);
-    const numOptions = parseInt(el.numOptSel.value, 10);
-    const q = makeQuestion(typeId, numOptions);
-    renderQuestion(q);
-  }
-
-  function checkAnswer(){
+  function checkAnswer(e){
     if (!current) return;
     if (Date.now() < cooldownUntil) return;
 
+    // SHIFT CHEAT: reveal + unlock next immediately
+    if (e && e.shiftKey){
+      revealSolution(true);
+      return;
+    }
+
     attempts += 1;
 
-    const wanted = current.correct
-      .map((ok,i)=> ok?i:null)
-      .filter(v=>v!==null);
-
+    const wanted = current.correct.map((ok,i)=> ok?i:null).filter(v=>v!==null);
     const chosen = [...selected].sort((a,b)=>a-b);
-    const sameLen = chosen.length === wanted.length;
-    const same = sameLen && chosen.every((v,i)=>v===wanted[i]);
+    const same = (chosen.length===wanted.length) && chosen.every((v,i)=>v===wanted[i]);
 
-    if (same){
-      clearCooldown();
-      el.moveOnBtn.style.display = "none";
-      clearRevealStyles();
-      setMsg("Correct ✅ Moving to the next level.", "good");
-      level += 1;
-      setTimeout(() => nextQuestion(true), 350);
-    } else {
-      if (attempts >= 2){
-        // Show solution after second incorrect check
-        revealSolution();
-        startCooldown(60);
-      } else {
-        setMsg("Not quite ❌ Check is locked for 60 seconds.", "bad");
-        startCooldown(60);
-      }
+    let extra = {ok:true, reason:""};
+    if (level >= 5){
+      extra = reverse ? checkExtraReverse(current) : checkExtraNormal(current);
     }
+
+    if (same && extra.ok){
+      clearCooldown();
+      clearRevealStyles();
+      setMsg("Correct ✅", "good");
+      showNext();
+      return;
+    }
+
+    if (!extra.ok){
+      setMsg(extra.reason + " Check is locked for 60 seconds.", "bad");
+    } else {
+      setMsg("Not quite ❌ Check is locked for 60 seconds.", "bad");
+    }
+
+    // after second wrong: reveal + unlock next
+    if (attempts >= 2){
+      revealSolution(true);
+    }
+
+    startCooldown(60);
   }
 
-  // ================== events & init ==================
-  // fill options dropdown: 4..20
-  for (let k=4; k<=20; k++){
-    const opt = document.createElement("option");
-    opt.value = String(k);
-    opt.textContent = String(k);
-    if (k === 4) opt.selected = true;
+  // ================== init & events ==================
+  // options dropdown 4..30
+  for (let k=4; k<=30; k++){
+    const opt=document.createElement("option");
+    opt.value=String(k);
+    opt.textContent=String(k);
+    if (k===4) opt.selected=true;
     el.numOptSel.appendChild(opt);
   }
 
-  el.checkBtn.addEventListener("click", checkAnswer);
-  el.newBtn.addEventListener("click", () => nextQuestion(true));
-  el.moveOnBtn.addEventListener("click", () => {
-    // let them move on even if not correct (after reveal)
-    clearCooldown();
+  el.checkBtn.addEventListener("click", (e) => checkAnswer(e));
+
+  el.nextBtn.addEventListener("click", (e) => {
+    if (!nextUnlocked && !(e && e.shiftKey)) return;
     level += 1;
-    nextQuestion(true);
+    render();
   });
 
-  el.numOptSel.addEventListener("change", () => {
-    // regenerate same level with new count
-    nextQuestion(true);
+  el.numOptSel.addEventListener("change", () => render());
+
+  el.reverseChk.addEventListener("change", () => {
+    level = 1;
+    render();
   });
 
   window.addEventListener("resize", () => {
-    // re-render grid columns quickly (no regeneration)
     if (!current) return;
-    const n = current.options.length;
-    if (n >= 13) el.options.style.gridTemplateColumns = "repeat(4, minmax(0,1fr))";
-    else if (n >= 9) el.options.style.gridTemplateColumns = "repeat(3, minmax(0,1fr))";
-    else el.options.style.gridTemplateColumns = (window.innerWidth <= 700) ? "1fr" : "repeat(2, minmax(0,1fr))";
+    const n = reverse ? current.loci.length : current.options.length;
+    setGridColumns(n);
   });
 
-  nextQuestion(true);
+  // start
+  setMsg("Select your answer(s).");
+  render();
 })();
 </script>
 </body>
