@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Half-angle substitution: Drag & Arrange + Matching</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --ink:#111; --muted:#667; --line:#dde1ea;
+      --ok:#1a7f37; --bad:#c62828; --warn:#b26a00; --accent:#ff7a00;
+      --disabled:#e9ebf3;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);}
+    .wrap{max-width:1150px;margin:0 auto;padding:24px 16px 70px;}
+    h1{margin:0 0 6px;font-size:28px}
+    .sub{margin:0 0 18px;color:var(--muted)}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 8px 18px rgba(0,0,0,.05);margin-bottom:14px}
+    .card h2{margin:0 0 10px;font-size:18px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    button{
+      border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;
+      cursor:pointer;font-weight:800
+    }
+    button.primary{background:var(--accent);border-color:transparent;color:#111}
+    button:disabled{cursor:not-allowed;opacity:.6}
+    .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:#fff}
+    .small{font-size:13px;color:var(--muted)}
+    .status{font-weight:900}
+    .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .feedback{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px dashed var(--line);background:#fbfcff}
+    .disabledOverlay{
+      position:relative;background:linear-gradient(0deg, rgba(233,235,243,.88), rgba(233,235,243,.88));
+      border-radius:14px;padding:12px;border:1px solid var(--line);
+    }
+    .disabledOverlay .note{color:var(--muted);font-weight:800}
+    .task{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff;display:grid;gap:10px}
+    .equations{display:grid;gap:10px}
+    .eqRow{
+      display:grid;grid-template-columns: 150px 28px 1fr;
+      align-items:center;gap:10px
+    }
+    .eqRow.wideL{grid-template-columns: 1fr 28px 1fr}
+    .lhs{font-weight:900}
+    .eq{font-weight:1000;text-align:center}
+    .dropzone{
+      min-height:44px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+      padding:8px;border:2px dashed var(--line);border-radius:14px;background:#fff;
+    }
+    .dropzone.filled{border-style:solid}
+    .dropzone.dragover{border-color:var(--accent)}
+    .bank{
+      display:flex;flex-wrap:wrap;gap:10px;padding:10px;border:1px solid var(--line);
+      border-radius:14px;background:#fff
+    }
+    .tile{
+      user-select:none; -webkit-user-select:none;
+      border:1px solid var(--line);border-radius:999px;padding:8px 12px;background:#fff;
+      cursor:grab;font-weight:900; box-shadow:0 4px 10px rgba(0,0,0,.06);
+      touch-action:none;
+    }
+    .tile:active{cursor:grabbing}
+    .tile.ghost{opacity:.45}
+    .tile.bad{outline:2px solid rgba(198,40,40,.25); background:#fff4f4}
+    .tile.ok{outline:2px solid rgba(26,127,55,.25); background:#f3fff7}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+    .tabBtn{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-weight:900}
+    .tabBtn.active{background:#fff2e7;border-color:transparent}
+    .matchGrid{display:grid;grid-template-columns:1fr; gap:10px}
+    @media(min-width:980px){ .matchGrid{grid-template-columns: 1fr 1fr} }
+    .pair{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff;display:grid;gap:8px}
+    select{padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:#fff;min-width:240px;font-weight:900}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+  </style>
+
+  <!-- MathJax -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(','\\)'],['$','$']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>Half-angle substitution: \(t=\tan\!\left(\frac{x}{2}\right)\)</h1>
+  <p class="sub">
+    1) Arrange substitution identities. 2) Arrange a derivation (choose 2a or 2b). 3) Match 10 fractions (locked until 2 is complete). Check in section 3 freezes for 5 minutes after each attempt.
+  </p>
+
+  <!-- 1) Rearrangement: substitutions -->
+  <section class="card" id="sec1">
+    <h2>1) Arrange the correct substitutions</h2>
+    <p class="small">Drag the correct right-hand side into each row. (No dropdowns.)</p>
+
+    <div class="task">
+      <div class="equations" id="subsRows"></div>
+
+      <div>
+        <div class="row" style="justify-content:space-between;margin:6px 0 8px">
+          <strong>Tile bank</strong>
+          <span class="pill small">Attempts: <span id="a1">0</span></span>
+          <span class="pill"><span class="status" id="s1">—</span></span>
+        </div>
+        <div class="bank" id="subsBank"></div>
+      </div>
+
+      <div class="row">
+        <button class="primary" id="check1">Check 1</button>
+        <button id="reset1">Reset</button>
+      </div>
+
+      <div class="feedback" id="f1" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- 2) Two methods -->
+  <section class="card" id="sec2">
+    <h2>2) Rearrangement: derive \(dx=\dfrac{2}{1+t^2}\,dt\)</h2>
+
+    <div id="lock2" class="disabledOverlay">
+      <div class="note">Locked: complete section 1 first.</div>
+    </div>
+
+    <div id="sec2Inner" style="display:none">
+      <div class="tabs">
+        <button class="tabBtn active" id="tab2a">2a</button>
+        <button class="tabBtn" id="tab2b">2b</button>
+      </div>
+      <p class="small">Drag tiles into each line so it reads correctly. Only the \(=\) signs are fixed. Completing either 2a or 2b unlocks section 3.</p>
+
+      <div class="task">
+        <div class="equations" id="dxRows"></div>
+
+        <div>
+          <div class="row" style="justify-content:space-between;margin:6px 0 8px">
+            <strong>Tile bank</strong>
+            <span class="pill small">Attempts: <span id="a2">0</span></span>
+            <span class="pill"><span class="status" id="s2">—</span></span>
+          </div>
+          <div class="bank" id="dxBank"></div>
+        </div>
+
+        <div class="row">
+          <button class="primary" id="check2">Check 2</button>
+          <button id="reset2">Reset</button>
+        </div>
+
+        <div class="feedback" id="f2" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3) Matching with cooldown -->
+  <section class="card" id="sec3">
+    <h2>3) Matching: trig fractions \(\rightarrow\) rational forms in \(t\)</h2>
+
+    <div id="lock3" class="disabledOverlay">
+      <div class="note">Locked: complete section 2 first.</div>
+    </div>
+
+    <div id="sec3Inner" style="display:none">
+      <p class="small" style="margin-top:0">
+        Choose the correct rational form for each trig fraction. After you press “Check 3”, the check button freezes for <strong>5 minutes</strong>.
+        This set includes both \(\left(\dfrac{\sin x}{2}\right)^2\) and \(\left(\sin\!\left(\dfrac{x}{2}\right)\right)^2\) inside at least one expression.
+      </p>
+
+      <div class="row" style="justify-content:space-between;margin:6px 0 8px">
+        <span class="pill small">Attempts: <span id="a3">0</span></span>
+        <span class="pill"><span class="status" id="s3">—</span></span>
+        <span class="pill small">Check cooldown: <span id="cooldown">ready</span></span>
+      </div>
+
+      <div class="matchGrid" id="matchGrid"></div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="check3">Check 3</button>
+        <button id="new3">New set</button>
+      </div>
+
+      <div class="feedback" id="f3" style="display:none"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ---------------------------
+   Simplify display: remove 1 before trig functions / t
+--------------------------- */
+function simpTrigTex(tex){
+  tex = tex.replace(/(^|[\+\-\(])1\\sin/g, "$1\\sin");
+  tex = tex.replace(/(^|[\+\-\(])1\\cos/g, "$1\\cos");
+  tex = tex.replace(/(^|[\+\-\(])1\\tan/g, "$1\\tan");
+  tex = tex.replace(/(^|[\+\-\(])1t/g, "$1t");
+  tex = tex.replace(/\+\-/g,"-");
+  return tex;
+}
+
+/* ---------------------------
+   Drag & drop core (pointer-based)
+--------------------------- */
+let draggingTile=null, originParent=null;
+
+function makeTile(id, tex){
+  const d=document.createElement("div");
+  d.className="tile";
+  d.setAttribute("draggable","false");
+  d.dataset.id=id;
+  d.dataset.tex=tex;
+  d.innerHTML=`\\(${tex}\\)`;
+  d.addEventListener("pointerdown",(e)=>{
+    draggingTile=d;
+    originParent=d.parentElement;
+    d.setPointerCapture(e.pointerId);
+    d.classList.add("ghost");
+  });
+  d.addEventListener("pointerup",(e)=>{
+    if(!draggingTile) return;
+    d.classList.remove("ghost");
+    const drop=document.elementFromPoint(e.clientX,e.clientY);
+    const zone=drop?.closest?.(".dropzone") || drop?.closest?.(".bank");
+    if(zone){
+      zone.appendChild(d);
+      zone.classList.toggle("filled", zone.classList.contains("dropzone") && zone.children.length>0);
+    }else{
+      originParent?.appendChild(d);
+    }
+    draggingTile=null; originParent=null;
+    requestMathTypeset();
+  });
+  return d;
+}
+
+function wireDropZones(root){
+  root.querySelectorAll(".dropzone").forEach(z=>{
+    z.addEventListener("pointerenter",()=>z.classList.add("dragover"));
+    z.addEventListener("pointerleave",()=>z.classList.remove("dragover"));
+  });
+}
+
+let mjQueued=false;
+function requestMathTypeset(){
+  if(mjQueued) return;
+  mjQueued=true;
+  setTimeout(()=>{
+    mjQueued=false;
+    if(window.MathJax) MathJax.typesetPromise();
+  },0);
+}
+
+function shuffle(a){
+  const b=a.slice();
+  for(let i=b.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [b[i],b[j]]=[b[j],b[i]];
+  }
+  return b;
+}
+
+/* ---------------------------
+   SECTION 1
+--------------------------- */
+const SUBS=[
+  {lhs:"\\sin x", rhs:"\\dfrac{2t}{1+t^2}"},
+  {lhs:"\\cos x", rhs:"\\dfrac{1-t^2}{1+t^2}"},
+  {lhs:"\\tan x", rhs:"\\dfrac{2t}{1-t^2}"},
+  {lhs:"\\sec x", rhs:"\\dfrac{1+t^2}{1-t^2}"},
+  {lhs:"\\cosec x", rhs:"\\dfrac{1+t^2}{2t}"},
+  {lhs:"\\cot x", rhs:"\\dfrac{1-t^2}{2t}"},
+];
+
+let attempts1=0, sec1Complete=false;
+
+function renderSec1(){
+  attempts1=0; sec1Complete=false;
+  document.getElementById("a1").textContent="0";
+  document.getElementById("s1").textContent="—";
+  document.getElementById("f1").style.display="none";
+
+  const rows=document.getElementById("subsRows");
+  rows.innerHTML="";
+  SUBS.forEach(s=>{
+    const row=document.createElement("div");
+    row.className="eqRow";
+    row.innerHTML=`
+      <div class="lhs">\\(${s.lhs}\\)</div>
+      <div class="eq">=</div>
+      <div class="dropzone" data-want="${s.rhs}"></div>
+    `;
+    rows.appendChild(row);
+  });
+
+  const bank=document.getElementById("subsBank");
+  bank.innerHTML="";
+  shuffle(SUBS.map((s,i)=>({id:"sub_"+i, tex:s.rhs}))).forEach(o=>{
+    bank.appendChild(makeTile(o.id, o.tex));
+  });
+
+  wireDropZones(document.getElementById("sec1"));
+  requestMathTypeset();
+}
+
+function checkSec1(){
+  attempts1++;
+  document.getElementById("a1").textContent=String(attempts1);
+
+  const zones=[...document.querySelectorAll("#subsRows .dropzone")];
+  let correct=0, filled=0;
+
+  zones.forEach(z=>{
+    z.querySelectorAll(".tile").forEach(t=>t.classList.remove("ok","bad"));
+    const want=z.dataset.want;
+    const tiles=[...z.querySelectorAll(".tile")];
+    if(tiles.length>0) filled++;
+    if(tiles.length===1 && tiles[0].dataset.tex===want){
+      correct++;
+      tiles[0].classList.add("ok");
+    }else if(tiles.length>0){
+      tiles.forEach(t=>t.classList.add("bad"));
+    }
+  });
+
+  const s=document.getElementById("s1");
+  const f=document.getElementById("f1");
+  f.style.display="block";
+
+  if(filled<zones.length){
+    s.innerHTML=`<span class="warn">Incomplete</span>`;
+    f.textContent=`Fill all ${zones.length} rows, then check again.`;
+  }else if(correct===zones.length){
+    s.innerHTML=`<span class="ok">Complete ✓</span>`;
+    f.textContent=`All substitutions correct. Section 2 is now unlocked.`;
+    sec1Complete=true;
+    unlock2();
+  }else{
+    s.innerHTML=`<span class="bad">${correct}/${zones.length}</span>`;
+    f.textContent=`Some rows are incorrect (highlighted). Fix them and check again.`;
+  }
+}
+
+/* ---------------------------
+   SECTION 2 (two variants)
+--------------------------- */
+let attempts2=0, sec2Complete=false;
+let mode2="2a";
+
+const DX_2A = [
+  {L:["t"], R:["\\tan\\!\\left(\\dfrac{x}{2}\\right)"]},
+  {L:["\\dfrac{x}{2}"], R:["\\arctan(t)"]},
+  {L:["x"], R:["2\\arctan(t)"]},
+  {L:["\\dfrac{dx}{dt}"], R:["2\\left(\\dfrac{1}{1+t^2}\\right)"]},
+  {L:["dx"], R:["\\dfrac{2}{1+t^2}dt"]},
+];
+
+const DX_2B = [
+  {L:["t"], R:["\\tan\\!\\left(\\dfrac{x}{2}\\right)"]},
+  {L:["\\dfrac{dt}{dx}"], R:["\\dfrac{1}{2}\\sec^2\\!\\left(\\dfrac{x}{2}\\right)"]},
+  {L:["\\dfrac{dt}{dx}"], R:["\\dfrac{1}{2}\\left(1+\\tan^2\\!\\left(\\dfrac{x}{2}\\right)\\right)"]},
+  {L:["\\dfrac{dt}{dx}"], R:["\\dfrac{1}{2}\\left(1+t^2\\right)"]},
+  {L:["\\dfrac{dx}{dt}"], R:["\\dfrac{2}{1+t^2}"]},
+  {L:["dx"], R:["\\dfrac{2}{1+t^2}dt"]},
+];
+
+function renderSec2(){
+  attempts2=0; sec2Complete=false;
+  document.getElementById("a2").textContent="0";
+  document.getElementById("s2").textContent="—";
+  document.getElementById("f2").style.display="none";
+
+  const lines = (mode2==="2a") ? DX_2A : DX_2B;
+
+  const rows=document.getElementById("dxRows");
+  rows.innerHTML="";
+  lines.forEach((line,idx)=>{
+    const Lwant=line.L.join(" ").trim();
+    const Rwant=line.R.join(" ").trim();
+    const row=document.createElement("div");
+    row.className="eqRow wideL";
+    row.innerHTML=`
+      <div class="dropzone" data-want="${simpTrigTex(Lwant)}"></div>
+      <div class="eq">=</div>
+      <div class="dropzone" data-want="${simpTrigTex(Rwant)}"></div>
+    `;
+    rows.appendChild(row);
+  });
+
+  // build tile bank from ALL L and R terms (every term draggable)
+  const bank=document.getElementById("dxBank");
+  bank.innerHTML="";
+  const tiles=[];
+  lines.forEach(line=>{
+    tiles.push(...line.L);
+    tiles.push(...line.R);
+  });
+  const uniq=[...new Set(tiles.map(t=>simpTrigTex(t)))];
+
+  shuffle(uniq.map((tex,i)=>({id:"dx_"+mode2+"_"+i, tex}))).forEach(o=>{
+    bank.appendChild(makeTile(o.id, o.tex));
+  });
+
+  wireDropZones(document.getElementById("sec2Inner"));
+  requestMathTypeset();
+}
+
+function zoneText(z){
+  return [...z.querySelectorAll(".tile")].map(t=>t.dataset.tex).join(" ").trim();
+}
+
+function checkSec2(){
+  attempts2++;
+  document.getElementById("a2").textContent=String(attempts2);
+
+  const zones=[...document.querySelectorAll("#dxRows .dropzone")];
+  let correct=0, filled=0;
+
+  zones.forEach(z=>{
+    z.querySelectorAll(".tile").forEach(t=>t.classList.remove("ok","bad"));
+    const want=simpTrigTex((z.dataset.want||"").trim());
+    const got=simpTrigTex(zoneText(z));
+    if(got) filled++;
+    if(got===want){
+      correct++;
+      z.querySelectorAll(".tile").forEach(t=>t.classList.add("ok"));
+    }else if(got){
+      z.querySelectorAll(".tile").forEach(t=>t.classList.add("bad"));
+    }
+  });
+
+  const s=document.getElementById("s2");
+  const f=document.getElementById("f2");
+  f.style.display="block";
+
+  if(filled<zones.length){
+    s.innerHTML=`<span class="warn">Incomplete</span>`;
+    f.textContent=`Fill every left and right side, then check again.`;
+  }else if(correct===zones.length){
+    s.innerHTML=`<span class="ok">Complete ✓</span>`;
+    f.textContent=`Great — method ${mode2.toUpperCase()} is correct. Section 3 is now unlocked.`;
+    sec2Complete=true;
+    unlock3();
+  }else{
+    s.innerHTML=`<span class="bad">${correct}/${zones.length}</span>`;
+    f.textContent=`Some parts are incorrect (highlighted). Rearrange and check again.`;
+  }
+}
+
+/* ---------------------------
+   SECTION 3: Matching with cooldown, includes both:
+   (sin x / 2)^2 and (sin(x/2))^2, plus at least one expression containing sin(x/2)^2 inside a bigger expression.
+--------------------------- */
+/* Rational machinery */
+function polyTrim(a){let b=a.slice();while(b.length>1&&Math.abs(b[b.length-1])<1e-12)b.pop();return b;}
+function polyAdd(a,b){const n=Math.max(a.length,b.length),o=new Array(n).fill(0);for(let i=0;i<n;i++)o[i]=(a[i]||0)+(b[i]||0);return polyTrim(o);}
+function polyMul(a,b){const o=new Array(a.length+b.length-1).fill(0);for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)o[i+j]+=a[i]*b[j];return polyTrim(o);}
+function polyScale(a,k){return polyTrim(a.map(x=>x*k));}
+function polyNonzeroTerms(a){return a.reduce((acc,c)=>acc+(Math.abs(c)>1e-12?1:0),0);}
+function gcdInt(a,b){a=Math.abs(a);b=Math.abs(b);while(b){const t=a%b;a=b;b=t;}return a||0;}
+function polyContentGCD(a){let g=0;for(const c of a){const r=Math.round(c);if(Math.abs(c-r)>1e-9)return 1;g=gcdInt(g,r);if(g===1)return 1;}return g||1;}
+function ratSimplify(r){
+  let num=polyTrim(r.num), den=polyTrim(r.den);
+  const g=gcdInt(polyContentGCD(num), polyContentGCD(den));
+  if(g>1){num=num.map(c=>c/g);den=den.map(c=>c/g);}
+  const ld=den[den.length-1]||1;
+  if(ld<0){num=polyScale(num,-1);den=polyScale(den,-1);}
+  return {num,den};
+}
+function ratAdd(r1,r2){return ratSimplify({num:polyAdd(polyMul(r1.num,r2.den),polyMul(r2.num,r1.den)),den:polyMul(r1.den,r2.den)});}
+function ratMul(r1,r2){return ratSimplify({num:polyMul(r1.num,r2.num),den:polyMul(r1.den,r2.den)});}
+function ratFromPoly(p){return {num:polyTrim(p),den:[1]};}
+const R_SIN={num:[0,2],den:[1,0,1]};
+const R_COS={num:[1,0,-1],den:[1,0,1]};
+const R_TAN={num:[0,2],den:[1,0,-1]};
+function linComb(a,b,c,d){
+  let r=ratFromPoly([a]);
+  if(b) r=ratAdd(r, ratMul(ratFromPoly([b]), R_SIN));
+  if(c) r=ratAdd(r, ratMul(ratFromPoly([c]), R_COS));
+  if(d) r=ratAdd(r, ratMul(ratFromPoly([d]), R_TAN));
+  return ratSimplify(r);
+}
+function fracExpr(top,bot){
+  const T=linComb(top.a,top.b,top.c,top.d);
+  const B=linComb(bot.a,bot.b,bot.c,bot.d);
+  return ratSimplify({num:polyMul(T.num,B.den), den:polyMul(T.den,B.num)});
+}
+function polyToTeX(p){
+  p=polyTrim(p);
+  const terms=[];
+  for(let i=p.length-1;i>=0;i--){
+    const c=p[i]; if(Math.abs(c)<1e-12) continue;
+    const sign=c<0?"-":"+"; const ac=Math.abs(Math.round(c)); const isOne=(ac===1);
+    let body="";
+    if(i===0) body=String(ac);
+    else if(i===1) body=isOne?"t":ac+"t";
+    else body=isOne?`t^{${i}}`:`${ac}t^{${i}}`;
+    terms.push({sign,body});
+  }
+  if(!terms.length) return "0";
+  let out=(terms[0].sign==="-"?"-":"")+terms[0].body;
+  for(let k=1;k<terms.length;k++) out+=terms[k].sign+terms[k].body;
+  return out.replace(/\+\-/g,"-");
+}
+function ratToTeX(r){
+  r=ratSimplify(r);
+  const n=polyToTeX(r.num), d=polyToTeX(r.den);
+  if(d==="1") return n;
+  return `\\dfrac{${n}}{${d}}`;
+}
+function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+function countTerms(o){return ["a","b","c","d"].reduce((acc,k)=>acc+(o[k]!==0?1:0),0);}
+function randomSide(){
+  const patterns=[
+    ()=>({a:randInt(2,15), b:pick([-13,-11,-9,-7,-5,-3,3,5,7,9,11,13]), c:0, d:0}),
+    ()=>({a:0, b:pick([1,-1,2,-2]), c:pick([1,-1,2,-2]), d:0}),
+    ()=>({a:1, b:pick([1,-1,2,-2]), c:pick([1,-1,2,-2]), d:0}),
+    ()=>({a:1, b:0, c:pick([1,-1,2,-2,-3,3]), d:0}),
+    ()=>({a:0, b:pick([1,-1,2,-2]), c:0, d:pick([1,-1,2,-2])}),
+  ];
+  let s=pick(patterns)();
+  if(s.a===0&&s.b===0&&s.c===0&&s.d===0) s.a=1;
+  while(countTerms(s)>3) s[pick(["b","c","d"])]=0;
+  return s;
+}
+function sideToTeX(s){
+  const parts=[];
+  const add=(coef,sym)=>{
+    if(!coef) return;
+    const sign=coef<0?"-":"+"; const abs=Math.abs(coef);
+    let piece="";
+    if(sym==="") piece=String(abs);
+    else piece=(abs===1?sym:abs+sym);
+    parts.push({sign,piece});
+  };
+  add(s.a,"");
+  add(s.b,"\\sin x");
+  add(s.c,"\\cos x");
+  add(s.d,"\\tan x");
+  if(!parts.length) return "0";
+  let out=(parts[0].sign==="-"?"-":"")+parts[0].piece;
+  for(let i=1;i<parts.length;i++) out+=parts[i].sign+parts[i].piece;
+  return simpTrigTex(out.replace(/\+\-/g,"-"));
+}
+function trigFracTeX(top,bot){ return `\\dfrac{${sideToTeX(top)}}{${sideToTeX(bot)}}`; }
+
+function generateItem(){
+  const type=Math.random();
+  let top,bot;
+  if(type<0.55){ top={a:1,b:0,c:0,d:0}; bot=randomSide(); }
+  else{ top=randomSide(); bot=randomSide(); }
+  if(countTerms(bot)===1 && bot.a===1) bot=randomSide();
+  const rat=fracExpr(top,bot);
+  if(polyNonzeroTerms(rat.num)>5 || polyNonzeroTerms(rat.den)>5) return null;
+  return {left:trigFracTeX(top,bot), right:ratToTeX(rat)};
+}
+
+// Special items:
+function itemSinOver2Squared(){
+  // (sin x /2)^2 = t^2/(1+t^2)^2
+  return {left:"\\left(\\dfrac{\\sin x}{2}\\right)^2", right:"\\dfrac{t^2}{\\left(1+t^2\\right)^2", special:true};
+}
+function itemSinHalfSquared(){
+  // sin(x/2) = t/sqrt(1+t^2) so square = t^2/(1+t^2)
+  return {left:"\\left(\\sin\\!\\left(\\dfrac{x}{2}\\right)\\right)^2", right:"\\dfrac{t^2}{1+t^2}", special:true};
+}
+function itemWithSinHalfInside(){
+  // tan x / cos x - (sin(x/2))^2
+  // tan x / cos x = (2t/(1-t^2)) / ((1-t^2)/(1+t^2)) = 2t(1+t^2)/(1-t^2)^2
+  // subtract t^2/(1+t^2)
+  const left="\\dfrac{\\tan x}{\\cos x}-\\left(\\sin\\!\\left(\\dfrac{x}{2}\\right)\\right)^2";
+  const right="\\dfrac{2t\\left(1+t^2\\right)}{\\left(1-t^2\\right)^2}-\\dfrac{t^2}{1+t^2}";
+  return {left, right, special:true};
+}
+
+let set3=null;
+let attempts3=0;
+let cooldownUntil=0;
+let cooldownTimer=null;
+
+function startCooldown(){
+  cooldownUntil = Date.now() + 5*60*1000;
+  updateCooldownUI();
+  document.getElementById("check3").disabled=true;
+  if(cooldownTimer) clearInterval(cooldownTimer);
+  cooldownTimer=setInterval(()=>{
+    updateCooldownUI();
+    if(Date.now()>=cooldownUntil){
+      clearInterval(cooldownTimer);
+      cooldownTimer=null;
+      document.getElementById("check3").disabled=false;
+      document.getElementById("cooldown").textContent="ready";
+    }
+  },250);
+}
+function updateCooldownUI(){
+  const el=document.getElementById("cooldown");
+  const ms=cooldownUntil-Date.now();
+  if(ms<=0){ el.textContent="ready"; return; }
+  const s=Math.ceil(ms/1000);
+  const m=Math.floor(s/60);
+  const r=s%60;
+  el.textContent=`${m}:${String(r).padStart(2,"0")}`;
+}
+
+function newSet3(){
+  attempts3=0;
+  document.getElementById("a3").textContent="0";
+  document.getElementById("s3").textContent="—";
+  document.getElementById("f3").style.display="none";
+
+  const specials=[itemSinOver2Squared(), itemSinHalfSquared(), itemWithSinHalfInside()];
+  const items=[...specials];
+
+  const seenL=new Set(items.map(x=>x.left));
+  const seenR=new Set(items.map(x=>x.right));
+
+  let guard=0;
+  while(items.length<10 && guard<7000){
+    guard++;
+    const it=generateItem();
+    if(!it) continue;
+    if(seenL.has(it.left) || seenR.has(it.right)) continue;
+    seenL.add(it.left); seenR.add(it.right);
+    items.push(it);
+  }
+
+  // shuffle rights
+  const rights=shuffle(items.map((it,i)=>({tex:it.right, orig:i})));
+  const letters="ABCDEFGHIJ".split("");
+  const origToLetter=new Map();
+  rights.forEach((r,idx)=>origToLetter.set(r.orig, letters[idx]));
+
+  set3={items, rights, letters, origToLetter};
+  renderSet3();
+}
+
+function renderSet3(){
+  const grid=document.getElementById("matchGrid");
+  grid.innerHTML="";
+
+  const opts = ['<option value="">— choose —</option>']
+    .concat(set3.letters.map(L=>`<option value="${L}">${L}</option>`)).join("");
+
+  // right list panel
+  const rightPanel=document.createElement("div");
+  rightPanel.className="pair";
+  rightPanel.innerHTML=`
+    <div class="small" style="color:var(--muted);font-weight:900">Rational forms (A–J)</div>
+    <div style="display:grid;gap:6px">
+      ${set3.rights.map((r,idx)=>`
+        <div class="row" style="gap:10px;align-items:flex-start">
+          <span class="pill mono" style="font-weight:1000">${set3.letters[idx]}</span>
+          <span>\\(${r.tex}\\)</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  grid.appendChild(rightPanel);
+
+  set3.items.forEach((it,i)=>{
+    const card=document.createElement("div");
+    card.className="pair";
+    card.dataset.i=String(i);
+    card.innerHTML=`
+      <div class="small" style="color:var(--muted);font-weight:900">Q${i+1}</div>
+      <div>\\(${it.left}\\)</div>
+      <div class="row" style="justify-content:space-between">
+        <select class="sel3">${opts}</select>
+        <span class="pill small">Pick matching letter</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  requestMathTypeset();
+}
+
+function check3(){
+  if(Date.now()<cooldownUntil) return;
+
+  attempts3++;
+  document.getElementById("a3").textContent=String(attempts3);
+
+  const cards=[...document.querySelectorAll("#matchGrid .pair")].slice(1);
+  let correct=0, answered=0;
+
+  cards.forEach(card=>{
+    card.style.outline="";
+    card.style.background="#fff";
+    const i=+card.dataset.i;
+    const sel=card.querySelector("select");
+    const val=sel.value;
+    if(val) answered++;
+    const want=set3.origToLetter.get(i);
+    if(val && val===want){
+      correct++;
+      card.style.outline="2px solid rgba(26,127,55,.25)";
+      card.style.background="#f3fff7";
+    }else if(val){
+      card.style.outline="2px solid rgba(198,40,40,.25)";
+      card.style.background="#fff4f4";
+    }
+  });
+
+  const s=document.getElementById("s3");
+  const f=document.getElementById("f3");
+  f.style.display="block";
+
+  if(answered<10){
+    s.innerHTML=`<span class="warn">Incomplete</span>`;
+    f.textContent=`You answered ${answered}/10. Fill all then check again. (Cooldown starts after a check.)`;
+  }else if(correct===10){
+    s.innerHTML=`<span class="ok">10/10 ✓</span>`;
+    f.textContent=`Perfect — all correct. Check is now frozen for 5 minutes.`;
+  }else{
+    s.innerHTML=`<span class="bad">${correct}/10</span>`;
+    f.textContent=`Some are incorrect. Check is now frozen for 5 minutes.`;
+  }
+
+  startCooldown();
+}
+
+/* ---------------------------
+   Locks/unlocks
+--------------------------- */
+function unlock2(){
+  if(!sec1Complete) return;
+  document.getElementById("lock2").style.display="none";
+  document.getElementById("sec2Inner").style.display="block";
+  renderSec2();
+}
+function unlock3(){
+  if(!sec2Complete) return;
+  document.getElementById("lock3").style.display="none";
+  document.getElementById("sec3Inner").style.display="block";
+  newSet3();
+}
+
+/* ---------------------------
+   Tab switching for 2a/2b
+--------------------------- */
+function setMode2(newMode){
+  mode2=newMode;
+  document.getElementById("tab2a").classList.toggle("active", mode2==="2a");
+  document.getElementById("tab2b").classList.toggle("active", mode2==="2b");
+  renderSec2();
+}
+
+document.getElementById("tab2a").addEventListener("click",()=>setMode2("2a"));
+document.getElementById("tab2b").addEventListener("click",()=>setMode2("2b"));
+
+/* ---------------------------
+   Button handlers
+--------------------------- */
+document.getElementById("check1").addEventListener("click",checkSec1);
+document.getElementById("reset1").addEventListener("click",renderSec1);
+
+document.getElementById("check2").addEventListener("click",checkSec2);
+document.getElementById("reset2").addEventListener("click",renderSec2);
+
+document.getElementById("check3").addEventListener("click",check3);
+document.getElementById("new3").addEventListener("click",()=>{ newSet3(); });
+
+/* ---------------------------
+   Init
+--------------------------- */
+renderSec1();
+requestMathTypeset();
+</script>
+</body>
+</html>
