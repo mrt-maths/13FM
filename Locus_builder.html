@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Argand Locus Builder (2-minute)</title>
+
+<!-- MathJax -->
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['\\(','\\)'],['$','$']] },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#ffffff; --ink:#111; --muted:#667085;
+    --line:#d0d5dd; --accent:#ff7a00; --good:#12b76a; --bad:#f04438;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:14px 16px;border-bottom:1px solid #e7e9ee;background:#fff;position:sticky;top:0;z-index:10}
+  .topbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:800}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn:active{transform:translateY(1px)}
+  .stat{font-weight:900}
+  .muted{color:var(--muted)}
+  .wrap{display:grid;grid-template-columns:360px 1fr;gap:14px;padding:14px;max-width:1260px;margin:0 auto}
+  @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
+  .card{background:var(--card);border:1px solid #e7e9ee;border-radius:16px;box-shadow:0 6px 18px rgba(16,24,40,.06)}
+  .card h2{margin:0;padding:14px 14px 0;font-size:16px}
+  .card .inner{padding:14px}
+  .equation{font-size:18px;font-weight:900;line-height:1.25}
+  .equation small{display:block;font-weight:650;color:var(--muted);margin-top:8px}
+  .toolbox{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tool{border:1px dashed #cbd5e1;background:#fafcff;border-radius:14px;padding:10px;cursor:grab;user-select:none;touch-action:none}
+  .tool .name{font-weight:900}
+  .tool .desc{font-size:12px;color:var(--muted);margin-top:2px}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.35}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .tag{font-size:12px;font-weight:900;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:#fff}
+  .tag.good{border-color:rgba(18,183,106,.35);color:var(--good)}
+  .tag.bad{border-color:rgba(240,68,56,.35);color:var(--bad)}
+  .tag.pause{border-color:rgba(255,122,0,.35);color:var(--accent)}
+  .canvasWrap{padding:14px}
+  canvas{width:100%;height:640px;background:#fff;border:1px solid #e7e9ee;border-radius:16px;touch-action:none;display:block}
+  @media (max-width:980px){ canvas{height:560px} }
+  .small{font-size:12px}
+  .list{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:12px}
+  .feedback{margin-top:12px;border:1px solid #e7e9ee;border-radius:14px;padding:10px;background:#fafcff;display:none}
+  .feedback.show{display:block}
+  .feedback .title{font-weight:900;margin-bottom:6px}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="topbar">
+    <button class="btn primary" id="startBtn">Start 2-minute game</button>
+    <button class="btn" id="checkBtn" disabled>Check (Enter)</button>
+    <button class="btn" id="clearBtn">Clear</button>
+
+    <span class="pill"><span class="muted">Time</span> <span class="stat" id="timeLeft">120</span><span class="muted">s</span></span>
+    <span class="pill"><span class="muted">Score</span> <span class="stat" id="score">0</span></span>
+    <span class="pill"><span class="muted">High</span> <span class="stat" id="highScore">0</span></span>
+    <span class="pill"><span class="muted">Q</span> <span class="stat" id="qNum">0</span></span>
+    <span class="pill"><span class="muted">Status</span> <span id="lastResult" class="tag">—</span></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2>Question</h2>
+    <div class="inner">
+      <div class="equation" id="eqn">Press <b>Start</b>.</div>
+
+      <div class="feedback" id="feedback">
+        <div class="title" id="fbTitle">Incorrect</div>
+        <div class="small" id="fbText"></div>
+        <div class="row" style="margin-top:10px;justify-content:flex-end">
+          <button class="btn primary" id="nextBtn">Next locus</button>
+        </div>
+      </div>
+
+      <div class="hint">
+        <b>Range rule:</b> \(\arg(\cdot)\in[-\pi,\pi]\) and questions use increments of \(\pi/4\).
+        <ul class="list">
+          <li>\(|z-a|=k\) → circle tool</li>
+          <li>\(\arg(z-a)=k\) → half-line tool</li>
+          <li>\(|z-a|=|z-b|\) → perp bisector tool</li>
+          <li>\(\arg(z-a)=\arg(z-b)\) → outside rays tool</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Toolbox (drag onto diagram)</h2>
+    <div class="inner">
+      <div class="toolbox">
+        <div class="tool" draggable="true" data-tool="circle">
+          <div class="name">Circle</div>
+          <div class="desc">Centre + radius handle</div>
+        </div>
+        <div class="tool" draggable="true" data-tool="ray">
+          <div class="name">Half-line</div>
+          <div class="desc">Point \(a\) + angle handle</div>
+        </div>
+        <div class="tool" draggable="true" data-tool="perpBis">
+          <div class="name">Perp bisector</div>
+          <div class="desc">Two points \(a,b\)</div>
+        </div>
+        <div class="tool" draggable="true" data-tool="outsideRays">
+          <div class="name">Outside rays</div>
+          <div class="desc">Two points \(a,b\)</div>
+        </div>
+      </div>
+      <div class="hint">
+        Handles snap to the integer grid. Touch: tap a tool, then tap the diagram.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Argand diagram</h2>
+    <div class="canvasWrap">
+      <canvas id="cv"></canvas>
+    </div>
+    <div class="inner small muted">
+      The diagram uses a <b>1:1 scale</b> so angles/gradients are accurate.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Utilities ----------
+  const TAU = Math.PI * 2;
+  const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+  const dist = (p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+  const ang  = (p,q)=>Math.atan2(q.y-p.y, q.x-p.x);
+  const normAng = (t)=>{ t%=TAU; if(t<=-Math.PI) t+=TAU; if(t>Math.PI) t-=TAU; return t; };
+  const angDiff = (a,b)=>Math.abs(normAng(a-b));
+  const rndInt = (lo,hi)=>Math.floor(Math.random()*(hi-lo+1))+lo;
+  const choice = (arr)=>arr[Math.floor(Math.random()*arr.length)];
+  const esc = (s)=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+  function gcd(a,b){ while(b){ [a,b]=[b,a%b]; } return a; }
+
+  // Build TeX for z-a without ugly extra brackets:
+  // returns TeX like z+2-i, z-3+4i, z+5, z-2i
+  function texZMinus(z){
+    const a=z.re, b=z.im;
+    const parts = ["z"];
+
+    // real: z - a
+    if(a !== 0){
+      parts.push(a>0 ? `-${a}` : `+${Math.abs(a)}`);
+    }
+
+    // imag: - (bi) => -b i
+    if(b !== 0){
+      const coeff = Math.abs(b);
+      const iPart = (coeff===1) ? "i" : `${coeff}i`;
+      // subtract bi:
+      if(b>0) parts.push(`-${iPart}`);
+      else parts.push(`+${iPart}`);
+    }
+
+    return parts.join("");
+  }
+
+  function texAnglePiOver4(theta){
+    const step = Math.PI/4;
+    let n = Math.round(theta/step);
+    n = clamp(n,-4,4);
+    if(n===0) return "0";
+    if(n===4) return "\\pi";
+    if(n===-4) return "-\\pi";
+    const den = 4;
+    const g = gcd(Math.abs(n), den);
+    const nn = n/g, dd = den/g;
+    if(dd===1) return `${nn}\\pi`;
+    if(nn===1) return `\\frac{\\pi}{${dd}}`;
+    if(nn===-1) return `-\\frac{\\pi}{${dd}}`;
+    return `\\frac{${nn}\\pi}{${dd}}`;
+  }
+
+  function texComplexPlain(z){
+    // for explanations: a = 1-3i etc (no extra brackets)
+    const r=z.re, i=z.im;
+    if(i===0) return `${r}`;
+    const s = i<0 ? "-" : "+";
+    const ai = Math.abs(i);
+    const iPart = (ai===1) ? "i" : `${ai}i`;
+    if(r===0) return (i<0? `-${iPart}`: iPart);
+    return `${r}${s}${iPart}`;
+  }
+
+  // ---------- UI elements ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+
+  const startBtn = document.getElementById("startBtn");
+  const checkBtn = document.getElementById("checkBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const timeLeftEl = document.getElementById("timeLeft");
+  const scoreEl = document.getElementById("score");
+  const highScoreEl = document.getElementById("highScore");
+  const qNumEl = document.getElementById("qNum");
+  const lastEl = document.getElementById("lastResult");
+  const eqnEl = document.getElementById("eqn");
+
+  const feedback = document.getElementById("feedback");
+  const fbTitle = document.getElementById("fbTitle");
+  const fbText  = document.getElementById("fbText");
+  const nextBtn = document.getElementById("nextBtn");
+
+  // ---------- High score (localStorage) ----------
+  const HS_KEY = "argand_locus_highscore_v1";
+  let highScore = Number(localStorage.getItem(HS_KEY) || "0");
+  highScoreEl.textContent = String(highScore);
+
+  function updateHighScore(){
+    if(score > highScore){
+      highScore = score;
+      localStorage.setItem(HS_KEY, String(highScore));
+      highScoreEl.textContent = String(highScore);
+    }
+  }
+
+  // ---------- Plane (1:1 scale) ----------
+  const plane = { xmin:-10, xmax:10, ymin:-10, ymax:10, pad:22, pxPerUnit:1 };
+
+  function resize(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = cv.getBoundingClientRect();
+    cv.width = Math.floor(rect.width * dpr);
+    cv.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    const w = rect.width, h = rect.height;
+    const pxX = (w - 2*plane.pad) / (plane.xmax-plane.xmin);
+    const pxY = (h - 2*plane.pad) / (plane.ymax-plane.ymin);
+    plane.pxPerUnit = Math.min(pxX, pxY);
+
+    draw(paused); // keep correct locus visible if paused
+  }
+  window.addEventListener("resize", resize);
+
+  function toCanvas(p){
+    const rect = cv.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const cx = w/2, cy = h/2;
+    return { x: cx + p.x*plane.pxPerUnit, y: cy - p.y*plane.pxPerUnit };
+  }
+  function toPlane(px,py){
+    const rect = cv.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const cx = w/2, cy = h/2;
+    return { x: (px-cx)/plane.pxPerUnit, y: (cy-py)/plane.pxPerUnit };
+  }
+  function snap(p){
+    return {
+      x: clamp(Math.round(p.x), plane.xmin, plane.xmax),
+      y: clamp(Math.round(p.y), plane.ymin, plane.ymax)
+    };
+  }
+
+  // ---------- Shapes ----------
+  let shapes = [];
+  let nextId = 1;
+
+  function addShape(type, dropP){
+    const id = nextId++;
+    const p = snap(dropP);
+    let s;
+    if(type==="circle"){
+      s = {id,type,pts:[{x:p.x,y:p.y},{x:clamp(p.x+3,plane.xmin,plane.xmax),y:p.y}]};
+    } else if(type==="ray"){
+      s = {id,type,pts:[{x:p.x,y:p.y},{x:clamp(p.x+3,plane.xmin,plane.xmax),y:clamp(p.y+2,plane.ymin,plane.ymax)}]};
+    } else if(type==="perpBis"){
+      s = {id,type,pts:[{x:clamp(p.x-2,plane.xmin,plane.xmax),y:clamp(p.y-1,plane.ymin,plane.ymax)},{x:clamp(p.x+2,plane.xmin,plane.xmax),y:clamp(p.y+1,plane.ymin,plane.ymax)}]};
+    } else {
+      s = {id,type,pts:[{x:clamp(p.x-2,plane.xmin,plane.xmax),y:p.y},{x:clamp(p.x+2,plane.xmin,plane.xmax),y:p.y}]};
+    }
+    shapes = [s];
+    draw(paused);
+  }
+
+  function hitHandle(mx,my){
+    const r = 10;
+    for(let k=shapes.length-1;k>=0;k--){
+      const s=shapes[k];
+      for(let i=0;i<s.pts.length;i++){
+        const c=toCanvas(s.pts[i]);
+        if(dist({x:mx,y:my}, c) <= r) return {shape:s, idx:i};
+      }
+    }
+    return null;
+  }
+
+  // ---------- Draw ----------
+  function drawGrid(){
+    const rect=cv.getBoundingClientRect();
+    const w=rect.width, h=rect.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle="#fff";
+    ctx.fillRect(0,0,w,h);
+
+    // grid
+    ctx.lineWidth=1;
+    ctx.strokeStyle="#eef0f4";
+    for(let x=plane.xmin;x<=plane.xmax;x++){
+      const a=toCanvas({x,y:plane.ymin});
+      const b=toCanvas({x,y:plane.ymax});
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    for(let y=plane.ymin;y<=plane.ymax;y++){
+      const a=toCanvas({x:plane.xmin,y});
+      const b=toCanvas({x:plane.xmax,y});
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+
+    // axes
+    ctx.strokeStyle="#d0d5dd";
+    ctx.lineWidth=2;
+    let a=toCanvas({x:plane.xmin,y:0}), b=toCanvas({x:plane.xmax,y:0});
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    a=toCanvas({x:0,y:plane.ymin}); b=toCanvas({x:0,y:plane.ymax});
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+
+    // labels
+    ctx.fillStyle="#667085";
+    ctx.font="12px system-ui,Segoe UI,Roboto,Arial,sans-serif";
+    for(let x=-10;x<=10;x+=2){
+      const p=toCanvas({x,y:0});
+      ctx.fillText(String(x), p.x-6, p.y+16);
+    }
+    for(let y=-10;y<=10;y+=2){
+      if(y===0) continue;
+      const p=toCanvas({x:0,y});
+      ctx.fillText(String(y), p.x+8, p.y+4);
+    }
+  }
+
+  function drawHandle(p){
+    const c=toCanvas(p);
+    ctx.beginPath();
+    ctx.fillStyle="#ff7a00";
+    ctx.strokeStyle="#b85a00";
+    ctx.lineWidth=2;
+    ctx.arc(c.x,c.y,7,0,TAU);
+    ctx.fill(); ctx.stroke();
+  }
+
+  function drawRayFrom(a, theta, color){
+    const aC=toCanvas(a);
+    const L=2000;
+    const end={x:aC.x+Math.cos(theta)*L, y:aC.y-Math.sin(theta)*L};
+    ctx.strokeStyle=color;
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(aC.x,aC.y); ctx.lineTo(end.x,end.y); ctx.stroke();
+  }
+
+  function drawCircleShape(s, color){
+    const cen=s.pts[0], rP=s.pts[1];
+    const R=dist(cen,rP);
+    const cc=toCanvas(cen);
+    const Rp=R*plane.pxPerUnit;
+    ctx.strokeStyle=color; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(cc.x,cc.y,Rp,0,TAU); ctx.stroke();
+    drawHandle(cen); drawHandle(rP);
+  }
+
+  function drawRayShape(s, color){
+    const a=s.pts[0], h=s.pts[1];
+    drawRayFrom(a, ang(a,h), color);
+    drawHandle(a); drawHandle(h);
+  }
+
+  function drawPerpBisShape(s, color){
+    const a=s.pts[0], b=s.pts[1];
+    const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    const vx=b.x-a.x, vy=b.y-a.y;
+    const nx=-vy, ny=vx;
+    const norm=Math.hypot(nx,ny)||1;
+    const ux=nx/norm, uy=ny/norm;
+
+    const mC=toCanvas(mid);
+    const L=2000;
+    const p1={x:mC.x+ux*L, y:mC.y-uy*L};
+    const p2={x:mC.x-ux*L, y:mC.y+uy*L};
+
+    ctx.strokeStyle=color; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+
+    // faint AB
+    const aC=toCanvas(a), bC=toCanvas(b);
+    ctx.strokeStyle="rgba(102,112,133,.35)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(aC.x,aC.y); ctx.lineTo(bC.x,bC.y); ctx.stroke();
+
+    drawHandle(a); drawHandle(b);
+  }
+
+  function drawOutsideRaysShape(s, color){
+    const a=s.pts[0], b=s.pts[1];
+    drawRayFrom(a, ang(b,a), color);
+    drawRayFrom(b, ang(a,b), color);
+
+    // faint AB
+    const aC=toCanvas(a), bC=toCanvas(b);
+    ctx.strokeStyle="rgba(102,112,133,.35)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(aC.x,aC.y); ctx.lineTo(bC.x,bC.y); ctx.stroke();
+
+    drawHandle(a); drawHandle(b);
+  }
+
+  // correct locus in green (no handles)
+  function drawCorrect(){
+    if(!target) return;
+    const col="#12b76a";
+    if(target.type==="circle"){
+      const cen={x:target.a.re,y:target.a.im};
+      const cc=toCanvas(cen);
+      const Rp=target.k*plane.pxPerUnit;
+      ctx.strokeStyle=col; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(cc.x,cc.y,Rp,0,TAU); ctx.stroke();
+    } else if(target.type==="ray"){
+      drawRayFrom({x:target.a.re,y:target.a.im}, target.k, col);
+    } else if(target.type==="perpBis"){
+      const a={x:target.a.re,y:target.a.im}, b={x:target.b.re,y:target.b.im};
+      const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      const vx=b.x-a.x, vy=b.y-a.y;
+      const nx=-vy, ny=vx;
+      const norm=Math.hypot(nx,ny)||1;
+      const ux=nx/norm, uy=ny/norm;
+      const mC=toCanvas(mid);
+      const L=2000;
+      const p1={x:mC.x+ux*L, y:mC.y-uy*L};
+      const p2={x:mC.x-ux*L, y:mC.y+uy*L};
+      ctx.strokeStyle=col; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    } else {
+      const a={x:target.a.re,y:target.a.im}, b={x:target.b.re,y:target.b.im};
+      drawRayFrom(a, ang(b,a), col);
+      drawRayFrom(b, ang(a,b), col);
+    }
+  }
+
+  function draw(withCorrect=false){
+    drawGrid();
+    for(const s of shapes){
+      if(s.type==="circle") drawCircleShape(s, "#ff7a00");
+      else if(s.type==="ray") drawRayShape(s, "#ff7a00");
+      else if(s.type==="perpBis") drawPerpBisShape(s, "#ff7a00");
+      else drawOutsideRaysShape(s, "#ff7a00");
+    }
+    if(withCorrect) drawCorrect();
+  }
+
+  // ---------- Game state ----------
+  let running=false, paused=false;
+  let tLeft=120, timer=null;
+  let score=0, qNum=0;
+  let target=null;
+  let allowFinishLast=false;
+
+  function setLast(state){
+    if(state==="ok"){ lastEl.textContent="Correct"; lastEl.className="tag good"; }
+    else if(state==="bad"){ lastEl.textContent="Incorrect"; lastEl.className="tag bad"; }
+    else if(state==="pause"){ lastEl.textContent="Paused"; lastEl.className="tag pause"; }
+    else if(state==="over"){ lastEl.textContent="Time ended (finish this one)"; lastEl.className="tag pause"; }
+    else { lastEl.textContent="—"; lastEl.className="tag"; }
+  }
+
+  function setEqn(tex, sub){
+    eqnEl.innerHTML = `<span>\\(${tex}\\)</span>` + (sub? `<small>${sub}</small>`:"");
+    if(window.MathJax?.typesetPromise) MathJax.typesetPromise([eqnEl]).catch(()=>{});
+  }
+
+  function randPoint(){ return {re:rndInt(-6,6), im:rndInt(-6,6)}; }
+  function randNonEqualPoint(p){ let q; do{ q=randPoint(); }while(q.re===p.re && q.im===p.im); return q; }
+  function randRadius(){ return choice([1,2,3,4,5,6]); }
+  function randArg(){
+    const opts=[-4,-3,-2,-1,0,1,2,3,4].map(n=>n*Math.PI/4);
+    return choice(opts);
+  }
+
+  function newQuestion(){
+    feedback.classList.remove("show");
+    paused=false;
+    setLast(allowFinishLast && tLeft<=0 ? "over" : "");
+
+    shapes=[];
+    draw(false);
+
+    qNum += 1;
+    qNumEl.textContent=String(qNum);
+
+    const type = choice(["circle","ray","perpBis","outsideRays"]);
+    if(type==="circle"){
+      const a=randPoint(), k=randRadius();
+      target={type,a,k,
+        tex:`\\left|${texZMinus(a)}\\right|=${k}`,
+        explain:`Circle centred at \\(a=${texComplexPlain(a)}\\) with radius \\(${k}\\).`
+      };
+      setEqn(target.tex, `Use <b>Circle</b>: centre at \\(a\\), radius ${k}.`);
+    } else if(type==="ray"){
+      const a=randPoint(), k=randArg();
+      target={type,a,k,
+        tex:`\\arg\\big(${texZMinus(a)}\\big)=${texAnglePiOver4(k)}`,
+        explain:`Half-line from \\(a=${texComplexPlain(a)}\\) at angle \\(${texAnglePiOver4(k)}\\).`
+      };
+      setEqn(target.tex, `Use <b>Half-line</b>: start at \\(a\\), set direction.`);
+    } else if(type==="perpBis"){
+      const a=randPoint(), b=randNonEqualPoint(a);
+      target={type,a,b,
+        tex:`\\left|${texZMinus(a)}\\right|=\\left|${texZMinus(b)}\\right|`,
+        explain:`Perpendicular bisector of segment joining \\(a=${texComplexPlain(a)}\\) and \\(b=${texComplexPlain(b)}\\).`
+      };
+      setEqn(target.tex, `Use <b>Perp bisector</b>: place points at \\(a\\) and \\(b\\).`);
+    } else {
+      const a=randPoint(), b=randNonEqualPoint(a);
+      target={type,a,b,
+        tex:`\\arg\\big(${texZMinus(a)}\\big)=\\arg\\big(${texZMinus(b)}\\big)`,
+        explain:`Line through \\(a,b\\) but only the two <b>outside</b> half-lines (not the segment between).`
+      };
+      setEqn(target.tex, `Use <b>Outside rays</b>: place points at \\(a\\) and \\(b\\).`);
+    }
+
+    checkBtn.disabled = !running || paused; // still enabled if time ended but we're letting them finish
+    if(running && allowFinishLast && tLeft<=0) checkBtn.disabled = false;
+  }
+
+  function pauseWithFeedback(why){
+    paused=true;
+    setLast("pause");
+    checkBtn.disabled=true;
+
+    draw(true);
+
+    fbTitle.textContent="Incorrect (clock paused)";
+    fbText.innerHTML =
+      `<div><b>Why:</b> ${esc(why)}</div>` +
+      `<div style="margin-top:6px"><b>Correct locus (green):</b> ${target.explain}</div>` +
+      `<div style="margin-top:6px" class="muted">Click <b>Next locus</b> to resume.</div>`;
+    feedback.classList.add("show");
+  }
+
+  function endGame(){
+    running=false;
+    checkBtn.disabled=true;
+    updateHighScore();
+    setLast("");
+    setEqn(`\\text{Time\\'s\\ up!\\ Final\\ score }= ${score}`, `High score: <b>${highScore}</b>. Press <b>Start</b> to play again.`);
+  }
+
+  function checkAnswer(){
+    // allow checking when:
+    // - running and not paused
+    // - OR time ended but allowFinishLast=true, and we're on the final question, not paused
+    if(paused) return;
+    if(!running && !(allowFinishLast && tLeft<=0)) return;
+
+    if(shapes.length!==1){
+      score -= 1;
+      scoreEl.textContent=String(score);
+      pauseWithFeedback("Place exactly one tool (drag from the toolbox).");
+      return;
+    }
+
+    const s=shapes[0];
+    const A={x:target.a.re,y:target.a.im};
+    const eps=0.0001;
+
+    let ok=false, why="";
+
+    if(target.type==="circle"){
+      if(s.type!=="circle"){ why="Wrong tool (Circle needed)."; }
+      else{
+        const cen=s.pts[0];
+        const R=dist(s.pts[0], s.pts[1]);
+        ok = dist(cen,A)<=eps && Math.abs(R-target.k)<=eps;
+        if(!ok) why="Centre or radius is not correct.";
+      }
+    } else if(target.type==="ray"){
+      if(s.type!=="ray"){ why="Wrong tool (Half-line needed)."; }
+      else{
+        const start=s.pts[0];
+        const th=ang(s.pts[0], s.pts[1]);
+        ok = dist(start,A)<=eps && angDiff(th,target.k)<=eps;
+        if(!ok) why="Start point or direction is not correct.";
+      }
+    } else if(target.type==="perpBis"){
+      if(s.type!=="perpBis"){ why="Wrong tool (Perp bisector needed)."; }
+      else{
+        const B={x:target.b.re,y:target.b.im};
+        const p0=s.pts[0], p1=s.pts[1];
+        ok = (dist(p0,A)<=eps && dist(p1,B)<=eps) || (dist(p0,B)<=eps && dist(p1,A)<=eps);
+        if(!ok) why="Your two points are not at a and b.";
+      }
+    } else {
+      if(s.type!=="outsideRays"){ why="Wrong tool (Outside rays needed)."; }
+      else{
+        const B={x:target.b.re,y:target.b.im};
+        const p0=s.pts[0], p1=s.pts[1];
+        ok = (dist(p0,A)<=eps && dist(p1,B)<=eps) || (dist(p0,B)<=eps && dist(p1,A)<=eps);
+        if(!ok) why="Your two points are not at a and b.";
+      }
+    }
+
+    if(ok){
+      score += 1;
+      scoreEl.textContent=String(score);
+      setLast("ok");
+
+      // If time already ended, let them finish THIS check, then end game (no new question)
+      if(allowFinishLast && tLeft<=0){
+        endGame();
+        return;
+      }
+
+      newQuestion();
+    } else {
+      score -= 1;
+      scoreEl.textContent=String(score);
+      pauseWithFeedback(why || "Not correct.");
+    }
+  }
+
+  // ---------- Timer (2 minutes), but allow finishing last question ----------
+  function tick(){
+    if(!running || paused) return;
+    tLeft -= 1;
+    timeLeftEl.textContent=String(Math.max(0,tLeft));
+
+    if(tLeft<=0){
+      // time ends, but they may finish the current question
+      allowFinishLast = true;
+      running = false;               // stop countdown
+      setLast("over");
+      checkBtn.disabled = false;     // still can press check
+      // keep equation as-is; no new question is generated
+    }
+  }
+
+  function startGame(){
+    running=true; paused=false;
+    tLeft=120;
+    allowFinishLast=false;
+    score=0; qNum=0;
+    timeLeftEl.textContent="120";
+    scoreEl.textContent="0";
+    qNumEl.textContent="0";
+    setLast("");
+    feedback.classList.remove("show");
+    shapes=[];
+    draw();
+
+    newQuestion();
+    checkBtn.disabled=false;
+
+    clearInterval(timer);
+    timer=setInterval(tick,1000);
+  }
+
+  // ---------- Input ----------
+  startBtn.addEventListener("click", startGame);
+  checkBtn.addEventListener("click", checkAnswer);
+  clearBtn.addEventListener("click", ()=>{ shapes=[]; draw(paused); });
+
+  nextBtn.addEventListener("click", ()=>{
+    feedback.classList.remove("show");
+    paused=false;
+
+    // if time ended already, they shouldn't go to a new locus — force them to check that one
+    if(allowFinishLast && tLeft<=0){
+      setLast("over");
+      checkBtn.disabled = false;
+      draw(false);
+      return;
+    }
+
+    setLast("");
+    checkBtn.disabled = !running;
+    newQuestion();
+  });
+
+  window.addEventListener("keydown",(e)=>{
+    if(e.key==="Enter"){ e.preventDefault(); checkAnswer(); }
+  });
+
+  // toolbox drag/drop (desktop)
+  document.querySelectorAll(".tool").forEach(el=>{
+    el.addEventListener("dragstart",(e)=>e.dataTransfer.setData("text/plain", el.dataset.tool));
+  });
+  cv.addEventListener("dragover",(e)=>e.preventDefault());
+  cv.addEventListener("drop",(e)=>{
+    e.preventDefault();
+    const tool=e.dataTransfer.getData("text/plain");
+    const rect=cv.getBoundingClientRect();
+    addShape(tool, toPlane(e.clientX-rect.left, e.clientY-rect.top));
+  });
+
+  // toolbox tap-to-carry (touch)
+  let carryTool = null;
+  document.querySelectorAll(".tool").forEach(el=>{
+    el.addEventListener("pointerdown",(e)=>{
+      if(e.pointerType!=="mouse"){
+        carryTool = el.dataset.tool;
+        document.querySelectorAll(".tool").forEach(t=>t.style.outline="none");
+        el.style.outline="2px solid var(--accent)";
+      }
+    });
+  });
+  cv.addEventListener("pointerdown",(e)=>{
+    if(carryTool){
+      const rect=cv.getBoundingClientRect();
+      addShape(carryTool, toPlane(e.clientX-rect.left, e.clientY-rect.top));
+      carryTool=null;
+      document.querySelectorAll(".tool").forEach(t=>t.style.outline="none");
+      return;
+    }
+  });
+
+  // handle dragging (snap)
+  let dragging=null;
+  cv.addEventListener("pointerdown",(e)=>{
+    const rect=cv.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const h=hitHandle(mx,my);
+    if(h){
+      dragging=h;
+      cv.setPointerCapture(e.pointerId);
+    }
+  });
+  cv.addEventListener("pointermove",(e)=>{
+    if(!dragging) return;
+    const rect=cv.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    let p=toPlane(mx,my);
+    p.x=clamp(p.x,plane.xmin,plane.xmax);
+    p.y=clamp(p.y,plane.ymin,plane.ymax);
+    dragging.shape.pts[dragging.idx]=snap(p);
+    draw(paused);
+  });
+  cv.addEventListener("pointerup",()=>dragging=null);
+
+  // ---------- init ----------
+  function drawInit(){
+    resize();
+    draw();
+  }
+
+  drawInit();
+})();
+</script>
+</body>
+</html>
