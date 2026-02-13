@@ -59,8 +59,14 @@
   .msg.warn{border-color:rgba(217,119,6,.35);background:rgba(217,119,6,.10);color:#7c2d12}
 
   .canvasWrap{padding:12px}
-  canvas{width:100%;height:560px;display:block;border-radius:14px;border:1px solid var(--line);background:#fff;touch-action:none}
-  @media (max-width: 980px){ canvas{height:520px} }
+  canvas{
+    width:100%;
+    aspect-ratio: 3 / 2;
+    height:auto;
+    max-height:560px;
+    display:block;border-radius:14px;border:1px solid var(--line);background:#fff;touch-action:none
+  }
+  @media (max-width: 980px){ canvas{max-height:520px} }
 
   .choiceRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 </style>
@@ -68,7 +74,7 @@
 <body>
 <header>
   <h1>Region Shading — Multiple Modes</h1>
-  <p>Click inside a region to fill/unfill it (screen edge is a boundary). Select all regions where <b>all</b> inequalities are true, then press <b>Check</b>. (Zoom disabled; always −12 to 12.)</p>
+  <p>Click / tap inside a region to fill/unfill it (screen edge is a boundary). Select all regions where <b>all</b> inequalities are true, then press <b>Check</b>. (Axes always −12 to 12.)</p>
 </header>
 
 <div class="wrap">
@@ -80,7 +86,7 @@
           Mode
           <select id="modeSel" aria-label="Mode">
             <option value="0">Mode 0: x=a and y=b only</option>
-            <option value="1">Mode 1: 6 lines (some are red herrings)</option>
+            <option value="1">Mode 1: Lines</option>
             <option value="2">Mode 2: lines + parabolas</option>
             <option value="3">Mode 3: lines + parabolas + cubics</option>
             <option value="4">Mode 4: lines + sine waves</option>
@@ -113,7 +119,6 @@
       <div style="height:10px"></div>
       <div class="btnrow">
         <button class="primary" id="checkBtn">Check</button>
-        <span class="pill" id="timerPill" style="display:none">Check available in 60s</span>
       </div>
     </div>
   </section>
@@ -124,7 +129,7 @@
       <div class="pill">Scale: locked 1:1</div>
     </div>
     <div class="canvasWrap">
-      <canvas id="cv" width="1200" height="800"></canvas>
+      <canvas id="cv"></canvas>
     </div>
   </section>
 </div>
@@ -133,20 +138,22 @@
 (() => {
   const MIN=-12, MAX=12, RANGE=MAX-MIN;
 
-  const DISABLE_MS = 60_000;
-  const R_N = 720;                 // higher -> less angular “wobble” for arg rays
-  const MAX_REGIONS_ALLOWED = 18;  // mode 1 has 6 lines, allow more regions
+  // mask resolution: larger => fewer “leaks”
+  const R_N = 720;
+
+  // Always draw 6 boundaries (“six graphs”) for every mode/level.
+  const SHAPES_TO_DRAW = 6;
 
   let mode=0, level=1;
   let ineqs=[], shapes=[];
   let regionId=null, regionCount=0, regionRep=[];
   let truthRegions=new Set();
   let selected=new Set();
-  let disableTimer=null;
   let failChecks=0;
 
   const cv=document.getElementById('cv');
-  const ctx=cv?.getContext('2d');
+  const ctx=cv.getContext('2d');
+
   const levelPill=document.getElementById('levelPill');
   const modeSel=document.getElementById('modeSel');
   const modeHelp=document.getElementById('modeHelp');
@@ -156,7 +163,6 @@
   const newBtn=document.getElementById('newBtn');
   const statusBox=document.getElementById('statusBox');
   const hintBox=document.getElementById('hintBox');
-  const timerPill=document.getElementById('timerPill');
 
   const after2Box=document.getElementById('after2Box');
   const tryAgainBtn=document.getElementById('tryAgainBtn');
@@ -166,6 +172,17 @@
   const pick=a=>a[(Math.random()*a.length)|0];
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const randSlope=()=>pick([-3,-2,-1.5,-1,-0.5,0.5,1,1.5,2,3]);
+
+  function resizeCanvasToDisplaySize(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = cv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if (cv.width !== w || cv.height !== h){
+      cv.width = w;
+      cv.height = h;
+    }
+  }
 
   function niceNum(x){
     const r1=Math.round(x);
@@ -186,32 +203,7 @@
   function hideHint(){hintBox.style.display="none"; hintBox.textContent="";}
   function showAfter2(on){ after2Box.style.display = on ? "block" : "none"; }
 
-  function enableCheck(on){
-    checkBtn.disabled=!on;
-    timerPill.style.display = on ? "none" : "inline-flex";
-  }
-  function clearCooldown(){
-    if (disableTimer){ clearInterval(disableTimer); disableTimer=null; }
-    enableCheck(true);
-    timerPill.textContent="Check available";
-  }
-  function startDisableCountdown(){
-    const start=Date.now();
-    enableCheck(false);
-    if (disableTimer) clearInterval(disableTimer);
-    const tick=()=>{
-      const left=Math.max(0,DISABLE_MS-(Date.now()-start));
-      timerPill.textContent=`Check available in ${Math.ceil(left/1000)}s`;
-      if (left<=0){
-        clearInterval(disableTimer); disableTimer=null;
-        enableCheck(true);
-      }
-    };
-    tick();
-    disableTimer=setInterval(tick,200);
-  }
-
-  // --- 1:1 mapping always ---
+  // --- 1:1 mapping always (square plot inside canvas) ---
   function plotSquare(){
     const w=cv.width,h=cv.height;
     const s=Math.min(w,h);
@@ -223,33 +215,20 @@
     const sy=(y-MIN)/RANGE;
     return {X:ox+sx*s, Y:oy+(1-sy)*s};
   }
-  function canvasToWorld(X,Y){
-    const {s,ox,oy}=plotSquare();
-    const nx=clamp((X-ox)/s,0,1);
-    const ny=clamp((Y-oy)/s,0,1);
-    const x=MIN+nx*RANGE;
-    const y=MIN+(1-ny)*RANGE;
-    return {x,y};
-  }
 
   // --- Mask canvases ---
   const maskCv=document.createElement('canvas');
   maskCv.width=maskCv.height=R_N;
-  const maskCtx=maskCv.getContext('2d', { willReadFrequently:true });
+  const maskCtx=maskCv.getContext('2d', {willReadFrequently:true});
+  maskCtx.imageSmoothingEnabled=false;
 
   const fillCv=document.createElement('canvas');
   fillCv.width=fillCv.height=R_N;
-  const fillCtx=fillCv.getContext('2d', { willReadFrequently:true });
+  const fillCtx=fillCv.getContext('2d', {willReadFrequently:true});
+  fillCtx.imageSmoothingEnabled=false;
 
-  // Critical for crisp boundaries (especially rays):
-  maskCtx.imageSmoothingEnabled = false;
-  fillCtx.imageSmoothingEnabled = false;
-
-  function boundaryThickness(){
-    if(mode===6) return 9;  // thicker to reduce “near-miss” regions on rays
-    if(mode===1) return 3;
-    return 2;
-  }
+  // Thicker boundaries for mode 6 (rays/circles) to avoid leak-through.
+  function boundaryThickness(){ return (mode===6) ? 10 : 4; }
 
   function worldToMask(x,y){
     const sx=(x-MIN)/RANGE;
@@ -301,7 +280,7 @@
     return `${sign}\\frac{${num}\\pi}{${den}}`;
   }
 
-  // --- Inequalities ---
+  // --- Inequality factories ---
   function makeIneqVertical(a,dir){
     return { labelTex(){return `x ${dir} ${niceNum(a)}`;}, eval(x,y){return dir===">"?x>a+1e-9:x<a-1e-9;} };
   }
@@ -319,24 +298,13 @@
       eval(x,y){const rhs=m*x+c; return dir===">"?y>rhs+1e-9:y<rhs-1e-9;}
     };
   }
-  function makeIneqParabolaFromVertex(a,h,k,dir){
+  function makeIneqParabola(a,h,k,dir){
     return {
       labelTex(){
-        const b=-2*a*h;
-        const c=a*h*h+k;
-        const parts=[];
-        const add=(coef,tex)=>{
-          if(Math.abs(coef)<1e-9) return;
-          const s=coef>=0?"+":"-";
-          const mag=Math.abs(coef);
-          const coefTex=(Math.abs(mag-1)<1e-9)?"":niceNum(mag);
-          parts.push({s,t:`${coefTex}${tex}`});
-        };
-        add(a,"x^2"); add(b,"x"); add(c,"");
-        let out="";
-        parts.forEach((p,i)=>{ out += (i===0 ? (p.s==="-"?"-":"")+p.t : ` ${p.s} ${p.t}`); });
-        if(!out) out="0";
-        return `y ${dir} ${out}`;
+        const aT = (Math.abs(a-1)<1e-9) ? "" : (Math.abs(a+1)<1e-9 ? "-" : niceNum(a));
+        const hT = (Math.abs(h)<1e-9) ? "x" : `\\left(x ${h>=0?'-':'+'} ${niceNum(Math.abs(h))}\\right)`;
+        const rhs = `${aT}${hT}^2 ${k>=0?'+':'-'} ${niceNum(Math.abs(k))}`;
+        return `y ${dir} ${rhs}`;
       },
       eval(x,y){const rhs=a*(x-h)*(x-h)+k; return dir===">"?y>rhs+1e-9:y<rhs-1e-9;}
     };
@@ -367,7 +335,7 @@
       eval(x,y){const rhs=A+B*Math.sin(C*x+D); return dir===">"?y>rhs+1e-9:y<rhs-1e-9;}
     };
   }
-  function makeIneqExpBase(A,B,base,C,dir){
+  function makeIneqExp(A,B,base,C,dir){
     const isE=(base==="e");
     const baseTex=isE?"\\mathrm{e}":String(base);
     return {
@@ -391,7 +359,6 @@
     return {
       labelTex(){ return `${texPiFrac(lo/Math.PI)} < \\arg\\!\\left(${texZMinusA_plain(cx,cy)}\\right) < ${texPiFrac(hi/Math.PI)}`; },
       eval(x,y){
-        // arg undefined at centre
         if(Math.hypot(x-cx,y-cy) < 1e-6) return false;
         const ang=Math.atan2(y-cy,x-cx);
         return ang>lo+1e-9 && ang<hi-1e-9;
@@ -410,15 +377,6 @@
   }
 
   // --- Shapes (boundaries only) ---
-  function applyStrokeStyleWorld(){
-    ctx.lineJoin="round";
-    ctx.lineCap="round";
-  }
-  function applyStrokeStyleMask(){
-    maskCtx.lineJoin="round";
-    maskCtx.lineCap="round";
-  }
-
   function shapeLine(m,c){
     return {
       drawWorld(){
@@ -547,54 +505,124 @@
     };
   }
 
-  // Stronger ray (and a “cap” at origin) to stop leaks + reduce angle mismatch.
+  // robust ray: extend until it hits the bounding square so the boundary is guaranteed to connect.
   function shapeRay(cx,cy,theta){
+    function rayEndpoint(){
+      const dx=Math.cos(theta), dy=Math.sin(theta);
+      let bestT = Infinity;
+
+      if(Math.abs(dx)>1e-12){
+        const t1=(MIN-cx)/dx, t2=(MAX-cx)/dx;
+        if(t1>0) bestT=Math.min(bestT,t1);
+        if(t2>0) bestT=Math.min(bestT,t2);
+      }
+      if(Math.abs(dy)>1e-12){
+        const t3=(MIN-cy)/dy, t4=(MAX-cy)/dy;
+        if(t3>0) bestT=Math.min(bestT,t3);
+        if(t4>0) bestT=Math.min(bestT,t4);
+      }
+      if(!Number.isFinite(bestT) || bestT===Infinity) bestT=30;
+      const pad = 0.25;
+      return {x:cx+(bestT+pad)*dx, y:cy+(bestT+pad)*dy};
+    }
     return {
       drawWorld(){
         const p0=worldToCanvas(cx,cy);
-        const p1=worldToCanvas(cx+40*Math.cos(theta), cy+40*Math.sin(theta));
+        const end=rayEndpoint();
+        const p1=worldToCanvas(end.x,end.y);
         ctx.beginPath(); ctx.moveTo(p0.X,p0.Y); ctx.lineTo(p1.X,p1.Y); ctx.stroke();
-        // small visible dot at vertex looks nicer too
-        ctx.save();
-        ctx.fillStyle="rgba(17,24,39,0.75)";
-        ctx.beginPath(); ctx.arc(p0.X,p0.Y,3.2,0,Math.PI*2); ctx.fill();
-        ctx.restore();
+        if(mode===6){
+          ctx.save();
+          ctx.fillStyle="rgba(17,24,39,0.75)";
+          ctx.beginPath();
+          ctx.arc(p0.X,p0.Y,3.2,0,Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
       },
       drawMask(){
         const p0=worldToMask(cx,cy);
-        const p1=worldToMask(cx+40*Math.cos(theta), cy+40*Math.sin(theta));
+        const end=rayEndpoint();
+        const p1=worldToMask(end.x,end.y);
+
+        maskCtx.save();
+        maskCtx.lineCap="butt";
+        maskCtx.lineJoin="miter";
         maskCtx.beginPath();
         maskCtx.moveTo(p0.mx+0.5,p0.my+0.5);
         maskCtx.lineTo(p1.mx+0.5,p1.my+0.5);
         maskCtx.stroke();
 
-        // seal the vertex: fill a small disk at the origin of the rays
-        maskCtx.beginPath();
-        maskCtx.arc(p0.mx+0.5,p0.my+0.5, Math.max(2, boundaryThickness()*0.65), 0, Math.PI*2);
+        const r = Math.max(6, Math.ceil(maskCtx.lineWidth*0.8));
         maskCtx.fillStyle="#000";
+        maskCtx.beginPath();
+        maskCtx.arc(p0.mx+0.5,p0.my+0.5,r,0,Math.PI*2);
         maskCtx.fill();
+        maskCtx.restore();
       }
     };
   }
 
-  // --- Mask -> regions ---
+  // --- Mask sealing (fixes Mode 6 “shading over line”) ---
+  function sealMaskBoundaries(){
+    const img = maskCtx.getImageData(0,0,R_N,R_N);
+    const d = img.data;
+
+    const isDark = (i) => (d[i]+d[i+1]+d[i+2]) < 180;
+    const B = new Uint8Array(R_N*R_N);
+
+    for(let y=0;y<R_N;y++){
+      for(let x=0;x<R_N;x++){
+        const i = 4*(y*R_N+x);
+        if(isDark(i)) B[y*R_N+x]=1;
+      }
+    }
+
+    const rad = (mode===6) ? 2 : 1;
+    const out = new Uint8Array(R_N*R_N);
+
+    for(let y=0;y<R_N;y++){
+      for(let x=0;x<R_N;x++){
+        let v = 0;
+        for(let dy=-rad; dy<=rad && !v; dy++){
+          const yy=y+dy; if(yy<0||yy>=R_N) continue;
+          for(let dx=-rad; dx<=rad; dx++){
+            const xx=x+dx; if(xx<0||xx>=R_N) continue;
+            if(B[yy*R_N+xx]) { v=1; break; }
+          }
+        }
+        out[y*R_N+x]=v;
+      }
+    }
+
+    for(let y=0;y<R_N;y++){
+      for(let x=0;x<R_N;x++){
+        const i=4*(y*R_N+x);
+        if(out[y*R_N+x]){
+          d[i]=0; d[i+1]=0; d[i+2]=0; d[i+3]=255;
+        }else{
+          d[i]=255; d[i+1]=255; d[i+2]=255; d[i+3]=255;
+        }
+      }
+    }
+    maskCtx.putImageData(img,0,0);
+  }
+
+  // --- Mask to regions ---
   function drawMaskBoundaries(){
-    maskCtx.save();
-    maskCtx.setTransform(1,0,0,1,0,0);
-    maskCtx.clearRect(0,0,R_N,R_N);
     maskCtx.fillStyle="#fff";
     maskCtx.fillRect(0,0,R_N,R_N);
 
-    applyStrokeStyleMask();
     maskCtx.strokeStyle="#000";
-    maskCtx.fillStyle="#000";
     maskCtx.lineWidth=boundaryThickness();
+    maskCtx.lineCap="butt";
+    maskCtx.lineJoin="miter";
 
-    // hard border as boundary
     maskCtx.strokeRect(0.5,0.5,R_N-1,R_N-1);
 
     for(const s of shapes) s.drawMask();
-    maskCtx.restore();
+
+    sealMaskBoundaries();
   }
 
   function buildRegionsFromMask(){
@@ -603,8 +631,7 @@
     regionRep=[];
     regionCount=0;
 
-    // boundary pixels are “dark”
-    const isBoundary = (p) => (img[p]+img[p+1]+img[p+2]) < 60*3;
+    const isBoundary = (p) => (img[p]+img[p+1]+img[p+2]) < 60;
 
     const qx=new Int32Array(R_N*R_N);
     const qy=new Int32Array(R_N*R_N);
@@ -623,8 +650,6 @@
         let head=0, tail=0;
         qx[tail]=x; qy[tail]=y; tail++;
         regionId[cell]=rid;
-
-        // representative point: we will improve it later (take a point away from boundary)
         regionRep[rid]={mx:x,my:y};
 
         while(head<tail){
@@ -639,26 +664,6 @@
             qx[tail]=nx; qy[tail]=ny; tail++;
           }
         }
-      }
-    }
-
-    // Improve reps: pick a point more central in each region (reduces “wrong side” near boundaries)
-    // We do a quick sample scan and pick the first point whose 5x5 neighbourhood stays in same region.
-    for(let rid=1; rid<=regionCount; rid++){
-      let found=false;
-      for(let tries=0; tries<4000 && !found; tries++){
-        const mx=(Math.random()*(R_N-1))|0;
-        const my=(Math.random()*(R_N-1))|0;
-        if(regionId[my*R_N+mx]!==rid) continue;
-        let ok=true;
-        for(let dy=-2; dy<=2 && ok; dy++){
-          for(let dx=-2; dx<=2; dx++){
-            const x=mx+dx, y=my+dy;
-            if(x<0||x>=R_N||y<0||y>=R_N){ ok=false; break; }
-            if(regionId[y*R_N+x]!==rid){ ok=false; break; }
-          }
-        }
-        if(ok){ regionRep[rid]={mx,my}; found=true; }
       }
     }
   }
@@ -728,23 +733,20 @@
   }
 
   function drawAll(){
-    if(!ctx) return;
+    resizeCanvasToDisplaySize();
+
     ctx.clearRect(0,0,cv.width,cv.height);
     ctx.fillStyle="#fff";
     ctx.fillRect(0,0,cv.width,cv.height);
 
     const {s,ox,oy}=plotSquare();
-
-    // selection overlay
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled=false;
     ctx.drawImage(fillCv, 0,0,R_N,R_N, ox,oy,s,s);
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled=true;
 
-    // boundaries
-    applyStrokeStyleWorld();
     ctx.strokeStyle="rgba(17,24,39,0.55)";
-    ctx.lineWidth=(mode===6?3.2:2.8);
-    for(const sh of shapes) sh.drawWorld();
+    ctx.lineWidth=2.8;
+    for(const s2 of shapes) s2.drawWorld();
 
     drawAxes();
   }
@@ -767,450 +769,349 @@
 
   function modeDescription(m){
     return [
-      "Mode 0: only x=a and y=b.",
-      "Mode 1: always draws 6 straight-line graphs; only Level-many of them are used as inequalities (others are red herrings).",
-      "Mode 2: lines + parabolas.",
-      "Mode 3: lines + parabolas + cubics.",
-      "Mode 4: lines + sine waves.",
-      "Mode 5: lines + exponentials (e upright).",
-      "Mode 6: complex loci (upright i; arg-between uses rays; thicker mask to avoid mis-shading)."
+      "Mode 0: only x=a and y=b (still shows 6 boundaries).",
+      "Mode 1: Lines — 6 line graphs shown; Level n gives n inequalities.",
+      "Mode 2: lines + parabolas (6 boundaries total).",
+      "Mode 3: lines + parabolas + cubics (6 boundaries total).",
+      "Mode 4: lines + sine waves (6 boundaries total).",
+      "Mode 5: lines + exponentials (6 boundaries total; e upright).",
+      "Mode 6: complex loci (upright i; arg-between uses rays)."
     ][m] || "";
   }
 
-  // --- generators ensuring: non-empty, region cap ---
+  // --- Utility: pick k distinct items from a list ---
+  function pickKDistinct(arr,k){
+    const idx=arr.map((_,i)=>i);
+    for(let i=idx.length-1;i>0;i--){
+      const j=(Math.random()*(i+1))|0;
+      [idx[i],idx[j]]=[idx[j],idx[i]];
+    }
+    return idx.slice(0,k).map(i=>arr[i]);
+  }
+
+  // --- Generators: ALWAYS 6 shapes shown; choose k inequalities from them ---
   function generateMode0(k){
-    shapes=[]; const pool=[];
-    for(let i=0;i<4;i++){
+    const items=[];
+    for(let i=0;i<SHAPES_TO_DRAW;i++){
       if(Math.random()<0.5){
         const a=Math.round(rnd(-9,9)*2)/2;
-        shapes.push(shapeVertical(a));
-        pool.push(()=>makeIneqVertical(a, Math.random()<0.5?">":"<"));
-      } else {
+        items.push({shape: shapeVertical(a), inq: ()=>makeIneqVertical(a, Math.random()<0.5?">":"<")});
+      }else{
         const b=Math.round(rnd(-9,9)*2)/2;
-        shapes.push(shapeHorizontal(b));
-        pool.push(()=>makeIneqHorizontal(b, Math.random()<0.5?">":"<"));
+        items.push({shape: shapeHorizontal(b), inq: ()=>makeIneqHorizontal(b, Math.random()<0.5?">":"<")});
       }
     }
-    ineqs=[];
-    for(let i=0;i<k;i++) ineqs.push(pool[i%pool.length]());
+    shapes = items.map(it=>it.shape);
+    ineqs = pickKDistinct(items,k).map(it=>it.inq());
   }
 
-  // Mode 1: ALWAYS 6 graphs. Only Level-many become inequalities (others are red herrings).
-  // Mostly y=mx+c; occasionally include one x=a line.
   function generateMode1(k){
-    shapes=[]; ineqs=[];
-    const pool=[];
-
-    // decide if we include a vertical line this round (rare)
-    const includeVertical = (Math.random()<0.25);
-    let verticalInfo=null;
-
-    // build 6 boundaries
-    const used=new Set();
-    for(let i=0;i<6;i++){
-      if(includeVertical && !verticalInfo && i===0){
-        const a=Math.round(rnd(-8,8)*2)/2;
-        verticalInfo={a};
-        shapes.push(shapeVertical(a));
-        pool.push(()=>makeIneqVertical(a, Math.random()<0.5?">":"<"));
-        used.add(`v:${a}`);
-        continue;
-      }
-      // line
-      let m,c,key;
-      for(let t=0;t<40;t++){
-        m=randSlope();
-        c=Math.round(rnd(-8,8)*2)/2;
-        key=`l:${m}:${c}`;
-        if(!used.has(key)) break;
-      }
-      used.add(key);
-      shapes.push(shapeLine(m,c));
-      pool.push(()=>makeIneqLine(m,c, Math.random()<0.5?">":"<"));
+    const items=[];
+    const used=[];
+    const tooClose=(m,c)=>used.some(L=>Math.abs(L.m-m)<0.35 && Math.abs(L.c-c)<1.2);
+    while(items.length<SHAPES_TO_DRAW){
+      const m=randSlope();
+      const c=Math.round(rnd(-8,8)*2)/2;
+      if(tooClose(m,c)) continue;
+      used.push({m,c});
+      items.push({shape: shapeLine(m,c), inq: ()=>makeIneqLine(m,c, Math.random()<0.5?">":"<")});
     }
-
-    // choose k distinct inequalities from pool
-    const idxs=[0,1,2,3,4,5];
-    for(let i=idxs.length-1;i>0;i--){
-      const j=(Math.random()*(i+1))|0;
-      [idxs[i],idxs[j]]=[idxs[j],idxs[i]];
-    }
-    for(let i=0;i<k;i++){
-      ineqs.push(pool[idxs[i]]());
-    }
-  }
-
-  function randomVertexWithin(){
-    return { h: Math.round(rnd(-8,8)*2)/2, k: Math.round(rnd(-8,8)*2)/2 };
+    shapes = items.map(it=>it.shape);
+    ineqs = pickKDistinct(items,k).map(it=>it.inq());
   }
 
   function generateMode2(k){
-    shapes=[]; const pool=[];
-    const a=pick([-1.5,-1,-0.5,0.5,1,1.5]);
-    const {h,k:kv}=randomVertexWithin();
-    shapes.push(shapeGraph(x=>a*(x-h)*(x-h)+kv));
-    pool.push(()=>makeIneqParabolaFromVertex(a,h,kv, Math.random()<0.5?">":"<"));
-
-    for(let i=0;i<4;i++){
-      const m=randSlope();
-      const c=Math.round(rnd(-8,8)*2)/2;
-      shapes.push(shapeLine(m,c));
-      pool.push(()=>makeIneqLine(m,c, Math.random()<0.5?">":"<"));
-    }
-
-    ineqs=[];
-    for(let i=0;i<k;i++) ineqs.push(pool[i]());
-  }
-
-  function generateMode3(k){
-    shapes=[]; const pool=[];
-
-    const A=(Math.random()<0.5?-1:1)*pick([0.1,0.15,0.2]);
-    const B=Math.round(rnd(-1.5,1.5)*2)/2;
-    const C=Math.round(rnd(-2,2)*2)/2;
-    const D=Math.round(rnd(-4,4)*2)/2;
-
-    shapes.push(shapeGraph(x=>A*x*x*x+B*x*x+C*x+D));
-    pool.push(()=>makeIneqCubic(A,B,C,D, Math.random()<0.5?">":"<"));
-
-    const ap=pick([-1.5,-1,-0.5,0.5,1,1.5]);
-    const {h,k:kv}=randomVertexWithin();
-    shapes.push(shapeGraph(x=>ap*(x-h)*(x-h)+kv));
-    pool.push(()=>makeIneqParabolaFromVertex(ap,h,kv, Math.random()<0.5?">":"<"));
-
+    const items=[];
     for(let i=0;i<3;i++){
       const m=randSlope();
       const c=Math.round(rnd(-8,8)*2)/2;
-      shapes.push(shapeLine(m,c));
-      pool.push(()=>makeIneqLine(m,c, Math.random()<0.5?">":"<"));
+      items.push({shape: shapeLine(m,c), inq: ()=>makeIneqLine(m,c, Math.random()<0.5?">":"<")});
     }
+    for(let i=0;i<3;i++){
+      const a=pick([-1,-0.5,0.5,1]);
+      const h=Math.round(rnd(-6,6)*2)/2;
+      const kk=Math.round(rnd(-6,6)*2)/2;
+      const fn=(x)=>a*(x-h)*(x-h)+kk;
+      items.push({shape: shapeGraph(fn), inq: ()=>makeIneqParabola(a,h,kk, Math.random()<0.5?">":"<")});
+    }
+    shapes = items.map(it=>it.shape);
+    ineqs = pickKDistinct(items,k).map(it=>it.inq());
+  }
 
-    ineqs=[];
-    for(let i=0;i<k;i++) ineqs.push(pool[i]());
+  function generateMode3(k){
+    const items=[];
+    for(let i=0;i<2;i++){
+      const m=randSlope();
+      const c=Math.round(rnd(-8,8)*2)/2;
+      items.push({shape: shapeLine(m,c), inq: ()=>makeIneqLine(m,c, Math.random()<0.5?">":"<")});
+    }
+    for(let i=0;i<2;i++){
+      const a=pick([-1,-0.5,0.5,1]);
+      const h=Math.round(rnd(-6,6)*2)/2;
+      const kk=Math.round(rnd(-6,6)*2)/2;
+      const fn=(x)=>a*(x-h)*(x-h)+kk;
+      items.push({shape: shapeGraph(fn), inq: ()=>makeIneqParabola(a,h,kk, Math.random()<0.5?">":"<")});
+    }
+    for(let i=0;i<2;i++){
+      const a=pick([-0.2,-0.15,0.15,0.2]);
+      const b=Math.round(rnd(-0.5,0.5)*10)/10;
+      const c=Math.round(rnd(-2.5,2.5)*2)/2;
+      const d=Math.round(rnd(-5,5)*2)/2;
+      const fn=(x)=>a*x*x*x+b*x*x+c*x+d;
+      items.push({shape: shapeGraph(fn), inq: ()=>makeIneqCubic(a,b,c,d, Math.random()<0.5?">":"<")});
+    }
+    shapes = items.map(it=>it.shape);
+    ineqs = pickKDistinct(items,k).map(it=>it.inq());
   }
 
   function generateMode4(k){
-    shapes=[]; const pool=[];
-    const A=Math.round(rnd(-3,3)*2)/2;
-    const B=pick([1,1.5,2,2.5])*(Math.random()<0.5?-1:1);
-    const C=pick([0.5,1,1.5,2]);
-    const D=Math.round(rnd(-Math.PI,Math.PI)*100)/100;
-    shapes.push(shapeGraph(x=>A + B*Math.sin(C*x + D)));
-    pool.push(()=>makeIneqSine(A,B,C,D, Math.random()<0.5?">":"<"));
-
-    for(let i=0;i<4;i++){
+    const items=[];
+    for(let i=0;i<3;i++){
       const m=randSlope();
       const c=Math.round(rnd(-8,8)*2)/2;
-      shapes.push(shapeLine(m,c));
-      pool.push(()=>makeIneqLine(m,c, Math.random()<0.5?">":"<"));
+      items.push({shape: shapeLine(m,c), inq: ()=>makeIneqLine(m,c, Math.random()<0.5?">":"<")});
     }
-
-    ineqs=[];
-    for(let i=0;i<k;i++) ineqs.push(pool[i]());
+    for(let i=0;i<3;i++){
+      const A=Math.round(rnd(-4,4)*2)/2;
+      const B=pick([1,1.5,2,2.5,3]);
+      const C=pick([0.5,0.75,1,1.25]);
+      const D=Math.round(rnd(-Math.PI,Math.PI)*4)/4;
+      const fn=(x)=>A+B*Math.sin(C*x+D);
+      items.push({shape: shapeGraph(fn), inq: ()=>makeIneqSine(A,B,C,D, Math.random()<0.5?">":"<")});
+    }
+    shapes = items.map(it=>it.shape);
+    ineqs = pickKDistinct(items,k).map(it=>it.inq());
   }
 
   function generateMode5(k){
-    shapes=[]; const pool=[];
-    const A=Math.round(rnd(-3,3)*2)/2;
-    const B=pick([0.5,1,1.5,2])*(Math.random()<0.5?-1:1);
-    const base=pick([2,3,5,10,"e"]);
-    const C=pick([0.1,0.15,0.2,0.25,0.3])*(Math.random()<0.5?-1:1);
-
-    shapes.push(shapeGraph(x=>{
-      const pow=(base==="e")?Math.exp(C*x):Math.pow(Number(base),C*x);
-      return A + B*pow;
-    }));
-    pool.push(()=>makeIneqExpBase(A,B,base,C, Math.random()<0.5?">":"<"));
-
-    for(let i=0;i<4;i++){
+    const items=[];
+    for(let i=0;i<3;i++){
       const m=randSlope();
       const c=Math.round(rnd(-8,8)*2)/2;
-      shapes.push(shapeLine(m,c));
-      pool.push(()=>makeIneqLine(m,c, Math.random()<0.5?">":"<"));
+      items.push({shape: shapeLine(m,c), inq: ()=>makeIneqLine(m,c, Math.random()<0.5?">":"<")});
     }
-
-    ineqs=[];
-    for(let i=0;i<k;i++) ineqs.push(pool[i]());
-  }
-
-  function randomPiAngle(){
-    const steps=[-5/6,-3/4,-2/3,-1/2,-1/3,-1/4,-1/5,-1/6,0,1/6,1/5,1/4,1/3,1/2,2/3,3/4,5/6];
-    return pick(steps)*Math.PI;
+    for(let i=0;i<3;i++){
+      const A=Math.round(rnd(-4,4)*2)/2;
+      const B=pick([-2,-1.5,-1,1,1.5,2]);
+      const base=pick(["e",2,3]);
+      const C=pick([0.25,0.3,0.4,0.5]);
+      const isE=(base==="e");
+      const fn=(x)=>A + B*(isE?Math.exp(C*x):Math.pow(base,C*x));
+      items.push({shape: shapeGraph(fn), inq: ()=>makeIneqExp(A,B,base,C, Math.random()<0.5?">":"<")});
+    }
+    shapes = items.map(it=>it.shape);
+    ineqs = pickKDistinct(items,k).map(it=>it.inq());
   }
 
   function generateMode6(k){
-    shapes=[]; ineqs=[];
-    const loci=[];
+    // 2 circles + 2 bisectors + 2 rays (wedge) = 6 boundaries total
+    const items=[];
 
-    for(let i=0;i<6;i++){
-      const t=Math.random();
-      if(t<0.38){
-        const cx=Math.round(rnd(-6,6)*2)/2;
-        const cy=Math.round(rnd(-6,6)*2)/2;
-        const r=Math.round(rnd(1.5,5)*2)/2;
-        const dir=Math.random()<0.5?">":"<";
-        loci.push({type:"circle", cx,cy,r,dir});
-      } else if(t<0.68){
-        const cx=Math.round(rnd(-4,4)*2)/2;
-        const cy=Math.round(rnd(-4,4)*2)/2;
-        let lo=randomPiAngle(), hi=randomPiAngle();
-        if(lo>hi){const tmp=lo; lo=hi; hi=tmp;}
-        if(hi-lo<Math.PI/7){
-          hi=lo+Math.PI/3;
-          if(hi>Math.PI-Math.PI/12) hi=Math.PI-Math.PI/12;
-        }
-        loci.push({type:"argBetween", cx,cy,lo,hi});
-      } else {
-        const ax=Math.round(rnd(-7,7)*2)/2;
-        const ay=Math.round(rnd(-7,7)*2)/2;
-        let bx=Math.round(rnd(-7,7)*2)/2;
-        let by=Math.round(rnd(-7,7)*2)/2;
-        if(Math.hypot(ax-bx,ay-by)<2){ bx+=3; by-=2; }
-        const dir=Math.random()<0.5?">":"<";
-        loci.push({type:"bisector", ax,ay,bx,by,dir});
-      }
+    const c1x=Math.round(rnd(-6,6)*2)/2;
+    const c1y=Math.round(rnd(-6,6)*2)/2;
+    const r1=pick([2,2.5,3,3.5,4]);
+    items.push({ shape: shapeCircle(c1x,c1y,r1), inq: ()=>makeIneqCircle(c1x,c1y,r1, Math.random()<0.5?"<":">") });
+
+    const c2x=Math.round(rnd(-6,6)*2)/2;
+    const c2y=Math.round(rnd(-6,6)*2)/2;
+    const r2=pick([2,2.5,3,3.5,4]);
+    items.push({ shape: shapeCircle(c2x,c2y,r2), inq: ()=>makeIneqCircle(c2x,c2y,r2, Math.random()<0.5?"<":">") });
+
+    // bisector 1
+    const a1x=Math.round(rnd(-7,7)), a1y=Math.round(rnd(-7,7));
+    const b1x=Math.round(rnd(-7,7)), b1y=Math.round(rnd(-7,7));
+    const mx1=(a1x+b1x)/2, my1=(a1y+b1y)/2;
+    const dx1=b1x-a1x, dy1=b1y-a1y;
+    const vx1=-dy1, vy1=dx1;
+    if(Math.abs(vx1)<1e-9){
+      items.push({ shape: shapeVertical(mx1), inq: ()=>makeIneqBisector(a1x,a1y,b1x,b1y, Math.random()<0.5?"<":">")});
+    }else{
+      const m1=vy1/vx1;
+      const c1=my1-m1*mx1;
+      items.push({ shape: shapeLine(m1,c1), inq: ()=>makeIneqBisector(a1x,a1y,b1x,b1y, Math.random()<0.5?"<":">")});
     }
 
-    // boundaries from all loci (always draw 6 loci worth of boundaries)
-    for(const L of loci){
-      if(L.type==="circle"){
-        shapes.push(shapeCircle(L.cx,L.cy,L.r));
-      } else if(L.type==="argBetween"){
-        shapes.push(shapeRay(L.cx,L.cy,L.lo));
-        shapes.push(shapeRay(L.cx,L.cy,L.hi));
-      } else {
-        const vx=(L.bx-L.ax), vy=(L.by-L.ay);
-        const rhs=(L.bx*L.bx+L.by*L.by)-(L.ax*L.ax+L.ay*L.ay);
-        if(Math.abs(vy)>1e-9){
-          shapes.push(shapeLine((-vx)/vy, (rhs/2)/vy));
-        } else {
-          shapes.push(shapeVertical((rhs/2)/vx));
-        }
-      }
+    // bisector 2
+    const a2x=Math.round(rnd(-7,7)), a2y=Math.round(rnd(-7,7));
+    const b2x=Math.round(rnd(-7,7)), b2y=Math.round(rnd(-7,7));
+    const mx2=(a2x+b2x)/2, my2=(a2y+b2y)/2;
+    const dx2=b2x-a2x, dy2=b2y-a2y;
+    const vx2=-dy2, vy2=dx2;
+    if(Math.abs(vx2)<1e-9){
+      items.push({ shape: shapeVertical(mx2), inq: ()=>makeIneqBisector(a2x,a2y,b2x,b2y, Math.random()<0.5?"<":">")});
+    }else{
+      const m2=vy2/vx2;
+      const c2=my2-m2*mx2;
+      items.push({ shape: shapeLine(m2,c2), inq: ()=>makeIneqBisector(a2x,a2y,b2x,b2y, Math.random()<0.5?"<":">")});
     }
 
-    // pick k inequalities with diversity if level>1
-    const idxs=[0,1,2,3,4,5];
-    for(let i=idxs.length-1;i>0;i--){
-      const j=(Math.random()*(i+1))|0;
-      [idxs[i],idxs[j]]=[idxs[j],idxs[i]];
+    // arg-between wedge (two rays are boundaries; ONE inequality)
+    const cx=Math.round(rnd(-5,5)*2)/2;
+    const cy=Math.round(rnd(-5,5)*2)/2;
+    const angs=[];
+    for(let t=-Math.PI; t<=Math.PI+1e-9; t+=Math.PI/12) angs.push(Math.round(t*1e6)/1e6);
+    let lo=pick(angs), hi=pick(angs);
+    if(lo>hi){ const tmp=lo; lo=hi; hi=tmp; }
+    if(hi-lo < Math.PI/6){ hi = lo + Math.PI/3; }
+    hi = clamp(hi, -Math.PI, Math.PI);
+    lo = clamp(lo, -Math.PI, Math.PI);
+
+    const ray1 = shapeRay(cx,cy,lo);
+    const ray2 = shapeRay(cx,cy,hi);
+
+    // Keep BOTH rays as shapes so we still show 6 boundaries,
+    // but for inequality selection, treat wedge as one choice.
+    items.push({ shape: ray1, inq: ()=>makeIneqArgBetween(cx,cy,lo,hi), tag:"wedge" });
+    items.push({ shape: ray2, inq: ()=>makeIneqArgBetween(cx,cy,lo,hi), tag:"wedge" });
+
+    shapes = items.map(it=>it.shape);
+
+    // Build selectable inequality pool (unique wedge)
+    const pool = [
+      {fn: items[0].inq, tag:"c1"},
+      {fn: items[1].inq, tag:"c2"},
+      {fn: items[2].inq, tag:"b1"},
+      {fn: items[3].inq, tag:"b2"},
+      {fn: items[4].inq, tag:"wedge"} // include wedge once
+    ];
+
+    // If k=6, add one extra from the non-wedge set
+    while(pool.length < Math.min(k,6)){
+      pool.push(pick([{fn:items[0].inq,tag:"c1x"},{fn:items[1].inq,tag:"c2x"},{fn:items[2].inq,tag:"b1x"},{fn:items[3].inq,tag:"b2x"}]));
     }
 
-    let chosen=[], types=new Set();
-    for(const i of idxs){
-      const L=loci[i];
-      chosen.push(L);
-      types.add(L.type);
-      if(chosen.length===k && (level===1 || types.size>=2)) break;
-    }
-    if(level>1 && types.size<2) return false;
+    const chosen = pickKDistinct(pool, k).map(o=>o.fn());
+    ineqs = chosen;
+  }
 
-    for(const L of chosen){
-      if(L.type==="circle") ineqs.push(makeIneqCircle(L.cx,L.cy,L.r,L.dir));
-      else if(L.type==="argBetween") ineqs.push(makeIneqArgBetween(L.cx,L.cy,L.lo,L.hi));
-      else ineqs.push(makeIneqBisector(L.ax,L.ay,L.bx,L.by,L.dir));
-    }
+  function generateAll(){
+    failChecks=0;
+    showAfter2(false);
+    hideHint();
+    statusBox.style.display="none";
+
+    const k=level;
+    modeHelp.textContent = modeDescription(mode);
+
+    if(mode===0) generateMode0(k);
+    else if(mode===1) generateMode1(k);
+    else if(mode===2) generateMode2(k);
+    else if(mode===3) generateMode3(k);
+    else if(mode===4) generateMode4(k);
+    else if(mode===5) generateMode5(k);
+    else generateMode6(k);
+
+    renderIneqList();
+
+    selected = new Set();          // ok
+
+    drawMaskBoundaries();
+    buildRegionsFromMask();
+    computeTruthRegions();
+
+    rebuildFillOverlay();          // now regionId exists
+    drawAll();
+  }
+
+  // --- Interaction ---
+  function regionAtCanvasPoint(clientX, clientY){
+    const rect=cv.getBoundingClientRect();
+    const dpr=window.devicePixelRatio||1;
+    const X=(clientX-rect.left)*dpr;
+    const Y=(clientY-rect.top)*dpr;
+
+    const {s,ox,oy}=plotSquare();
+    if(X<ox || X>ox+s || Y<oy || Y>oy+s) return null;
+
+    const nx=(X-ox)/s;
+    const ny=(Y-oy)/s;
+    const mx=Math.floor(clamp(nx,0,1)*(R_N-1));
+    const my=Math.floor(clamp(ny,0,1)*(R_N-1));
+    if(!regionId) return null;
+    const rid=regionId[my*R_N+mx];
+    return rid>0?rid:null;
+  }
+
+  function toggleRegion(rid){
+    if(selected.has(rid)) selected.delete(rid);
+    else selected.add(rid);
+    rebuildFillOverlay();
+    drawAll();
+  }
+
+  cv.addEventListener("pointerdown", (e)=>{
+    const rid=regionAtCanvasPoint(e.clientX,e.clientY);
+    if(rid==null) return;
+    toggleRegion(rid);
+  });
+
+  function clearShading(){
+    selected=new Set();
+    rebuildFillOverlay();
+    drawAll();
+    showStatus("Shading cleared.","");
+  }
+
+  function setsEqual(a,b){
+    if(a.size!==b.size) return false;
+    for(const v of a) if(!b.has(v)) return false;
     return true;
   }
 
-  function generateForModeAndLevel(){
-    const targetK=clamp(level,1,6);
-    const MAX_TRIES=1200;
-
-    for(let t=0;t<MAX_TRIES;t++){
-      if(mode===0) generateMode0(targetK);
-      else if(mode===1) generateMode1(targetK);
-      else if(mode===2) generateMode2(targetK);
-      else if(mode===3) generateMode3(targetK);
-      else if(mode===4) generateMode4(targetK);
-      else if(mode===5) generateMode5(targetK);
-      else if(mode===6){
-        const ok=generateMode6(targetK);
-        if(!ok) continue;
-      }
-
-      drawMaskBoundaries();
-      buildRegionsFromMask();
-      if(regionCount>MAX_REGIONS_ALLOWED) continue;
-
-      computeTruthRegions();
-      if(truthRegions.size===0) continue;
-
-      // each inequality alone must be non-empty
-      let okEach=true;
-      for(const inq of ineqs){
-        let any=false;
-        for(let rid=1; rid<=regionCount; rid++){
-          const rep=regionRep[rid];
-          const {x,y}=maskToWorld(rep.mx,rep.my);
-          if(inq.eval(x,y)){ any=true; break; }
-        }
-        if(!any){ okEach=false; break; }
-      }
-      if(!okEach) continue;
-
-      return true;
-    }
-    return false;
-  }
-
-  // --- round setup ---
-  function newRound(nextLevel){
-    level = clamp(nextLevel,1,6);
-    selected = new Set();
-    failChecks=0;
-    showAfter2(false);
-    statusBox.style.display="none";
-    hideHint();
-    clearCooldown();
-
-    modeHelp.textContent = modeDescription(mode);
-
-    const ok=generateForModeAndLevel();
-    if(!ok) showHint("Could not generate a valid set quickly. Press New image.");
-
-    renderIneqList();
+  function showCorrectAnswer(){
+    selected = new Set(truthRegions);
     rebuildFillOverlay();
     drawAll();
+    showStatus("Correct regions shown.","good");
   }
 
-  // --- selection ---
-  function regionAtWorld(x,y){
-    const {mx,my}=worldToMask(x,y);
-    return regionId ? regionId[my*R_N+mx] : 0;
-  }
-
-  function getCanvasXY(evt){
-    const rect=cv.getBoundingClientRect();
-    const clientX = (evt.touches && evt.touches.length) ? evt.touches[0].clientX : evt.clientX;
-    const clientY = (evt.touches && evt.touches.length) ? evt.touches[0].clientY : evt.clientY;
-    return {
-      x:(clientX-rect.left)*(cv.width/rect.width),
-      y:(clientY-rect.top)*(cv.height/rect.height)
-    };
-  }
-
-  let isDown=false, lastRid=null;
-  function toggleAtEvent(evt){
-    const p=getCanvasXY(evt);
-    const w=canvasToWorld(p.x,p.y);
-    const rid=regionAtWorld(w.x,w.y);
-    if(!rid) return 0;
-    if(selected.has(rid)) selected.delete(rid); else selected.add(rid);
-    rebuildFillOverlay();
-    drawAll();
-    return rid;
-  }
-  function onDown(evt){
-    evt.preventDefault();
-    isDown=true;
-    lastRid=toggleAtEvent(evt);
-  }
-  function onMove(evt){
-    if(!isDown) return;
-    evt.preventDefault();
-    const p=getCanvasXY(evt);
-    const w=canvasToWorld(p.x,p.y);
-    const rid=regionAtWorld(w.x,w.y);
-    if(!rid || rid===lastRid) return;
-    lastRid=rid;
-    if(selected.has(rid)) selected.delete(rid); else selected.add(rid);
-    rebuildFillOverlay();
-    drawAll();
-  }
-  function onUp(evt){
-    evt.preventDefault();
-    isDown=false;
-    lastRid=null;
-  }
-
-  function bindInputs(){
-    cv.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    cv.addEventListener('touchstart', onDown, {passive:false});
-    window.addEventListener('touchmove', onMove, {passive:false});
-    window.addEventListener('touchend', onUp, {passive:false});
-  }
-
-  // --- check logic ---
   function doCheck(){
-    let correct=0, incorrect=0, missed=0;
-    for(const rid of selected){
-      if(truthRegions.has(rid)) correct++; else incorrect++;
+    if(!truthRegions || !regionId){
+      showStatus("Something didn’t initialise. Click “New image”.","bad");
+      return;
     }
-    for(const rid of truthRegions){
-      if(!selected.has(rid)) missed++;
-    }
-    const perfect=(incorrect===0 && missed===0);
-    showStatus(`${correct} regions correct, ${incorrect} regions incorrect, ${missed} regions missed.`, perfect?"good":"bad");
-
-    if(perfect){
-      failChecks=0;
+    if(setsEqual(selected, truthRegions)){
+      showStatus("Correct ✅","good");
       showAfter2(false);
-      clearCooldown();
-      if(level<6){
-        showHint(`Correct! New set generated for Level ${level+1}.`);
-        setTimeout(hideHint, 900);
-        newRound(level+1);
-      }else{
-        showHint("Correct! Level 6 complete. Press New image to restart.");
-      }
+      failChecks=0;
+      level = (level % 6) + 1;
+      generateAll();
       return;
     }
 
     failChecks++;
-    showAfter2(failChecks>=2);
-    startDisableCountdown();
-  }
-
-  // --- buttons ---
-  checkBtn.addEventListener('click', ()=>{ if(!checkBtn.disabled) doCheck(); });
-  tryAgainBtn.addEventListener('click', ()=>{ showAfter2(false); });
-
-  showAnsBtn.addEventListener('click', ()=>{
-    selected = new Set(truthRegions);
-    rebuildFillOverlay();
-    drawAll();
-    showHint("Correct answer shown (filled). Press New image to continue or Clear shading to retry.");
-    setTimeout(hideHint, 1800);
-  });
-
-  clearBtn.addEventListener('click', ()=>{
-    selected.clear();
-    rebuildFillOverlay();
-    drawAll();
-    showAfter2(false);
-    statusBox.style.display="none";
-  });
-
-  newBtn.addEventListener('click', ()=>{
-    showAfter2(false);
-    clearCooldown();
-    newRound(level);
-  });
-
-  modeSel.addEventListener('change', ()=>{
-    mode=Number(modeSel.value)||0;
-    level=1;
-    showAfter2(false);
-    newRound(1);
-  });
-
-  // init
-  function init(){
-    if(!cv || !ctx){
-      // fail loudly but nicely
-      document.getElementById('hintBox').style.display="block";
-      document.getElementById('hintBox').textContent="Canvas failed to initialise (no 2D context).";
-      return;
+    showStatus("Not quite — adjust your shading and try again.","bad");
+    if(failChecks===1){
+      showHint("Tip: The correct region(s) are the intersection of all inequalities. Rays/circles in Mode 6 are sealed to prevent leakage.");
     }
-    mode=Number(modeSel.value)||0;
-    modeHelp.textContent = modeDescription(mode);
-    bindInputs();
-    newRound(1);
+    if(failChecks>=2){
+      showAfter2(true);
+    }
   }
-  window.addEventListener('load', init);
+
+  // --- Buttons / UI ---
+  clearBtn.addEventListener("click", clearShading);
+  newBtn.addEventListener("click", generateAll);
+  checkBtn.addEventListener("click", doCheck);
+
+  tryAgainBtn.addEventListener("click", ()=>{
+    showAfter2(false);
+    showStatus("Try again.","");
+  });
+  showAnsBtn.addEventListener("click", ()=>{
+    showAfter2(false);
+    showCorrectAnswer();
+  });
+
+  modeSel.addEventListener("change", ()=>{
+    mode = Number(modeSel.value)||0;
+    level = 1;
+    generateAll();
+  });
+
+  window.addEventListener("resize", ()=>{ drawAll(); });
+
+  generateAll();
 })();
 </script>
 </body>
