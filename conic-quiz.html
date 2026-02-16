@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Conic Quick-Guess</title>
+<style>
+  :root{
+    --bg:#081022; --ink:#eaf0ff; --muted:#9fb0d0;
+    --accent:#ff9f1c; --good:#2dd4bf; --bad:#fb7185;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 20% 0%, #14264a 0%, var(--bg) 58%);
+  }
+  .wrap{max-width:1020px;margin:0 auto;padding:18px}
+  header{display:flex;gap:14px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+  h1{margin:0;font-size:20px}
+  .sub{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:920px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .pill{
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:999px; padding:8px 10px; font-size:13px;
+  }
+  .pill b{color:#fff}
+  .grid2{display:grid;grid-template-columns: 1.35fr .65fr;gap:14px;margin-top:14px}
+  @media (max-width:940px){.grid2{grid-template-columns:1fr}}
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:18px; padding:14px;
+    box-shadow:0 12px 40px rgba(0,0,0,.25)
+  }
+  canvas{
+    width:100%; height:auto; display:block;
+    border-radius:14px;
+    background:rgba(0,0,0,.18);
+    border:1px solid rgba(255,255,255,.10);
+  }
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
+  .actions2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button{
+    appearance:none;
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:14px;
+    background:rgba(255,255,255,.06);
+    color:var(--ink);
+    padding:12px;
+    font-size:15px;
+    cursor:pointer;
+    transition:.15s transform,.15s background,.15s border-color,.15s opacity;
+    user-select:none; touch-action:manipulation;
+  }
+  button:hover{transform:translateY(-1px);background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.20)}
+  button:active{transform:translateY(0)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  button.primary{background:rgba(255,159,28,.16);border-color:rgba(255,159,28,.38)}
+  button.primary:hover{background:rgba(255,159,28,.22)}
+  button.good{background:rgba(45,212,191,.12);border-color:rgba(45,212,191,.35)}
+  button.bad{background:rgba(251,113,133,.12);border-color:rgba(251,113,133,.35)}
+  .tag{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px; padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(255,255,255,.14);
+    color:var(--muted);
+    background:rgba(255,255,255,.04);
+  }
+  .tag.good{color:var(--good);border-color:rgba(45,212,191,.35);background:rgba(45,212,191,.08)}
+  .tag.bad{color:var(--bad);border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.08)}
+  .msg{min-height:44px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+  .small{color:var(--muted);font-size:12px;line-height:1.35}
+  .kbd{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    font-size:12px;
+    padding:2px 6px;border-radius:7px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--ink)
+  }
+  .hr{height:1px;background:rgba(255,255,255,.10);margin:10px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Conic Quick-Guess</h1>
+      <div class="sub">
+        <b>Practice</b> (default): no timer/lockout. <b>Start game</b>: 60s with 5s lockout; ±3 in first 10s, else ±1; clock pauses after guess.
+        <br/>Animation begins from a single point at <b>t=0</b> and grows outward with <b>t increasing both directions</b>.
+      </div>
+    </div>
+    <div class="row">
+      <div class="pill">Mode: <b id="modeLabel">Practice</b></div>
+      <div class="pill">Time left: <b id="timeLeft">—</b></div>
+      <div class="pill">Round: <b id="round">1</b></div>
+      <div class="pill">Score: <b id="score">—</b></div>
+    </div>
+  </header>
+
+  <div class="grid2">
+    <div class="card">
+      <canvas id="cv" width="900" height="650"></canvas>
+      <div class="small" style="margin-top:8px">
+        Shortcuts: <span class="kbd">1</span> Ellipse, <span class="kbd">2</span> Parabola, <span class="kbd">3</span> Hyperbola, <span class="kbd">4</span> Circle,
+        <span class="kbd">N</span> Next (after reveal).
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="msg">
+        <span class="tag" id="statusTag">Plotting…</span>
+        <span class="tag" id="windowTag">Practice: guess anytime</span>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="choices">
+        <button data-choice="ellipse">Ellipse</button>
+        <button data-choice="parabola">Parabola</button>
+        <button data-choice="hyperbola">Hyperbola</button>
+        <button data-choice="circle">Circle</button>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="nextBtn" disabled>Next curve</button>
+        <div class="actions2">
+          <button class="primary" id="startBtn">Start game</button>
+          <button id="practiceBtn" disabled>Practice mode</button>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="small">
+        Reveal shows full curve + foci, plus directrix/asymptotes where relevant.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  const modeLabel = document.getElementById('modeLabel');
+  const timeLeftEl = document.getElementById('timeLeft');
+  const roundEl = document.getElementById('round');
+  const scoreEl = document.getElementById('score');
+
+  const statusTag = document.getElementById('statusTag');
+  const windowTag = document.getElementById('windowTag');
+
+  const nextBtn = document.getElementById('nextBtn');
+  const startBtn = document.getElementById('startBtn');
+  const practiceBtn = document.getElementById('practiceBtn');
+  const choiceButtons = [...document.querySelectorAll('button[data-choice]')];
+
+  const r = (a,b) => a + Math.random()*(b-a);
+  const pick = (arr) => arr[Math.floor(Math.random()*arr.length)];
+  const clamp = (x,a,b) => Math.max(a, Math.min(b,x));
+  const cap = (s) => s.charAt(0).toUpperCase()+s.slice(1);
+
+  const GAME_SECONDS = 60;
+  const DRAW_SECONDS = 15;
+
+  function setTag(tag, cls, text){
+    tag.className = "tag" + (cls ? " "+cls : "");
+    tag.textContent = text;
+  }
+
+  function rotatePoint(x,y,theta){
+    const c = Math.cos(theta), s = Math.sin(theta);
+    return [c*x - s*y, s*x + c*y];
+  }
+  function makeTransform(theta){ return (x,y) => rotatePoint(x,y,theta); }
+  function rotDir(v, theta){
+    const c=Math.cos(theta), s=Math.sin(theta);
+    return [c*v[0]-s*v[1], s*v[0]+c*v[1]];
+  }
+
+  function bboxFromPoints(pts){
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const [x,y] of pts){
+      if(!Number.isFinite(x)||!Number.isFinite(y)) continue;
+      minX=Math.min(minX,x); maxX=Math.max(maxX,x);
+      minY=Math.min(minY,y); maxY=Math.max(maxY,y);
+    }
+    if(!Number.isFinite(minX)) return {minX:-1,maxX:1,minY:-1,maxY:1};
+    const pad=0.12, w=(maxX-minX)||1, h=(maxY-minY)||1;
+    return {minX:minX-pad*w, maxX:maxX+pad*w, minY:minY-pad*h, maxY:maxY+pad*h};
+  }
+  function unionBox(b, p){
+    b.minX=Math.min(b.minX,p[0]); b.maxX=Math.max(b.maxX,p[0]);
+    b.minY=Math.min(b.minY,p[1]); b.maxY=Math.max(b.maxY,p[1]);
+    return b;
+  }
+  function expandBox(box, factor){
+    const cx=(box.minX+box.maxX)/2, cy=(box.minY+box.maxY)/2;
+    const hw=(box.maxX-box.minX)/2*factor, hh=(box.maxY-box.minY)/2*factor;
+    return {minX:cx-hw,maxX:cx+hw,minY:cy-hh,maxY:cy+hh};
+  }
+  function makeMapperFromBox(box, padPx=58){
+    const w=(box.maxX-box.minX)||1, h=(box.maxY-box.minY)||1;
+    const s=Math.min((cv.width-2*padPx)/w, (cv.height-2*padPx)/h);
+    const cx=(box.minX+box.maxX)/2, cy=(box.minY+box.maxY)/2;
+    return (x,y)=>[cv.width/2+(x-cx)*s, cv.height/2-(y-cy)*s];
+  }
+
+  function clear(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const g = ctx.createRadialGradient(cv.width*0.5, cv.height*0.45, 50, cv.width*0.5, cv.height*0.5, Math.max(cv.width,cv.height)*0.75);
+    g.addColorStop(0, "rgba(255,255,255,0.06)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,cv.width,cv.height);
+  }
+
+  function drawPolyline(arr, mapper, alpha=1, lw=3.2){
+    if(!arr || arr.length < 2) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "rgba(234,240,255,0.95)";
+    ctx.lineWidth = lw;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      const [px,py] = mapper(arr[i][0], arr[i][1]);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDot(p, mapper){
+    const [px,py]=mapper(p[0],p[1]);
+    ctx.save();
+    ctx.fillStyle="rgba(234,240,255,0.95)";
+    ctx.beginPath();
+    ctx.arc(px,py,2.6,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPoint(p, mapper, fill="rgba(255,159,28,0.95)"){
+    const [px,py] = mapper(p[0], p[1]);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px,py,6,0,Math.PI*2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.stroke();
+    ctx.restore();
+  }
+  function drawLabel(p, mapper, text){
+    const [px,py] = mapper(p[0], p[1]);
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "600 12px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText(text, px + 9, py - 9);
+    ctx.restore();
+  }
+  function drawDashedLineWorld(A, B, mapper, style){
+    const [ax,ay] = mapper(A[0], A[1]);
+    const [bx,by] = mapper(B[0], B[1]);
+    ctx.save();
+    ctx.strokeStyle = style;
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([10,8]);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(bx,by);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function clipLineToBox(P0, v, box){
+    const eps=1e-12;
+    let tMin=-Infinity, tMax=Infinity;
+
+    if(Math.abs(v[0])<eps){
+      if(P0[0]<box.minX || P0[0]>box.maxX) return null;
+    } else {
+      const t1=(box.minX-P0[0])/v[0], t2=(box.maxX-P0[0])/v[0];
+      const lo=Math.min(t1,t2), hi=Math.max(t1,t2);
+      tMin=Math.max(tMin,lo); tMax=Math.min(tMax,hi);
+    }
+    if(Math.abs(v[1])<eps){
+      if(P0[1]<box.minY || P0[1]>box.maxY) return null;
+    } else {
+      const t1=(box.minY-P0[1])/v[1], t2=(box.maxY-P0[1])/v[1];
+      const lo=Math.min(t1,t2), hi=Math.max(t1,t2);
+      tMin=Math.max(tMin,lo); tMax=Math.min(tMax,hi);
+    }
+    if(tMin>tMax) return null;
+    return { A:[P0[0]+tMin*v[0], P0[1]+tMin*v[1]], B:[P0[0]+tMax*v[0], P0[1]+tMax*v[1]] };
+  }
+
+  function prefixPath(path, k){
+    const n = path.length;
+    const end = clamp(1 + k, 1, n);
+    return path.slice(0, end);
+  }
+
+  function generateCurve(){
+    const type = pick(['ellipse','parabola','hyperbola','circle']);
+    const theta = r(0, Math.PI*2);
+    const transform = makeTransform(theta);
+
+    const extras = { foci:[], labels:[], lines:[] };
+
+    let posLocal = [];
+    let negLocal = [];
+
+    if(type === 'circle'){
+      const a = r(2.8, 6.2);
+      const shiftX = -a;
+      const M = 900;
+      for(let i=0;i<M;i++){
+        const t = (Math.PI)*i/(M-1);
+        posLocal.push([a*Math.cos(t)+shiftX, a*Math.sin(t)]);
+      }
+      for(let i=0;i<M;i++){
+        const t = -(Math.PI)*i/(M-1);
+        negLocal.push([a*Math.cos(t)+shiftX, a*Math.sin(t)]);
+      }
+    }
+
+    if(type === 'ellipse'){
+      const ratio = r(1.2, 2.0);
+      let a,b;
+      if(Math.random()<0.5){ b=r(3.0,6.0); a=b*ratio; }
+      else { a=r(3.0,6.0); b=a*ratio; }
+
+      const shiftX = -a;
+      const M = 900;
+      for(let i=0;i<M;i++){
+        const t = (Math.PI)*i/(M-1);
+        posLocal.push([a*Math.cos(t)+shiftX, b*Math.sin(t)]);
+      }
+      for(let i=0;i<M;i++){
+        const t = -(Math.PI)*i/(M-1);
+        negLocal.push([a*Math.cos(t)+shiftX, b*Math.sin(t)]);
+      }
+
+      const c = Math.sqrt(Math.abs(a*a - b*b));
+      if(a>=b){
+        const F1=[shiftX - c, 0], F2=[shiftX + c, 0];
+        const F1w=transform(F1[0],F1[1]), F2w=transform(F2[0],F2[1]);
+        extras.foci.push(F1w,F2w);
+        extras.labels.push({p:F1w,text:"F₁"},{p:F2w,text:"F₂"});
+      } else {
+        const F1=[shiftX, -c], F2=[shiftX, +c];
+        const F1w=transform(F1[0],F1[1]), F2w=transform(F2[0],F2[1]);
+        extras.foci.push(F1w,F2w);
+        extras.labels.push({p:F1w,text:"F₁"},{p:F2w,text:"F₂"});
+      }
+    }
+
+    if(type === 'parabola'){
+      const a = r(0.45, 1.25);
+      const T = r(3.2, 4.8);
+      const M = 900;
+      for(let i=0;i<M;i++){
+        const t = (T)*i/(M-1);
+        posLocal.push([a*t*t, 2*a*t]);
+      }
+      for(let i=0;i<M;i++){
+        const t = -(T)*i/(M-1);
+        negLocal.push([a*t*t, 2*a*t]);
+      }
+
+      const F=[a,0];
+      const Fw=transform(F[0],F[1]);
+      extras.foci.push(Fw);
+      extras.labels.push({p:Fw,text:"F"});
+
+      const P0 = transform(-a, 0);
+      extras.lines.push({kind:"directrix", P0, v: rotDir([0,1], theta)});
+    }
+
+    if(type === 'hyperbola'){
+      const a = r(2.0, 5.2);
+      const b = r(1.2, 4.4);
+      let T = 1.25;
+
+      function buildPaths(T){
+        const shiftX = -a;
+        const M = 900;
+        const p=[], n=[];
+        for(let i=0;i<M;i++){
+          const t = (T)*i/(M-1);
+          p.push([a*Math.cosh(t)+shiftX, b*Math.sinh(t)]);
+        }
+        for(let i=0;i<M;i++){
+          const t = -(T)*i/(M-1);
+          n.push([a*Math.cosh(t)+shiftX, b*Math.sinh(t)]);
+        }
+        return {p,n,shiftX};
+      }
+
+      for(let iter=0; iter<10; iter++){
+        const tmp = buildPaths(T);
+        const ptsW = tmp.p.concat(tmp.n).map(([x,y]) => transform(x,y));
+        const box = bboxFromPoints(ptsW);
+        if(Math.max(box.maxX-box.minX, box.maxY-box.minY) >= 18) break;
+        T *= 1.17;
+      }
+
+      const built = buildPaths(T);
+      posLocal = built.p;
+      negLocal = built.n;
+
+      const c = Math.sqrt(a*a + b*b);
+      const F1=[built.shiftX - c, 0], F2=[built.shiftX + c, 0];
+      const F1w=transform(F1[0],F1[1]), F2w=transform(F2[0],F2[1]);
+      extras.foci.push(F1w,F2w);
+      extras.labels.push({p:F1w,text:"F₁"},{p:F2w,text:"F₂"});
+
+      const m=b/a;
+      const centerLocal=[built.shiftX, 0];
+      const centerW=transform(centerLocal[0], centerLocal[1]);
+      extras.lines.push({kind:"asymptote", P0:centerW, v: rotDir([1, m], theta)});
+      extras.lines.push({kind:"asymptote", P0:centerW, v: rotDir([1,-m], theta)});
+    }
+
+    const pos = posLocal.map(([x,y]) => transform(x,y));
+    const neg = negLocal.map(([x,y]) => transform(x,y));
+    const full = neg.slice().reverse().concat(pos.slice(1));
+
+    let box = bboxFromPoints(full);
+    for(const fp of extras.foci) box = unionBox(box, fp);
+
+    const tmpView = expandBox(box, 1.35);
+    for(const ln of extras.lines){
+      const seg = clipLineToBox(ln.P0, ln.v, tmpView);
+      if(seg){ box = unionBox(box, seg.A); box = unionBox(box, seg.B); }
+    }
+    const viewBox = expandBox(box, 1.05);
+
+    return { type, pos, neg, full, extras, viewBox };
+  }
+
+  const state = {
+    mode: "practice",
+    gameRunning: false,
+    paused: false,
+
+    timeLeft: GAME_SECONDS,
+    score: 0,
+    round: 1,
+
+    curve: null,
+    mapper: null,
+
+    roundStartTs: 0,
+    revealed: false,
+    guessed: false,
+
+    lockoutUntil: 5000,
+    earlyWindowUntil: 10000
+  };
+
+  function updateHUD(){
+    modeLabel.textContent = state.mode === "timed" ? "Timed" : "Practice";
+    roundEl.textContent = String(state.round);
+    if(state.mode === "timed"){
+      timeLeftEl.textContent = String(state.timeLeft);
+      scoreEl.textContent = String(state.score);
+    } else {
+      timeLeftEl.textContent = "—";
+      scoreEl.textContent = "—";
+    }
+    startBtn.disabled = (state.mode === "timed");
+    practiceBtn.disabled = (state.mode === "practice");
+  }
+
+  function enableGuessButtons(enabled){
+    choiceButtons.forEach(b => b.disabled = !enabled);
+  }
+
+  function startPractice(){
+    stopCountdown();
+    state.mode = "practice";
+    state.gameRunning = false;
+    state.paused = false;
+    state.score = 0;
+    state.timeLeft = GAME_SECONDS;
+    state.round = 1;
+    updateHUD();
+    nextRound();
+  }
+
+  function startTimedGame(){
+    stopCountdown();
+    state.mode = "timed";
+    state.gameRunning = true;
+    state.paused = false;
+    state.timeLeft = GAME_SECONDS;
+    state.score = 0;
+    state.round = 1;
+    updateHUD();
+    nextRound();
+    startCountdown();
+  }
+
+  function nextRound(){
+    state.curve = generateCurve();
+    state.mapper = makeMapperFromBox(state.curve.viewBox, 58);
+
+    state.revealed = false;
+    state.guessed = false;
+    state.roundStartTs = performance.now();
+    state.paused = false;
+
+    choiceButtons.forEach(b => b.classList.remove("good","bad"));
+
+    setTag(statusTag, "", "Plotting…");
+    if(state.mode === "timed"){
+      setTag(windowTag, "", "Guessing unlocks in 5.0s");
+      enableGuessButtons(false);
+    } else {
+      setTag(windowTag, "", "Practice: guess anytime");
+      enableGuessButtons(true);
+    }
+
+    nextBtn.disabled = true;
+    clear();
+    requestAnimationFrame(loop);
+  }
+
+  function scoreForGuess(msSinceStart, correct){
+    const early = msSinceStart <= state.earlyWindowUntil;
+    if(early) return correct ? 3 : -3;
+    return correct ? 1 : -1;
+  }
+
+  function revealFullWithConstructions(){
+    state.revealed = true;
+    clear();
+
+    drawPolyline(state.curve.full, state.mapper, 1, 3.6);
+
+    const box = state.curve.viewBox;
+    for(const ln of state.curve.extras.lines){
+      const seg = clipLineToBox(ln.P0, ln.v, box);
+      if(!seg) continue;
+      if(ln.kind === "directrix"){
+        drawDashedLineWorld(seg.A, seg.B, state.mapper, "rgba(255,159,28,0.85)");
+      } else if(ln.kind === "asymptote"){
+        drawDashedLineWorld(seg.A, seg.B, state.mapper, "rgba(159,208,255,0.85)");
+      }
+    }
+
+    for(const p of state.curve.extras.foci) drawPoint(p, state.mapper);
+    for(const lab of state.curve.extras.labels) drawLabel(lab.p, state.mapper, lab.text);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.font = "600 14px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText(`Answer: ${cap(state.curve.type)}`, 16, 26);
+    ctx.restore();
+  }
+
+  function onGuess(choice){
+    if(state.guessed) return;
+    const ms = performance.now() - state.roundStartTs;
+    if(state.mode === "timed" && ms < state.lockoutUntil) return;
+
+    state.guessed = true;
+    enableGuessButtons(false);
+
+    const correct = (choice === state.curve.type);
+
+    if(state.mode === "timed"){
+      const delta = scoreForGuess(ms, correct);
+      state.score += delta;
+      updateHUD();
+      setTag(statusTag, correct ? "good" : "bad",
+        correct ? `Correct! (+${delta})` : `Incorrect. (${delta})`
+      );
+      state.paused = true;
+      setTag(windowTag, "", `Clock paused • Answer: ${cap(state.curve.type)} • Press Next`);
+    } else {
+      setTag(statusTag, correct ? "good" : "bad", correct ? "Correct!" : "Incorrect.");
+      setTag(windowTag, "", `Answer: ${cap(state.curve.type)} • Press Next`);
+    }
+
+    revealFullWithConstructions();
+    nextBtn.disabled = false;
+
+    choiceButtons.forEach(b => b.classList.remove("good","bad"));
+    const chosen = choiceButtons.find(b => b.dataset.choice === choice);
+    if(chosen) chosen.classList.add(correct ? "good" : "bad");
+  }
+
+  function loop(ts){
+    if(state.revealed) return;
+
+    const ms = ts - state.roundStartTs;
+    const sec = ms / 1000;
+
+    if(state.mode === "timed"){
+      if(ms < state.lockoutUntil){
+        setTag(windowTag, "", `Guessing unlocks in ${((state.lockoutUntil-ms)/1000).toFixed(1)}s`);
+        enableGuessButtons(false);
+      } else if(!state.guessed){
+        const earlyLeft = Math.max(0, (state.earlyWindowUntil - ms)/1000);
+        setTag(windowTag, "", ms <= state.earlyWindowUntil
+          ? `Early window: ${earlyLeft.toFixed(1)}s left (±3 points)`
+          : `Late window (±1 point)`
+        );
+        enableGuessButtons(true);
+      }
+    } else {
+      if(!state.guessed) enableGuessButtons(true);
+    }
+
+    // ✅ ONLY CHANGE: parabola + hyperbola animate twice as fast
+    const speed = (state.curve.type === "parabola" || state.curve.type === "hyperbola") ? 2 : 1;
+
+    const len = Math.min(state.curve.pos.length, state.curve.neg.length);
+    const frac = clamp((sec * speed) / DRAW_SECONDS, 0, 1);
+    const k = Math.floor(frac * (len-1));
+
+    const posPart = prefixPath(state.curve.pos, k);
+    const negPart = prefixPath(state.curve.neg, k);
+
+    clear();
+    if(k === 0){
+      drawDot(state.curve.pos[0], state.mapper);
+    } else {
+      drawPolyline(posPart, state.mapper, 1, 3.2);
+      drawPolyline(negPart, state.mapper, 1, 3.2);
+    }
+
+    if((sec * speed) >= DRAW_SECONDS){
+      setTag(statusTag, "", "Fully drawn (you can still guess)");
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  // ---------------- countdown (timed mode only) ----------------
+  let countdownTimer = null;
+  function stopCountdown(){
+    if(countdownTimer){
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
+  function startCountdown(){
+    stopCountdown();
+    countdownTimer = setInterval(() => {
+      if(state.mode !== "timed") return;
+      if(!state.gameRunning) return;
+      if(state.paused) return;
+
+      state.timeLeft -= 1;
+      updateHUD();
+      if(state.timeLeft <= 0) endGame();
+    }, 1000);
+    updateHUD();
+  }
+
+  function endGame(){
+    state.gameRunning = false;
+    stopCountdown();
+    enableGuessButtons(false);
+    nextBtn.disabled = true;
+
+    clear();
+    drawPolyline(state.curve.full, state.mapper, 0.35, 3);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.textAlign = "center";
+    ctx.font = "700 32px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText("Time!", cv.width/2, cv.height/2 - 12);
+    ctx.font = "600 18px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText(`Final score: ${state.score}`, cv.width/2, cv.height/2 + 22);
+    ctx.font = "14px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillText("Click Practice mode to keep training.", cv.width/2, cv.height/2 + 52);
+    ctx.restore();
+
+    setTag(statusTag, "", "Game over");
+    setTag(windowTag, "", `Final score: ${state.score}`);
+  }
+
+  // ---------------- events ----------------
+  choiceButtons.forEach(btn => btn.addEventListener('click', () => onGuess(btn.dataset.choice)));
+  nextBtn.addEventListener('click', () => {
+    if(!state.guessed) return;
+    state.round += 1;
+    updateHUD();
+    nextRound();
+  });
+  startBtn.addEventListener('click', () => startTimedGame());
+  practiceBtn.addEventListener('click', () => startPractice());
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if(k === '1') onGuess('ellipse');
+    if(k === '2') onGuess('parabola');
+    if(k === '3') onGuess('hyperbola');
+    if(k === '4') onGuess('circle');
+    if(k === 'n' && !nextBtn.disabled) nextBtn.click();
+  });
+
+  updateHUD();
+  startPractice();
+})();
+</script>
+</body>
+</html>
