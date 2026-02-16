@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Parametric Curves – Drag & Drop Cloze</title>
+
+<!-- MathJax -->
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$', '$']] } };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<style>
+  :root{
+    --bg:#f4f6fb;
+    --card:#ffffff;
+    --ink:#111;
+    --muted:#5b677a;
+    --bank:#ffffff;
+    --pill:#e3ecff;
+    --dash:#b8c1cf;
+    --ok:#2ecc71;
+    --bad:#e74c3c;
+    --accent:#ff9800;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+  }
+  header{
+    padding:18px 18px 0;
+    max-width:1200px;
+    margin:0 auto;
+  }
+  h1{margin:0 0 6px;font-size:22px}
+  p.sub{margin:0 0 14px;color:var(--muted)}
+
+  .layout{
+    max-width:1200px;
+    margin:0 auto;
+    padding:0 18px 22px;
+    display:grid;
+    grid-template-columns: 1fr 330px;
+    gap:16px;
+    align-items:start;
+  }
+
+  .main{display:flex;flex-direction:column;gap:12px}
+
+  .pointPill{
+    background:var(--card);
+    border-radius:16px;
+    padding:14px 14px 12px;
+    box-shadow:0 6px 14px rgba(0,0,0,.05);
+    border:1px solid #e7ecf3;
+  }
+
+  .pointHead{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .num{
+    width:30px;height:30px;
+    border-radius:999px;
+    background:#f1f5ff;
+    border:1px solid #d8e2ff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:700;
+  }
+  .pointBody{line-height:1.55;color:#1a2433}
+  .row{margin:8px 0}
+
+  .drop{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:140px;
+    min-height:36px;
+    border:2px dashed var(--dash);
+    border-radius:12px;
+    padding:4px 6px;
+    vertical-align:middle;
+    margin:0 4px;
+    background:#fbfcff;
+  }
+  .drop.correct{ border-color: var(--ok) !important; }
+  .drop.incorrect{ border-color: var(--bad) !important; }
+
+  .bank{
+    position:sticky;
+    top:12px;
+    background:var(--bank);
+    border-radius:16px;
+    padding:14px;
+    box-shadow:0 6px 14px rgba(0,0,0,.05);
+    border:1px solid #e7ecf3;
+  }
+  .bank h2{margin:0 0 10px;font-size:16px}
+  .hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 12px;
+    border-radius:999px;
+    background:var(--pill);
+    margin:6px 6px 0 0;
+    cursor:grab;
+    user-select:none;
+    border:1px solid #cfe0ff;
+    max-width:100%;
+  }
+  .pill:active{ cursor:grabbing; }
+
+  .controls{display:flex;gap:10px;margin-top:12px}
+  button{
+    border:none;
+    border-radius:12px;
+    padding:10px 14px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .btnCheck{ background:var(--accent); color:#fff; }
+  .btnReset{ background:#e9eef7; color:#1b2a41; }
+  .btnCheck:hover{ filter:brightness(.95); }
+  .btnReset:hover{ filter:brightness(.98); }
+
+  /* Dynamic graph blocks (non-draggable) */
+  .graphBlock{
+    margin-top:10px;
+    padding:10px;
+    border:1px solid #e7ecf3;
+    border-radius:14px;
+    background:#fbfcff;
+  }
+  .graphHeader{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:8px;
+    flex-wrap:wrap;
+  }
+  .sliderRow{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:var(--muted);
+    font-size:13px;
+  }
+  input[type="range"]{ width:170px; }
+  .valBadge{
+    display:inline-block;
+    min-width:54px;
+    text-align:center;
+    padding:4px 8px;
+    border-radius:999px;
+    background:#eef4ff;
+    border:1px solid #d7e6ff;
+    color:#1b2a41;
+    font-weight:700;
+  }
+  svg.plot{
+    width:100%;
+    height:170px;
+    background:#fff;
+    border:1px solid #dde6f5;
+    border-radius:12px;
+  }
+  .axis{stroke:#2b2b2b;stroke-width:1}
+  .grid{stroke:#dfe6f2;stroke-width:1}
+  .curve{stroke:#ff6b00;stroke-width:2;fill:none}
+  .label{font-size:12px;fill:#111}
+
+  @media (max-width: 980px){
+    .layout{ grid-template-columns: 1fr; }
+    .bank{ position:relative; top:auto; }
+    input[type="range"]{ width:220px; }
+  }
+</style>
+</head>
+
+<body>
+<header>
+  <h1>Parametric Curves – Drag & Drop Cloze</h1>
+  <p class="sub">Drag pills from the right into the dashed boxes. Tap a placed pill to send it back to the bank.</p>
+</header>
+
+<div class="layout">
+  <div class="main">
+
+    <!-- 1 -->
+    <section class="pointPill" aria-label="Point 1">
+      <div class="pointHead"><div class="num">1</div><div><b>Eliminate the parameter</b></div></div>
+      <div class="pointBody">
+        To find the Cartesian equation of a curve given parametrically you eliminate the parameter
+        <span class="drop" data-answer="t"></span>
+        between the equations.
+      </div>
+    </section>
+
+    <!-- 2 (NOW: dynamic graph of xy=c^2 per your request) -->
+    <section class="pointPill" aria-label="Point 2">
+      <div class="pointHead"><div class="num">2</div><div><b>Parabola basics</b></div></div>
+      <div class="pointBody">
+        <div class="row">
+          The curve opposite is a <span class="drop" data-answer="parabola"></span>
+          with Cartesian equation <span class="drop" data-answer="y^2=4ax"></span>, where \(a\) is a positive constant.
+        </div>
+        <div class="row">
+          This curve has parametric equations
+          <span class="drop" data-answer="x=at^2"></span> ,
+          <span class="drop" data-answer="y=2at"></span> , \(t\in\mathbb{R}\).
+        </div>
+
+        <!-- Dynamic graph block: xy=c^2 (requested in pill 2) -->
+        <div class="graphBlock" aria-label="Dynamic hyperbola graph">
+          <div class="graphHeader">
+            <div><b>Dynamic graph:</b> \(xy=c^2\)</div>
+            <div class="sliderRow">
+              <span>\(c=\)</span>
+              <input id="cSlider" type="range" min="0.5" max="5" step="0.5" value="2">
+              <span class="valBadge" id="cVal">2.0</span>
+            </div>
+          </div>
+          <svg class="plot" id="hyperPlot" viewBox="0 0 360 170" role="img" aria-label="Plot of xy=c^2"></svg>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="pointPill" aria-label="Point 3">
+      <div class="pointHead"><div class="num">3</div><div><b>Focus & directrix</b></div></div>
+      <div class="pointBody">
+        <div class="row">
+          A parabola is the locus of points that are the same distance from a fixed point \(S\), called the
+          <span class="drop" data-answer="focus"></span>,
+          and a fixed straight line called the <span class="drop" data-answer="directrix"></span>.
+        </div>
+        <div class="row">
+          For \(y^2=4ax\): the focus has coordinates <span class="drop" data-answer="(a,0)"></span>.
+        </div>
+        <div class="row">
+          The directrix has equation <span class="drop" data-answer="x+a=0"></span>.
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 (NOW: dynamic graph of y^2=4ax per your request) -->
+    <section class="pointPill" aria-label="Point 4">
+      <div class="pointHead"><div class="num">4</div><div><b>Rectangular hyperbola basics</b></div></div>
+      <div class="pointBody">
+        <div class="row">
+          The curve opposite is a <span class="drop" data-answer="rectangular hyperbola"></span>
+          with Cartesian equation <span class="drop" data-answer="xy=c^2"></span>, where \(c\) is a positive constant.
+        </div>
+        <div class="row">
+          This curve has parametric equations
+          <span class="drop" data-answer="x=ct"></span> ,
+          <span class="drop" data-answer="y=c/t"></span> , \(t\neq 0\).
+        </div>
+
+        <!-- Dynamic graph block: y^2=4ax (requested in pill 4) -->
+        <div class="graphBlock" aria-label="Dynamic parabola graph">
+          <div class="graphHeader">
+            <div><b>Dynamic graph:</b> \(y^2=4ax\)</div>
+            <div class="sliderRow">
+              <span>\(a=\)</span>
+              <input id="aSlider" type="range" min="0.5" max="6" step="0.5" value="2">
+              <span class="valBadge" id="aVal">2.0</span>
+            </div>
+          </div>
+          <svg class="plot" id="paraPlot" viewBox="0 0 360 170" role="img" aria-label="Plot of y^2=4ax"></svg>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="pointPill" aria-label="Point 5">
+      <div class="pointHead"><div class="num">5</div><div><b>Gradient of the parabola</b></div></div>
+      <div class="pointBody">
+        For the general parabola \(y^2=4ax\), the gradient is given by
+        <span class="drop" data-answer="dy/dx=2a/y"></span>.
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="pointPill" aria-label="Point 6">
+      <div class="pointHead"><div class="num">6</div><div><b>Tangent & normal to the parabola</b></div></div>
+      <div class="pointBody">
+        <div class="row">
+          An equation of the tangent to \(y^2=4ax\) at \(P(at^2,2at)\) is
+          <span class="drop" data-answer="ty=x+at^2"></span>.
+        </div>
+        <div class="row">
+          An equation of the normal at \(P(at^2,2at)\) is
+          <span class="drop" data-answer="y+tx=2at+at^3"></span>.
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="pointPill" aria-label="Point 7">
+      <div class="pointHead"><div class="num">7</div><div><b>Tangent & normal to the hyperbola</b></div></div>
+      <div class="pointBody">
+        <div class="row">
+          An equation of the tangent to \(xy=c^2\) at \(P(ct,\frac{c}{t})\) is
+          <span class="drop" data-answer="tx+t^2y=2ct"></span>.
+        </div>
+        <div class="row">
+          An equation of the normal to \(xy=c^2\) at \(P(ct,\frac{c}{t})\) is
+          <span class="drop" data-answer="t^3x-ty=c(t^4-1)"></span>.
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- BANK RIGHT -->
+  <aside class="bank" aria-label="Pill bank">
+    <h2>Pill Bank</h2>
+    <p class="hint">Drag → drop. Tap a placed pill to return it.</p>
+
+    <div id="bankArea">
+      <div class="pill" draggable="true" data-value="t">\(t\)</div>
+
+      <div class="pill" draggable="true" data-value="parabola">parabola</div>
+      <div class="pill" draggable="true" data-value="y^2=4ax">\(y^2=4ax\)</div>
+      <div class="pill" draggable="true" data-value="x=at^2">\(x=at^2\)</div>
+      <div class="pill" draggable="true" data-value="y=2at">\(y=2at\)</div>
+
+      <div class="pill" draggable="true" data-value="focus">focus</div>
+      <div class="pill" draggable="true" data-value="directrix">directrix</div>
+      <div class="pill" draggable="true" data-value="(a,0)">\((a,0)\)</div>
+      <div class="pill" draggable="true" data-value="x+a=0">\(x+a=0\)</div>
+
+      <div class="pill" draggable="true" data-value="rectangular hyperbola">rectangular hyperbola</div>
+      <div class="pill" draggable="true" data-value="xy=c^2">\(xy=c^2\)</div>
+      <div class="pill" draggable="true" data-value="x=ct">\(x=ct\)</div>
+      <div class="pill" draggable="true" data-value="y=c/t">\(y=\frac{c}{t}\)</div>
+
+      <div class="pill" draggable="true" data-value="dy/dx=2a/y">\(\frac{dy}{dx}=\frac{2a}{y}\)</div>
+      <div class="pill" draggable="true" data-value="ty=x+at^2">\(ty=x+at^2\)</div>
+      <div class="pill" draggable="true" data-value="y+tx=2at+at^3">\(y+tx=2at+at^3\)</div>
+      <div class="pill" draggable="true" data-value="tx+t^2y=2ct">\(tx+t^2y=2ct\)</div>
+      <div class="pill" draggable="true" data-value="t^3x-ty=c(t^4-1)">\(t^3x-ty=c(t^4-1)\)</div>
+    </div>
+
+    <div class="controls">
+      <button class="btnCheck" type="button" onclick="checkAnswers()">Check</button>
+      <button class="btnReset" type="button" onclick="resetAll()">Reset</button>
+    </div>
+  </aside>
+</div>
+
+<script>
+  let dragged = null;
+
+  function wirePill(p){
+    p.addEventListener('dragstart', (e) => {
+      dragged = p;
+      e.dataTransfer.setData('text/plain', p.dataset.value);
+    });
+
+    // Tap/click returns to bank
+    p.addEventListener('click', () => {
+      document.getElementById('bankArea').appendChild(p);
+      document.querySelectorAll('.drop').forEach(d=>{
+        if(d.contains(p)) d.classList.remove('correct','incorrect');
+      });
+      MathJax.typesetPromise();
+    });
+  }
+
+  document.querySelectorAll('.pill').forEach(wirePill);
+
+  document.querySelectorAll('.drop').forEach(drop => {
+    drop.addEventListener('dragover', e => e.preventDefault());
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      if(!dragged) return;
+      if(drop.children.length > 0) return;
+      drop.appendChild(dragged);
+      drop.classList.remove('correct','incorrect');
+      MathJax.typesetPromise();
+    });
+  });
+
+  function checkAnswers(){
+    document.querySelectorAll('.drop').forEach(d=>{
+      d.classList.remove('correct','incorrect');
+      const ans = d.dataset.answer;
+      const child = d.querySelector('.pill');
+      if(!child){ d.classList.add('incorrect'); return; }
+      const val = child.dataset.value;
+      (val === ans) ? d.classList.add('correct') : d.classList.add('incorrect');
+    });
+  }
+
+  function resetAll(){
+    const bank = document.getElementById('bankArea');
+    document.querySelectorAll('.drop .pill').forEach(p => bank.appendChild(p));
+    document.querySelectorAll('.drop').forEach(d=> d.classList.remove('correct','incorrect'));
+    MathJax.typesetPromise();
+  }
+
+  /* ====== Dynamic graphs (inline SVG) ====== */
+
+  // Helpers for mapping math coords -> SVG coords
+  function makeMapper(svgW, svgH, xMin, xMax, yMin, yMax, pad=12){
+    const W = svgW, H = svgH;
+    const xScale = (W - 2*pad) / (xMax - xMin);
+    const yScale = (H - 2*pad) / (yMax - yMin);
+    return {
+      X: (x) => pad + (x - xMin) * xScale,
+      Y: (y) => H - pad - (y - yMin) * yScale,
+      pad
+    };
+  }
+
+  function clearSVG(svg){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+
+  function line(svg, x1,y1,x2,y2, cls){
+    const el = document.createElementNS("http://www.w3.org/2000/svg","line");
+    el.setAttribute("x1",x1); el.setAttribute("y1",y1);
+    el.setAttribute("x2",x2); el.setAttribute("y2",y2);
+    el.setAttribute("class",cls);
+    svg.appendChild(el);
+  }
+
+  function path(svg, d, cls){
+    const el = document.createElementNS("http://www.w3.org/2000/svg","path");
+    el.setAttribute("d",d);
+    el.setAttribute("class",cls);
+    svg.appendChild(el);
+  }
+
+  function text(svg, x,y, str, cls){
+    const el = document.createElementNS("http://www.w3.org/2000/svg","text");
+    el.setAttribute("x",x); el.setAttribute("y",y);
+    el.setAttribute("class",cls || "label");
+    el.textContent = str;
+    svg.appendChild(el);
+  }
+
+  function drawGrid(svg, mapper, xMin,xMax,yMin,yMax, xStep, yStep){
+    // vertical
+    for(let x = Math.ceil(xMin/xStep)*xStep; x<=xMax; x+=xStep){
+      line(svg, mapper.X(x), mapper.Y(yMin), mapper.X(x), mapper.Y(yMax), "grid");
+    }
+    // horizontal
+    for(let y = Math.ceil(yMin/yStep)*yStep; y<=yMax; y+=yStep){
+      line(svg, mapper.X(xMin), mapper.Y(y), mapper.X(xMax), mapper.Y(y), "grid");
+    }
+  }
+
+  function drawAxes(svg, mapper, xMin,xMax,yMin,yMax){
+    // x-axis y=0 if in range
+    if(yMin <= 0 && 0 <= yMax){
+      line(svg, mapper.X(xMin), mapper.Y(0), mapper.X(xMax), mapper.Y(0), "axis");
+    }
+    // y-axis x=0 if in range
+    if(xMin <= 0 && 0 <= xMax){
+      line(svg, mapper.X(0), mapper.Y(yMin), mapper.X(0), mapper.Y(yMax), "axis");
+    }
+  }
+
+  // Plot xy=c^2 (branches in quadrants I and III)
+  function renderHyperbola(c){
+    const svg = document.getElementById("hyperPlot");
+    clearSVG(svg);
+
+    const W = 360, H = 170;
+    const xMin=-10, xMax=10, yMin=-6, yMax=6;
+    const m = makeMapper(W,H,xMin,xMax,yMin,yMax,12);
+
+    drawGrid(svg, m, xMin,xMax,yMin,yMax, 2, 2);
+    drawAxes(svg, m, xMin,xMax,yMin,yMax);
+
+    // Branch in quadrant I: x from small positive to xMax
+    const xStart = 0.4; // avoid asymptote
+    const steps = 240;
+
+    function branch(sign){
+      let d = "";
+      for(let i=0;i<=steps;i++){
+        const x = xStart + (xMax - xStart) * (i/steps);
+        const y = (c*c)/x;
+        const yy = sign*y;
+        if(yy<yMin || yy>yMax) continue;
+        const X = m.X(sign>0 ? x : -x);
+        const Y = m.Y(yy);
+        d += (d==="" ? `M ${X} ${Y}` : ` L ${X} ${Y}`);
+      }
+      if(d) path(svg, d, "curve");
+    }
+
+    // Quadrant I: x>0, y>0
+    branch(+1);
+    // Quadrant III: x<0, y<0 (use symmetry)
+    // We can generate by taking x>0 and mapping to (-x, -y)
+    let d3 = "";
+    for(let i=0;i<=steps;i++){
+      const x = xStart + (xMax - xStart) * (i/steps);
+      const y = (c*c)/x;
+      const X = m.X(-x);
+      const Y = m.Y(-y);
+      if((-y)<yMin || (-y)>yMax) continue;
+      d3 += (d3==="" ? `M ${X} ${Y}` : ` L ${X} ${Y}`);
+    }
+    if(d3) path(svg, d3, "curve");
+
+    text(svg, 12, 18, `xy = ${c.toFixed(1)}²`, "label");
+  }
+
+  // Plot y^2=4ax (opens right). We'll show x from 0..xMax and y within range.
+  function renderParabola(a){
+    const svg = document.getElementById("paraPlot");
+    clearSVG(svg);
+
+    const W = 360, H = 170;
+    const xMin=-2, xMax=12, yMin=-8, yMax=8;
+    const m = makeMapper(W,H,xMin,xMax,yMin,yMax,12);
+
+    drawGrid(svg, m, xMin,xMax,yMin,yMax, 2, 2);
+    drawAxes(svg, m, xMin,xMax,yMin,yMax);
+
+    const steps = 260;
+    // For a given y, x = y^2/(4a)
+    function makeCurve(sign){
+      let d = "";
+      for(let i=0;i<=steps;i++){
+        const y = yMin + (yMax - yMin)*(i/steps);
+        const x = (y*y) / (4*a);
+        const X = m.X(x);
+        const Y = m.Y(sign*y);
+        if(x < xMin || x > xMax) continue;
+        d += (d==="" ? `M ${X} ${Y}` : ` L ${X} ${Y}`);
+      }
+      if(d) path(svg, d, "curve");
+    }
+    // Actually y already spans negative..positive; easiest: draw once using y range for upper+lower by splitting:
+    // We'll draw using y from 0..yMax for upper and 0..yMin for lower for smoothness:
+    let dUp = "";
+    for(let i=0;i<=steps;i++){
+      const y = 0 + (yMax - 0)*(i/steps);
+      const x = (y*y)/(4*a);
+      if(x>xMax) break;
+      dUp += (dUp==="" ? `M ${m.X(x)} ${m.Y(y)}` : ` L ${m.X(x)} ${m.Y(y)}`);
+    }
+    if(dUp) path(svg, dUp, "curve");
+
+    let dDown = "";
+    for(let i=0;i<=steps;i++){
+      const y = 0 + (yMax - 0)*(i/steps);
+      const x = (y*y)/(4*a);
+      if(x>xMax) break;
+      dDown += (dDown==="" ? `M ${m.X(x)} ${m.Y(-y)}` : ` L ${m.X(x)} ${m.Y(-y)}`);
+    }
+    if(dDown) path(svg, dDown, "curve");
+
+    text(svg, 12, 18, `y² = 4(${a.toFixed(1)})x`, "label");
+  }
+
+  // Sliders
+  const cSlider = document.getElementById("cSlider");
+  const cVal = document.getElementById("cVal");
+  const aSlider = document.getElementById("aSlider");
+  const aVal = document.getElementById("aVal");
+
+  function updateC(){
+    const c = parseFloat(cSlider.value);
+    cVal.textContent = c.toFixed(1);
+    renderHyperbola(c);
+    MathJax.typesetPromise();
+  }
+  function updateA(){
+    const a = parseFloat(aSlider.value);
+    aVal.textContent = a.toFixed(1);
+    renderParabola(a);
+    MathJax.typesetPromise();
+  }
+
+  cSlider.addEventListener("input", updateC);
+  aSlider.addEventListener("input", updateA);
+
+  // initial render
+  updateC();
+  updateA();
+</script>
+
+</body>
+</html>
