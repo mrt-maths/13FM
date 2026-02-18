@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>6×(1²+…+n²) – pack pyramids into a cuboid</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#121a33ee; --ink:#e9eefc; --muted:#a9b6e6;
+    --accent:#ff9f2f; --good:#2ee59d; --bad:#ff4d6d; --blue:#7aa2ff;
+  }
+  html,body{height:100%;margin:0;overflow:hidden;background:radial-gradient(1200px 700px at 20% 10%, #182659 0%, #0b1020 55%, #060915 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  canvas{display:block}
+
+  #ui{
+    position:fixed;left:14px;top:14px;z-index:10;
+    width:min(450px,calc(100vw - 28px));
+    background:var(--panel); border:1px solid rgba(255,255,255,.12);
+    border-radius:16px; padding:12px 12px 10px; box-shadow:0 12px 40px rgba(0,0,0,.35);
+    backdrop-filter: blur(8px);
+  }
+  #ui h1{font-size:15px;margin:0 0 8px}
+  #ui p{margin:6px 0 10px;color:var(--muted);font-size:12.5px;line-height:1.35}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row+.row{margin-top:10px}
+  .pill{
+    display:flex;align-items:center;gap:10px;flex:1 1 auto;
+    padding:8px 10px;border-radius:999px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  }
+  label{font-size:12px;color:var(--muted)}
+  input[type="range"]{width:170px}
+  button{
+    appearance:none;border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.08);color:var(--ink);
+    border-radius:12px;padding:9px 10px;font-weight:700;
+    cursor:pointer;transition:.12s transform,.12s background,.12s border-color;
+    user-select:none
+  }
+  button:hover{transform:translateY(-1px);background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.22)}
+  button.primary{background:rgba(255,159,47,.18);border-color:rgba(255,159,47,.35)}
+  button.primary:hover{background:rgba(255,159,47,.24)}
+  button.good{background:rgba(46,229,157,.14);border-color:rgba(46,229,157,.35)}
+  button.good:hover{background:rgba(46,229,157,.20)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+  .tiny{font-size:12px;color:var(--muted)}
+  .math{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;color:#dbe6ff}
+
+  #side{
+    position:fixed;right:14px;top:14px;z-index:10;
+    display:flex;flex-direction:column;gap:10px;align-items:flex-end;
+    width:min(360px,calc(100vw - 28px));
+  }
+  .card{
+    width:100%;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+    border-radius:16px;padding:10px 12px;box-shadow:0 10px 32px rgba(0,0,0,.28);
+  }
+  .card b{color:#fff}
+  .grid2{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .grid2 button{padding:8px 8px;font-weight:750}
+
+  .bar{
+    margin-top:8px;height:10px;border-radius:999px;
+    background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.10);
+    overflow:hidden;
+  }
+  .bar > div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--good));}
+
+  #toast{
+    position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+    background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;padding:10px 12px;color:var(--muted);font-size:12px;
+    max-width:min(900px,calc(100vw - 28px));
+  }
+
+  #celebrate{
+    position:fixed;inset:0;display:none;z-index:50;
+    background:radial-gradient(900px 600px at 50% 30%, rgba(46,229,157,.20), rgba(11,16,32,.92) 55%, rgba(0,0,0,.92) 100%);
+    align-items:center;justify-content:center;
+  }
+  #celebrate .panel{
+    width:min(720px,calc(100vw - 28px));
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:22px;
+    padding:18px 18px 14px;
+    box-shadow:0 18px 70px rgba(0,0,0,.55);
+    text-align:center;
+  }
+  #celebrate h2{margin:0 0 8px;font-size:28px}
+  #celebrate p{margin:6px 0 10px;color:var(--muted);line-height:1.35}
+  #celebrate .math{font-size:14px}
+  #confetti{position:absolute;inset:0;pointer-events:none}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <h1>Pack 6 identical square-sum pyramids into a cuboid</h1>
+  <p>
+    You can only create the next duplicate when all existing pieces are <b>inside the cuboid</b> and <b>non-overlapping</b>.
+    Each new duplicate starts at the same ground position.
+  </p>
+
+  <div class="row">
+    <div class="pill">
+      <label for="nRange">Layers (n)</label>
+      <input id="nRange" type="range" min="1" max="12" value="5" />
+      <b id="nVal">5</b>
+    </div>
+    <button id="resetBtn">Reset</button>
+  </div>
+
+  <div class="row">
+    <button id="addBtn" class="good">Add duplicate (0/6)</button>
+    <button id="removeBtn" disabled>Remove last</button>
+    <button id="toggleCuboidBtn">Toggle cuboid</button>
+  </div>
+
+  <div class="tiny">
+    Select a piece by clicking it. Camera: drag orbit · wheel zoom · right-drag pan.<br/>
+    Piece: drag on ground to move; use buttons (right) to lift/move/rotate/reflect. Snaps on release.
+  </div>
+</div>
+
+<div id="side">
+  <div class="card">
+    <div><b>Target cuboid</b></div>
+    <div class="math" id="dimsText"></div>
+    <div class="tiny" id="volText"></div>
+
+    <div class="row" style="margin-top:10px;justify-content:space-between">
+      <div class="tiny"><b style="color:#fff">Filled:</b> <span id="fillPct">0%</span></div>
+      <div class="tiny"><b style="color:#fff">Valid:</b> <span id="validText">No</span></div>
+    </div>
+    <div class="bar"><div id="fillBar"></div></div>
+  </div>
+
+  <div class="card">
+    <div><b>Selected piece controls</b> <span class="tiny" id="selText">(none)</span></div>
+
+    <div class="grid2" style="margin-top:10px">
+      <button id="upBtn">Lift +1</button>
+      <button id="downBtn">Lift −1</button>
+      <button id="dropBtn">Drop to 0</button>
+
+      <button id="mxBtn">Move −X</button>
+      <button id="pzBtn">Move +Z</button>
+      <button id="pxBtn">Move +X</button>
+
+      <button id="mzBtn">Move −Z</button>
+      <button id="reflectBtn" class="primary">Reflect</button>
+      <button id="zeroRotBtn">Zero rot</button>
+    </div>
+
+    <div class="grid2">
+      <button id="ryBtn">Rotate Y 90°</button>
+      <button id="rxBtn">Rotate X 90°</button>
+      <button id="rzBtn">Rotate Z 90°</button>
+    </div>
+
+    <div class="tiny" style="margin-top:10px">
+      Shortcuts: R rotate Y · F rotate X · T rotate Z · Q/E lift · WASD move · X reflect
+    </div>
+  </div>
+</div>
+
+<div id="toast">Ready.</div>
+
+<div id="celebrate">
+  <canvas id="confetti"></canvas>
+  <div class="panel">
+    <h2>🎉 Cuboid complete!</h2>
+    <p>
+      The cuboid is completely filled with no overlaps.
+      This demonstrates:
+    </p>
+    <div class="math" id="celebrateMath"></div>
+    <div class="row" style="justify-content:center;margin-top:12px">
+      <button id="closeCelebrateBtn" class="good">Keep playing</button>
+      <button id="restartBtn">Restart</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ---------- Helpers ----------
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const snapInt=(v)=>Math.round(v);
+  const snapAngle=(a)=>Math.round(a/(Math.PI/2))*(Math.PI/2);
+
+  const toastEl = document.getElementById("toast");
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.style.opacity="1";
+    clearTimeout(toast._t);
+    toast._t=setTimeout(()=>{ toastEl.style.opacity="0.9"; }, 1600);
+  }
+
+  // ---------- UI ----------
+  const ui = {
+    nRange: document.getElementById("nRange"),
+    nVal: document.getElementById("nVal"),
+    resetBtn: document.getElementById("resetBtn"),
+    addBtn: document.getElementById("addBtn"),
+    removeBtn: document.getElementById("removeBtn"),
+    toggleCuboidBtn: document.getElementById("toggleCuboidBtn"),
+    dimsText: document.getElementById("dimsText"),
+    volText: document.getElementById("volText"),
+    selText: document.getElementById("selText"),
+    fillPct: document.getElementById("fillPct"),
+    fillBar: document.getElementById("fillBar"),
+    validText: document.getElementById("validText"),
+
+    upBtn: document.getElementById("upBtn"),
+    downBtn: document.getElementById("downBtn"),
+    dropBtn: document.getElementById("dropBtn"),
+    mxBtn: document.getElementById("mxBtn"),
+    pxBtn: document.getElementById("pxBtn"),
+    mzBtn: document.getElementById("mzBtn"),
+    pzBtn: document.getElementById("pzBtn"),
+    reflectBtn: document.getElementById("reflectBtn"),
+    zeroRotBtn: document.getElementById("zeroRotBtn"),
+    ryBtn: document.getElementById("ryBtn"),
+    rxBtn: document.getElementById("rxBtn"),
+    rzBtn: document.getElementById("rzBtn"),
+
+    celebrate: document.getElementById("celebrate"),
+    celebrateMath: document.getElementById("celebrateMath"),
+    closeCelebrateBtn: document.getElementById("closeCelebrateBtn"),
+    restartBtn: document.getElementById("restartBtn"),
+  };
+
+  // ---------- Scene ----------
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x060915, 20, 140);
+
+  const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 1000);
+  camera.position.set(22, 18, 26);
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  // Lighting
+  scene.add(new THREE.HemisphereLight(0xbfd7ff, 0x0b1020, 0.95));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+  dir.position.set(30, 40, 18);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  dir.shadow.camera.left = -90;
+  dir.shadow.camera.right = 90;
+  dir.shadow.camera.top = 90;
+  dir.shadow.camera.bottom = -90;
+  scene.add(dir);
+
+  // Ground + grid
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(600,600),
+    new THREE.MeshStandardMaterial({color:0x0b1020, roughness:1, metalness:0})
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const grid = new THREE.GridHelper(240, 240, 0x2a3b7a, 0x1b2550);
+  grid.position.y = 0.001;
+  scene.add(grid);
+
+  // ---------- Minimal camera controls (no OrbitControls) ----------
+  let camTarget = new THREE.Vector3(12, 7, 10);
+  let orbit = {theta: Math.PI*0.85, phi: Math.PI*0.36, radius: 55};
+  const updateCamera = ()=>{
+    orbit.phi = clamp(orbit.phi, 0.10, Math.PI*0.49);
+    orbit.radius = clamp(orbit.radius, 10, 220);
+    const x = camTarget.x + orbit.radius * Math.cos(orbit.theta) * Math.cos(orbit.phi);
+    const z = camTarget.z + orbit.radius * Math.sin(orbit.theta) * Math.cos(orbit.phi);
+    const y = camTarget.y + orbit.radius * Math.sin(orbit.phi);
+    camera.position.set(x,y,z);
+    camera.lookAt(camTarget);
+  };
+  updateCamera();
+
+  let mouse = {down:false, btn:0, x:0, y:0};
+  const panRightUp = (dx, dy)=>{
+    const forward = new THREE.Vector3().subVectors(camTarget, camera.position).normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+    const up = new THREE.Vector3(0,1,0);
+    const scale = orbit.radius * 0.0012;
+    camTarget.addScaledVector(right, -dx*scale);
+    camTarget.addScaledVector(up, dy*scale);
+  };
+
+  renderer.domElement.addEventListener("contextmenu", e=>e.preventDefault());
+  renderer.domElement.addEventListener("pointerdown", (e)=>{
+    mouse.down = true; mouse.btn = e.button; mouse.x = e.clientX; mouse.y = e.clientY;
+  });
+  window.addEventListener("pointerup", ()=>{ mouse.down=false; });
+  window.addEventListener("pointermove", (e)=>{
+    if(!mouse.down) return;
+    const dx = e.clientX - mouse.x;
+    const dy = e.clientY - mouse.y;
+    mouse.x = e.clientX; mouse.y = e.clientY;
+
+    // left drag: orbit (unless dragging a piece)
+    if(mouse.btn===0 && !pieceDrag.dragging){
+      orbit.theta -= dx*0.006;
+      orbit.phi   += dy*0.006;
+      updateCamera();
+    }
+    // right drag: pan
+    if(mouse.btn===2){
+      panRightUp(dx, dy);
+      updateCamera();
+    }
+  });
+  window.addEventListener("wheel", (e)=>{
+    orbit.radius *= (1 + e.deltaY*0.0012);
+    updateCamera();
+  }, {passive:true});
+
+  window.addEventListener("resize", ()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // ---------- Build pyramid piece (unit cubes, coloured by layer) ----------
+  let n = parseInt(ui.nRange.value, 10);
+
+  function layerColor(layerIndex, total){
+    const t = total<=1 ? 0 : layerIndex/(total-1);
+    const c1 = new THREE.Color(0x3b82f6);
+    const c2 = new THREE.Color(0xff9f2f);
+    const c3 = new THREE.Color(0x2ee59d);
+    if(t<0.5) return c1.clone().lerp(c2, t/0.5);
+    return c2.clone().lerp(c3, (t-0.5)/0.5);
+  }
+
+  function localCellsForN(n){
+    // returns array of THREE.Vector3 cube centers in local coordinates (x+0.5,y+0.5,z+0.5)
+    const cells=[];
+    for(let layer=0; layer<n; layer++){
+      const k = n - layer;
+      for(let x=0;x<k;x++){
+        for(let z=0;z<k;z++){
+          cells.push(new THREE.Vector3(x+0.5, layer+0.5, z+0.5));
+        }
+      }
+    }
+    return cells;
+  }
+
+  function makePyramidPiece(n){
+    const g = new THREE.Group();
+    g.userData.n = n;
+    g.userData.localCells = localCellsForN(n);
+
+    const cubeGeo = new THREE.BoxGeometry(1,1,1);
+
+    for(let layer=0; layer<n; layer++){
+      const k = n - layer;
+      const color = layerColor(layer, n);
+      const mat = new THREE.MeshStandardMaterial({
+        color, roughness:0.65, metalness:0.05,
+        side: THREE.DoubleSide
+      });
+
+      const inst = new THREE.InstancedMesh(cubeGeo, mat, k*k);
+      inst.castShadow = true;
+      inst.receiveShadow = true;
+
+      const m = new THREE.Matrix4();
+      let idx=0;
+      for(let x=0;x<k;x++){
+        for(let z=0;z<k;z++){
+          m.makeTranslation(x+0.5, layer+0.5, z+0.5);
+          inst.setMatrixAt(idx++, m);
+        }
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      g.add(inst);
+
+      const boxGeo = new THREE.BoxGeometry(k, 1, k);
+      const edges = new THREE.EdgesGeometry(boxGeo);
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:0.18}));
+      line.position.set(k/2, layer+0.5, k/2);
+      g.add(line);
+    }
+
+    // pick mesh
+    const bbox = new THREE.Box3().setFromObject(g);
+    const size = new THREE.Vector3(); bbox.getSize(size);
+    const pick = new THREE.Mesh(
+      new THREE.BoxGeometry(size.x+0.25, size.y+0.25, size.z+0.25),
+      new THREE.MeshBasicMaterial({transparent:true, opacity:0.0})
+    );
+    const ctr = new THREE.Vector3(); bbox.getCenter(ctr);
+    pick.position.copy(ctr);
+    pick.userData.isPick = true;
+    pick.userData.wrapper = g;
+    g.add(pick);
+
+    return g; // corner anchored at (0,0,0)
+  }
+
+  // ---------- Pieces management ----------
+  const piecesRoot = new THREE.Group();
+  scene.add(piecesRoot);
+
+  let pieces = [];
+  let selected = null;
+
+  const START_POS = new THREE.Vector3(2,0,2); // all new duplicates start here, base on plane
+
+  function selectPiece(p){
+    selected = p;
+    ui.selText.textContent = selected ? `(piece ${selected.userData.index+1})` : `(none)`;
+
+    pieces.forEach(pc=>{
+      pc.traverse(obj=>{
+        if(obj.isInstancedMesh && obj.material){
+          obj.material.emissive = new THREE.Color(0x000000);
+          obj.material.emissiveIntensity = 0.0;
+        }
+      });
+    });
+    if(selected){
+      selected.traverse(obj=>{
+        if(obj.isInstancedMesh && obj.material){
+          obj.material.emissive = new THREE.Color(0x222222);
+          obj.material.emissiveIntensity = 0.55;
+        }
+      });
+    }
+  }
+
+  function clearPieces(){
+    pieces.forEach(p=>{
+      p.traverse(o=>{
+        if(o.isInstancedMesh){
+          o.geometry.dispose();
+          o.material.dispose();
+        }
+        if(o.isLineSegments){
+          o.geometry.dispose();
+          o.material.dispose();
+        }
+        if(o.isMesh && o.material && o.material.dispose){
+          o.geometry.dispose();
+          o.material.dispose();
+        }
+      });
+    });
+    pieces = [];
+    selectPiece(null);
+    while(piecesRoot.children.length) piecesRoot.remove(piecesRoot.children[0]);
+  }
+
+  // ---------- Target cuboid ----------
+  const cuboidGroup = new THREE.Group();
+  scene.add(cuboidGroup);
+  let cuboidVisible = true;
+
+  function updateCuboid(){
+    const A=n, B=n+1, C=2*n+1;
+    const S2 = n*(n+1)*(2*n+1)/6;
+    ui.dimsText.textContent = `${A} × ${B} × ${C}`;
+    ui.volText.innerHTML = `<span class="math">6·Σk² = 6·${S2} = ${A*B*C}</span>`;
+    ui.celebrateMath.textContent = `6(1²+2²+…+${n}²) = ${n}(${n}+1)(2·${n}+1) = ${A*B*C}`;
+
+    while(cuboidGroup.children.length) cuboidGroup.remove(cuboidGroup.children[0]);
+
+    const origin = new THREE.Vector3(18, 0, 2);
+    origin.x = snapInt(origin.x); origin.y = 0; origin.z = snapInt(origin.z);
+    cuboidGroup.userData.origin = origin;
+    cuboidGroup.userData.dims = {A,B,C};
+
+    const boxGeo = new THREE.BoxGeometry(A,B,C);
+    const edges = new THREE.EdgesGeometry(boxGeo);
+    const wire = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color:0x7aa2ff, transparent:true, opacity:0.6}));
+    wire.position.set(origin.x + A/2, B/2, origin.z + C/2);
+    cuboidGroup.add(wire);
+
+    const pts=[];
+    for(let x=0;x<=A;x++) for(let y=0;y<=B;y++){ pts.push(x,y,0, x,y,C); }
+    for(let z=0;z<=C;z++) for(let y=0;y<=B;y++){ pts.push(0,y,z, A,y,z); }
+    for(let x=0;x<=A;x++) for(let z=0;z<=C;z++){ pts.push(x,0,z, x,B,z); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pts,3));
+    const lattice = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:0x3b5bc7, transparent:true, opacity:0.22}));
+    lattice.position.copy(origin);
+    cuboidGroup.add(lattice);
+
+    cuboidGroup.visible = cuboidVisible;
+  }
+
+  // ---------- Occupancy + validation + progress ----------
+  function pieceCellsWorld(piece){
+    // returns list of world cell indices (integer) for cube MIN corners via cube centers
+    piece.updateMatrixWorld(true);
+    const out = [];
+    const m = piece.matrixWorld;
+    const v = new THREE.Vector3();
+
+    for(const c of piece.userData.localCells){
+      v.copy(c).applyMatrix4(m); // world center
+      const ix = Math.round(v.x - 0.5);
+      const iy = Math.round(v.y - 0.5);
+      const iz = Math.round(v.z - 0.5);
+      out.push([ix,iy,iz]);
+    }
+    return out;
+  }
+
+  function validateAndOccupancy(){
+    const {origin, dims} = cuboidGroup.userData;
+    const {A,B,C} = dims;
+    const occ = new Set();
+    let overlaps = 0;
+    let outside = 0;
+    let insideCount = 0;
+
+    for(const p of pieces){
+      const cells = pieceCellsWorld(p);
+      for(const [ix,iy,iz] of cells){
+        const rx = ix - origin.x;
+        const ry = iy - origin.y;
+        const rz = iz - origin.z;
+
+        const inside = (rx>=0 && rx<A && ry>=0 && ry<B && rz>=0 && rz<C);
+        if(!inside){ outside++; continue; }
+
+        insideCount++;
+        const key = rx + "," + ry + "," + rz;
+        if(occ.has(key)) overlaps++;
+        else occ.add(key);
+      }
+    }
+
+    const volume = A*B*C;
+    const filled = occ.size;         // unique occupied cells inside cuboid
+    const pct = volume===0 ? 0 : (filled/volume)*100;
+
+    // valid packing means: every cube from every piece is inside, and no overlaps
+    const totalCubes = pieces.reduce((s,p)=>s + p.userData.localCells.length, 0);
+    const allInside = (outside === 0) && (insideCount === totalCubes);
+    const noOverlap = overlaps === 0;
+
+    return {
+      volume, filled, pct,
+      allInside, noOverlap,
+      valid: allInside && noOverlap,
+      overlaps, outside
+    };
+  }
+
+  function updateProgressUI(){
+    const v = validateAndOccupancy();
+    ui.fillPct.textContent = `${Math.floor(v.pct)}%`;
+    ui.fillBar.style.width = `${clamp(v.pct,0,100)}%`;
+    ui.validText.textContent = v.valid ? "Yes" : "No";
+    ui.validText.style.color = v.valid ? "var(--good)" : "var(--bad)";
+
+    // completion condition: full cuboid filled, and valid (no overlaps, all inside)
+    if(v.valid && v.filled === v.volume && v.volume > 0){
+      showCelebration();
+    }
+  }
+
+  // ---------- Snapping + ground contact ----------
+  function snapPiece(piece){
+    piece.position.x = snapInt(piece.position.x);
+    piece.position.y = snapInt(piece.position.y);
+    piece.position.z = snapInt(piece.position.z);
+
+    piece.rotation.x = snapAngle(piece.rotation.x);
+    piece.rotation.y = snapAngle(piece.rotation.y);
+    piece.rotation.z = snapAngle(piece.rotation.z);
+
+    // Also keep scale to +/-1 (for reflections)
+    piece.scale.x = (piece.scale.x<0) ? -1 : 1;
+    piece.scale.y = (piece.scale.y<0) ? -1 : 1;
+    piece.scale.z = (piece.scale.z<0) ? -1 : 1;
+  }
+
+  function liftToGround(piece){
+    // ensure the piece is touching and above y=0 (ground) based on cube cells
+    const cells = pieceCellsWorld(piece);
+    let minY = Infinity;
+    for(const [,iy,] of cells) minY = Math.min(minY, iy);
+    if(minY < 0){
+      piece.position.y += (-minY);
+    }
+    // ensure on/above plane
+    piece.position.y = Math.max(0, piece.position.y);
+  }
+
+  // ---------- Duplication rules ----------
+  function canDuplicateNow(){
+    if(pieces.length===0) return true;
+    const v = validateAndOccupancy();
+    return v.valid;
+  }
+
+  function addDuplicate(){
+    if(pieces.length>=6) return;
+
+    if(!canDuplicateNow()){
+      toast("You can only duplicate when ALL current pieces are inside the cuboid with no overlaps.");
+      return;
+    }
+
+    const p = makePyramidPiece(n);
+    p.userData.index = pieces.length;
+
+    // starts same position with base on plane
+    p.position.copy(START_POS);
+    p.position.x = snapInt(p.position.x);
+    p.position.y = 0;
+    p.position.z = snapInt(p.position.z);
+
+    p.rotation.set(0,0,0);
+    p.scale.set(1,1,1);
+
+    piecesRoot.add(p);
+    pieces.push(p);
+    selectPiece(p);
+
+    ui.addBtn.textContent = `Add duplicate (${pieces.length}/6)`;
+    ui.addBtn.disabled = pieces.length>=6;
+    ui.removeBtn.disabled = pieces.length===0;
+
+    toast("Added one duplicate at the start position. Move it into the cuboid.");
+    updateProgressUI();
+  }
+
+  function removeLast(){
+    if(pieces.length===0) return;
+    const p = pieces.pop();
+    piecesRoot.remove(p);
+    selectPiece(pieces.length ? pieces[pieces.length-1] : null);
+
+    ui.addBtn.textContent = `Add duplicate (${pieces.length}/6)`;
+    ui.addBtn.disabled = false;
+    ui.removeBtn.disabled = pieces.length===0;
+
+    toast("Removed last duplicate.");
+    updateProgressUI();
+  }
+
+  // ---------- Picking + dragging pieces on the ground ----------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const pieceDrag = {dragging:false, offset:new THREE.Vector3()};
+
+  function setPointerFromEvent(ev){
+    const r = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((ev.clientX - r.left)/r.width)*2 - 1;
+    pointer.y = -((ev.clientY - r.top)/r.height)*2 + 1;
+  }
+  function intersect(objs){
+    raycaster.setFromCamera(pointer, camera);
+    return raycaster.intersectObjects(objs, true);
+  }
+  function allPickers(){
+    const picks=[];
+    pieces.forEach(p=>{
+      p.traverse(o=>{ if(o.isMesh && o.userData && o.userData.isPick) picks.push(o); });
+    });
+    return picks;
+  }
+
+  renderer.domElement.addEventListener("pointerdown", (ev)=>{
+    if(ev.button!==0) return;
+    setPointerFromEvent(ev);
+
+    const picks = allPickers();
+    const hits = intersect(picks);
+    if(hits.length){
+      const wrapper = hits[0].object.userData.wrapper;
+      selectPiece(wrapper);
+
+      const gh = intersect([ground])[0];
+      if(gh){
+        pieceDrag.dragging = true;
+        pieceDrag.offset.copy(gh.point).sub(wrapper.position);
+      }
+    }
+  });
+
+  window.addEventListener("pointerup", ()=>{
+    if(!pieceDrag.dragging) return;
+    pieceDrag.dragging = false;
+    if(selected){
+      snapPiece(selected);
+      liftToGround(selected);
+      updateProgressUI();
+    }
+  });
+
+  window.addEventListener("pointermove", (ev)=>{
+    if(!pieceDrag.dragging || !selected) return;
+    setPointerFromEvent(ev);
+    const gh = intersect([ground])[0];
+    if(!gh) return;
+
+    const p = gh.point.clone().sub(pieceDrag.offset);
+    selected.position.x = p.x;
+    selected.position.z = p.z;
+    // keep y as current lift level
+  });
+
+  // ---------- Controls ----------
+  function ensureSel(){ if(!selected){ toast("Click a piece to select it."); return false; } return true; }
+
+  function moveSel(dx,dy,dz){
+    if(!ensureSel()) return;
+    selected.position.x += dx;
+    selected.position.y = Math.max(0, selected.position.y + dy);
+    selected.position.z += dz;
+    snapPiece(selected);
+    liftToGround(selected);
+    updateProgressUI();
+  }
+
+  function rotSel(ax,ay,az){
+    if(!ensureSel()) return;
+    selected.rotation.x += ax;
+    selected.rotation.y += ay;
+    selected.rotation.z += az;
+    snapPiece(selected);
+    liftToGround(selected);
+    updateProgressUI();
+  }
+
+  function reflectSel(){
+    if(!ensureSel()) return;
+    // Reflect across a horizontal plane: y -> -y (mirror)
+    selected.scale.y *= -1;
+    // snap + lift so it's touching and above ground plane
+    snapPiece(selected);
+    liftToGround(selected);
+    updateProgressUI();
+    toast("Reflected (flipped upside down), then lifted to touch the ground plane.");
+  }
+
+  ui.upBtn.onclick   = ()=>moveSel(0,+1,0);
+  ui.downBtn.onclick = ()=>moveSel(0,-1,0);
+  ui.dropBtn.onclick = ()=>{ if(!ensureSel()) return; selected.position.y=0; snapPiece(selected); liftToGround(selected); updateProgressUI(); };
+
+  ui.mxBtn.onclick = ()=>moveSel(-1,0,0);
+  ui.pxBtn.onclick = ()=>moveSel(+1,0,0);
+  ui.mzBtn.onclick = ()=>moveSel(0,0,-1);
+  ui.pzBtn.onclick = ()=>moveSel(0,0,+1);
+
+  ui.reflectBtn.onclick = reflectSel;
+  ui.zeroRotBtn.onclick = ()=>{ if(!ensureSel()) return; selected.rotation.set(0,0,0); snapPiece(selected); liftToGround(selected); updateProgressUI(); };
+
+  ui.ryBtn.onclick = ()=>rotSel(0, Math.PI/2, 0);
+  ui.rxBtn.onclick = ()=>rotSel(Math.PI/2, 0, 0);
+  ui.rzBtn.onclick = ()=>rotSel(0, 0, Math.PI/2);
+
+  window.addEventListener("keydown",(e)=>{
+    if(e.target && (e.target.tagName==="INPUT" || e.target.tagName==="TEXTAREA")) return;
+    const k = e.key.toLowerCase();
+    if(k==="q") moveSel(0,+1,0);
+    if(k==="e") moveSel(0,-1,0);
+    if(k==="w") moveSel(0,0,-1);
+    if(k==="s") moveSel(0,0,+1);
+    if(k==="a") moveSel(-1,0,0);
+    if(k==="d") moveSel(+1,0,0);
+    if(k==="r") rotSel(0,Math.PI/2,0);
+    if(k==="f") rotSel(Math.PI/2,0,0);
+    if(k==="t") rotSel(0,0,Math.PI/2);
+    if(k==="x") reflectSel();
+  });
+
+  // ---------- Celebration overlay + simple confetti ----------
+  const confettiCanvas = document.getElementById("confetti");
+  const confCtx = confettiCanvas.getContext("2d");
+  let confetti = [];
+  let confettiOn = false;
+
+  function resizeConfetti(){
+    confettiCanvas.width = innerWidth * devicePixelRatio;
+    confettiCanvas.height = innerHeight * devicePixelRatio;
+    confettiCanvas.style.width = innerWidth+"px";
+    confettiCanvas.style.height = innerHeight+"px";
+    confCtx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  }
+  window.addEventListener("resize", resizeConfetti);
+  resizeConfetti();
+
+  function startConfetti(){
+    confettiOn = true;
+    confetti = [];
+    const colors = ["#ff9f2f","#2ee59d","#7aa2ff","#ff4d6d","#ffffff"];
+    for(let i=0;i<220;i++){
+      confetti.push({
+        x: Math.random()*innerWidth,
+        y: -Math.random()*innerHeight,
+        vx: (-0.5+Math.random())*2,
+        vy: 2+Math.random()*5,
+        r: 2+Math.random()*4,
+        a: Math.random()*Math.PI*2,
+        va: (-0.5+Math.random())*0.2,
+        c: colors[(Math.random()*colors.length)|0]
+      });
+    }
+  }
+  function stopConfetti(){ confettiOn = false; }
+
+  function drawConfetti(){
+    if(!confettiOn) return;
+    confCtx.clearRect(0,0,innerWidth,innerHeight);
+    for(const p of confetti){
+      p.x += p.vx; p.y += p.vy;
+      p.a += p.va;
+      if(p.y > innerHeight+30){ p.y = -20; p.x = Math.random()*innerWidth; }
+      confCtx.save();
+      confCtx.translate(p.x,p.y);
+      confCtx.rotate(p.a);
+      confCtx.fillStyle = p.c;
+      confCtx.fillRect(-p.r, -p.r*0.5, p.r*2, p.r);
+      confCtx.restore();
+    }
+  }
+
+  let celebrated = false;
+  function showCelebration(){
+    if(celebrated) return;
+    celebrated = true;
+    ui.celebrate.style.display = "flex";
+    startConfetti();
+    toast("Cuboid complete!");
+  }
+
+  ui.closeCelebrateBtn.onclick = ()=>{
+    ui.celebrate.style.display = "none";
+    stopConfetti();
+  };
+  ui.restartBtn.onclick = ()=>{
+    ui.celebrate.style.display = "none";
+    stopConfetti();
+    resetAll();
+  };
+
+  // ---------- Reset / rebuild ----------
+  function resetAll(){
+    celebrated = false;
+    clearPieces();
+    updateCuboid();
+    camTarget.set(12, 7, 10);
+    orbit.theta = Math.PI*0.85;
+    orbit.phi = Math.PI*0.36;
+    orbit.radius = 55;
+    updateCamera();
+
+    ui.addBtn.textContent = `Add duplicate (0/6)`;
+    ui.addBtn.disabled = false;
+    ui.removeBtn.disabled = true;
+
+    updateProgressUI();
+    toast("Reset. Move the first piece into the cuboid; duplicate only when packing is valid.");
+    addDuplicate(); // start with 1 piece
+  }
+
+  // ---------- Cuboid toggle + n slider ----------
+  ui.toggleCuboidBtn.onclick = ()=>{
+    cuboidVisible = !cuboidVisible;
+    cuboidGroup.visible = cuboidVisible;
+    toast(cuboidVisible ? "Target cuboid shown." : "Target cuboid hidden.");
+  };
+
+  ui.resetBtn.onclick = resetAll;
+
+  ui.nRange.addEventListener("input", ()=>{
+    n = parseInt(ui.nRange.value,10);
+    ui.nVal.textContent = n;
+    resetAll();
+  });
+
+  ui.addBtn.onclick = addDuplicate;
+  ui.removeBtn.onclick = removeLast;
+
+  // ---------- Start ----------
+  updateCuboid();
+  resetAll();
+
+  // ---------- Render loop ----------
+  function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+    drawConfetti();
+  }
+  animate();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Conic Spotlight</title>
+<style>
+  :root{
+    --bg:#000000; --ink:#eaf0ff; --muted:#a9b7d7;
+    --accent:#ff9f1c; --good:#2dd4bf; --bad:#fb7185;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:18px}
+  header{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
+  h1{margin:0;font-size:20px}
+  .sub{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:960px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .pill{
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:999px; padding:8px 10px; font-size:13px;
+  }
+  .pill b{color:#fff}
+  .grid{display:grid;grid-template-columns:1.4fr .6fr;gap:14px;margin-top:14px}
+  @media (max-width:980px){.grid{grid-template-columns:1fr}}
+  .card{
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:18px; padding:14px;
+    box-shadow:0 12px 40px rgba(0,0,0,.25)
+  }
+  canvas{
+    width:100%; height:auto; display:block;
+    border-radius:14px;
+    background:#000;
+    border:1px solid rgba(255,255,255,.10);
+    cursor:none;
+  }
+  .msg{min-height:44px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+  .tag{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px; padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(255,255,255,.14);
+    color:var(--muted);
+    background:rgba(255,255,255,.04);
+  }
+  .tag.good{color:var(--good);border-color:rgba(45,212,191,.35);background:rgba(45,212,191,.08)}
+  .tag.bad{color:var(--bad);border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.08)}
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
+  .actions2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button{
+    appearance:none;
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:14px;
+    background:rgba(255,255,255,.06);
+    color:var(--ink);
+    padding:12px;
+    font-size:15px;
+    cursor:pointer;
+    transition:.15s transform,.15s background,.15s border-color,.15s opacity;
+    user-select:none; touch-action:manipulation;
+  }
+  button:hover{transform:translateY(-1px);background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.20)}
+  button:active{transform:translateY(0)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  button.primary{background:rgba(255,159,28,.16);border-color:rgba(255,159,28,.38)}
+  button.primary:hover{background:rgba(255,159,28,.22)}
+  .small{color:var(--muted);font-size:12px;line-height:1.35}
+  .hr{height:1px;background:rgba(255,255,255,.10);margin:10px 0}
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(0,0,0,0.72);
+    display:none;
+    align-items:center; justify-content:center;
+    padding:18px;
+  }
+  .overlay.show{display:flex}
+  .modal{
+    width:min(520px, 92vw);
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.14);
+    border-radius:18px;
+    padding:16px;
+    box-shadow:0 22px 70px rgba(0,0,0,0.55);
+  }
+  .modal h2{margin:0 0 6px;font-size:20px}
+  .modal p{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Conic Spotlight</h1>
+      <div class="sub">
+        A hidden conic is generated from <span style="white-space:nowrap">a x² + b y² + c x + d y + e x y + f = 0</span> with random integer coefficients in [-5,5], then rotated.
+        Move your mouse: only the curve <b>inside the spotlight</b> is visible.
+      </div>
+    </div>
+    <div class="row">
+      <div class="pill">Mode: <b id="modeLbl">Practice</b></div>
+      <div class="pill">Time left: <b id="timeLbl">—</b></div>
+      <div class="pill">Score: <b id="score">0</b></div>
+      <div class="pill">High score: <b id="hiScore">0</b></div>
+      <div class="pill">This round: <b id="roundScore">10</b></div>
+      <div class="pill">Round: <b id="round">1</b></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <canvas id="cv" width="980" height="660" aria-label="conic canvas"></canvas>
+      <div class="small" style="margin-top:8px">
+        Spotlight grows at <b>10 px/s</b> up to <b>100 px</b>. Max correct score starts at <b>10</b> and drops by <b>1 every 2s</b> to a minimum of <b>5</b>.
+        Wrong answer is always <b>-5</b>.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="msg">
+        <span class="tag" id="statusTag">Explore, then guess</span>
+        <span class="tag">Radius: <span id="radLbl">—</span></span>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="choices">
+        <button data-choice="circle">Circle</button>
+        <button data-choice="ellipse">Ellipse</button>
+        <button data-choice="parabola">Parabola</button>
+        <button data-choice="hyperbola">Hyperbola</button>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="nextBtn" disabled>Next curve</button>
+        <div class="actions2">
+          <button class="primary" id="startBtn">Start game</button>
+          <button id="practiceBtn" disabled>Practice</button>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="small">
+        In timed play: total timer is <b>1 minute</b>. When the timer hits <b>0</b>, you get <b>one last guess</b> for the current curve.
+        After that, your score is recorded as high score (if it beats it), then choose <b>Practice</b> or <b>Play again</b>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="overTitle">Time!</h2>
+    <p id="overBody">Final score: 0. High score: 0.</p>
+    <div class="actions2">
+      <button id="overPractice">Practice</button>
+      <button class="primary" id="overPlay">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  const modeLbl = document.getElementById('modeLbl');
+  const timeLbl = document.getElementById('timeLbl');
+  const scoreEl = document.getElementById('score');
+  const hiScoreEl = document.getElementById('hiScore');
+  const roundScoreEl = document.getElementById('roundScore');
+  const roundEl = document.getElementById('round');
+  const statusTag = document.getElementById('statusTag');
+  const radLbl = document.getElementById('radLbl');
+
+  const nextBtn = document.getElementById('nextBtn');
+  const startBtn = document.getElementById('startBtn');
+  const practiceBtn = document.getElementById('practiceBtn');
+  const choiceButtons = [...document.querySelectorAll('button[data-choice]')];
+
+  const overlay = document.getElementById('overlay');
+  const overBody = document.getElementById('overBody');
+  const overPractice = document.getElementById('overPractice');
+  const overPlay = document.getElementById('overPlay');
+
+  const clamp = (x,a,b) => Math.max(a, Math.min(b,x));
+  const rint = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+
+  const HI_KEY = "conicSpotlightHighScore_v1";
+  const GAME_SECONDS = 60;
+
+  function setTag(tag, cls, text){
+    tag.className = "tag" + (cls ? " "+cls : "");
+    tag.textContent = text;
+  }
+
+  // ----- rotation helpers -----
+  function rot(x,y,theta){
+    const c=Math.cos(theta), s=Math.sin(theta);
+    return [c*x - s*y, s*x + c*y];
+  }
+  function invrot(x,y,theta){
+    const c=Math.cos(theta), s=Math.sin(theta);
+    return [c*x + s*y, -s*x + c*y];
+  }
+
+  // ---------- math / conic ----------
+  function F(coef, x, y){
+    const [xr, yr] = invrot(x, y, coef.theta);
+    const {a,b,c,d,e,f} = coef;
+    return a*xr*xr + b*yr*yr + c*xr + d*yr + e*xr*yr + f;
+  }
+
+  function contourSegments(coef, box, nx=170, ny=130){
+    const {minX,maxX,minY,maxY} = box;
+    const dx = (maxX-minX)/nx;
+    const dy = (maxY-minY)/ny;
+
+    const vals = new Array((nx+1)*(ny+1));
+    for(let j=0;j<=ny;j++){
+      const y = minY + j*dy;
+      for(let i=0;i<=nx;i++){
+        const x = minX + i*dx;
+        vals[j*(nx+1)+i] = F(coef,x,y);
+      }
+    }
+    const segs = [];
+    function lerp(p,q,t){ return p + (q-p)*t; }
+    function interp(x1,y1,v1,x2,y2,v2){
+      const t = v1===v2 ? 0.5 : (0 - v1)/(v2 - v1);
+      return [lerp(x1,x2,t), lerp(y1,y2,t)];
+    }
+
+    for(let j=0;j<ny;j++){
+      const y0 = minY + j*dy, y1 = y0 + dy;
+      for(let i=0;i<nx;i++){
+        const x0 = minX + i*dx, x1 = x0 + dx;
+
+        const v00 = vals[j*(nx+1)+i];
+        const v10 = vals[j*(nx+1)+i+1];
+        const v01 = vals[(j+1)*(nx+1)+i];
+        const v11 = vals[(j+1)*(nx+1)+i+1];
+
+        const s00 = v00>=0, s10 = v10>=0, s01=v01>=0, s11=v11>=0;
+
+        const pts = [];
+        if(s00 !== s10) pts.push(interp(x0,y0,v00,x1,y0,v10)); // bottom
+        if(s10 !== s11) pts.push(interp(x1,y0,v10,x1,y1,v11)); // right
+        if(s01 !== s11) pts.push(interp(x0,y1,v01,x1,y1,v11)); // top
+        if(s00 !== s01) pts.push(interp(x0,y0,v00,x0,y1,v01)); // left
+
+        if(pts.length === 2){
+          segs.push([pts[0], pts[1]]);
+        } else if(pts.length === 4){
+          segs.push([pts[0], pts[1]]);
+          segs.push([pts[2], pts[3]]);
+        }
+      }
+    }
+    return segs;
+  }
+
+  function bboxFromSegs(segs){
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const [[x1,y1],[x2,y2]] of segs){
+      minX=Math.min(minX,x1,x2); maxX=Math.max(maxX,x1,x2);
+      minY=Math.min(minY,y1,y2); maxY=Math.max(maxY,y1,y2);
+    }
+    if(!Number.isFinite(minX)) return null;
+    const pad = 0.18;
+    const w=(maxX-minX)||1, h=(maxY-minY)||1;
+    return {minX:minX-pad*w, maxX:maxX+pad*w, minY:minY-pad*h, maxY:maxY+pad*h};
+  }
+
+  function makeMapper(box, padPx=64){
+    const w=(box.maxX-box.minX)||1, h=(box.maxY-box.minY)||1;
+    const s=Math.min((cv.width-2*padPx)/w, (cv.height-2*padPx)/h);
+    const cx=(box.minX+box.maxX)/2, cy=(box.minY+box.maxY)/2;
+    return (x,y)=>[cv.width/2+(x-cx)*s, cv.height/2-(y-cy)*s];
+  }
+
+  function clearBlack(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,cv.width,cv.height);
+  }
+
+  function drawSegments(segs, map, alpha=1, lw=2.8){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "rgba(234,240,255,0.95)";
+    ctx.lineWidth = lw;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for(const [[x1,y1],[x2,y2]] of segs){
+      const [px1,py1]=map(x1,y1);
+      const [px2,py2]=map(x2,y2);
+      ctx.moveTo(px1,py1);
+      ctx.lineTo(px2,py2);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPoint(p, map, label, color="rgba(255,159,28,0.95)"){
+    const [px,py]=map(p[0],p[1]);
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px,py,6,0,Math.PI*2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "600 12px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText(label, px+9, py-9);
+    ctx.restore();
+  }
+
+  function drawDashedLine(P0, v, box, map, style){
+    const eps=1e-12;
+    let tMin=-Infinity, tMax=Infinity;
+
+    if(Math.abs(v[0])<eps){
+      if(P0[0]<box.minX || P0[0]>box.maxX) return;
+    } else {
+      const t1=(box.minX-P0[0])/v[0], t2=(box.maxX-P0[0])/v[0];
+      const lo=Math.min(t1,t2), hi=Math.max(t1,t2);
+      tMin=Math.max(tMin,lo); tMax=Math.min(tMax,hi);
+    }
+    if(Math.abs(v[1])<eps){
+      if(P0[1]<box.minY || P0[1]>box.maxY) return;
+    } else {
+      const t1=(box.minY-P0[1])/v[1], t2=(box.maxY-P0[1])/v[1];
+      const lo=Math.min(t1,t2), hi=Math.max(t1,t2);
+      tMin=Math.max(tMin,lo); tMax=Math.min(tMax,hi);
+    }
+    if(tMin>tMax) return;
+
+    const A=[P0[0]+tMin*v[0], P0[1]+tMin*v[1]];
+    const B=[P0[0]+tMax*v[0], P0[1]+tMax*v[1]];
+    const [ax,ay]=map(A[0],A[1]);
+    const [bx,by]=map(B[0],B[1]);
+
+    ctx.save();
+    ctx.strokeStyle = style;
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([10,8]);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(bx,by);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- coefficient generation (keep e=0 for reliable a/b classification) ----------
+  function genCoefficients(){
+    const category = Math.random();
+    let intended;
+    if(category < 0.25) intended = "parabola";
+    else if(category < 0.50) intended = "circle";
+    else if(category < 0.75) intended = "ellipse";
+    else intended = "hyperbola";
+
+    let a=0,b=0,c=0,d=0,e=0,f=0;
+
+    function nonZero(){
+      let v=0; while(v===0) v=rint(-5,5);
+      return v;
+    }
+
+    if(intended === "parabola"){
+      if(Math.random()<0.5){ a=0; b=nonZero(); }
+      else { b=0; a=nonZero(); }
+      if(a===0){
+        c = nonZero();
+        d = rint(-5,5);
+      } else {
+        d = nonZero();
+        c = rint(-5,5);
+      }
+      f = rint(-5,5);
+    } else if(intended === "circle"){
+      a = nonZero();
+      b = a;
+      c = rint(-5,5);
+      d = rint(-5,5);
+      f = rint(-5,5);
+    } else if(intended === "ellipse"){
+      a = nonZero();
+      b = nonZero();
+      if(a===b) b = (b===5?-4:b+1);
+      if(a*b<0) b = -b;
+      c = rint(-5,5); d = rint(-5,5); f = rint(-5,5);
+    } else {
+      a = nonZero();
+      b = nonZero();
+      if(a*b>0) b = -b;
+      c = rint(-5,5); d = rint(-5,5); f = rint(-5,5);
+    }
+
+    return {a,b,c,d,e,f, theta: Math.random()*Math.PI*2};
+  }
+
+  function classify(coef){
+    const {a,b} = coef;
+    if(a===0 || b===0) return "parabola";
+    if(a===b) return "circle";
+    if(a*b>0) return "ellipse";
+    return "hyperbola";
+  }
+
+  // Features computed in curve frame then rotated.
+  function features(coef){
+    const {a,b,c,d,f,theta} = coef;
+    const t = classify(coef);
+    const out = { type:t, points:[], lines:[] };
+
+    function toWorld(pt){ return rot(pt[0], pt[1], theta); }
+    function dirToWorld(v){ return rot(v[0], v[1], theta); }
+
+    if(t === "circle" || t === "ellipse" || t === "hyperbola"){
+      const h = -c/(2*a);
+      const k = -d/(2*b);
+      out.points.push({p:toWorld([h,k]), label:"C", color:"rgba(45,212,191,0.95)"});
+
+      const F0 = f - (c*c)/(4*a) - (d*d)/(4*b);
+      if(F0!==0){
+        if(t === "circle" || t === "ellipse"){
+          const A2 = (-F0)/a;
+          const B2 = (-F0)/b;
+          if(A2>0 && B2>0){
+            if(A2 >= B2){
+              const cc = Math.sqrt(Math.max(0, A2 - B2));
+              out.points.push({p:toWorld([h-cc,k]), label:"F₁"});
+              out.points.push({p:toWorld([h+cc,k]), label:"F₂"});
+            } else {
+              const cc = Math.sqrt(Math.max(0, B2 - A2));
+              out.points.push({p:toWorld([h,k-cc]), label:"F₁"});
+              out.points.push({p:toWorld([h,k+cc]), label:"F₂"});
+            }
+          }
+        }
+        if(t === "hyperbola"){
+          const m2 = (-a)/b;
+          if(m2>0){
+            const m=Math.sqrt(m2);
+            const Cw = toWorld([h,k]);
+            out.lines.push({kind:"asymptote", P0:Cw, v:dirToWorld([1,m]), style:"rgba(159,208,255,0.85)"});
+            out.lines.push({kind:"asymptote", P0:Cw, v:dirToWorld([1,-m]), style:"rgba(159,208,255,0.85)"});
+          }
+        }
+      }
+    }
+
+    if(t === "parabola"){
+      if(coef.a === 0){
+        const b0=coef.b, c0=coef.c, d0=coef.d, f0=coef.f;
+        const yv = -d0/(2*b0);
+        let xv = 0;
+        if(c0 !== 0) xv = (d0*d0 - 4*b0*f0)/(4*b0*c0);
+        out.points.push({p:toWorld([xv,yv]), label:"V", color:"rgba(45,212,191,0.95)"});
+        const p = -(c0/b0)/4;
+        out.points.push({p:toWorld([xv+p, yv]), label:"F"});
+        const P0 = toWorld([xv-p, yv]);
+        out.lines.push({kind:"directrix", P0, v:dirToWorld([0,1]), style:"rgba(255,159,28,0.85)"});
+      } else {
+        const a0=coef.a, c0=coef.c, d0=coef.d, f0=coef.f;
+        const xv = -c0/(2*a0);
+        let yv = 0;
+        if(d0 !== 0) yv = (c0*c0 - 4*a0*f0)/(4*a0*d0);
+        out.points.push({p:toWorld([xv,yv]), label:"V", color:"rgba(45,212,191,0.95)"});
+        const p = -(d0/a0)/4;
+        out.points.push({p:toWorld([xv, yv+p]), label:"F"});
+        const P0 = toWorld([xv, yv-p]);
+        out.lines.push({kind:"directrix", P0, v:dirToWorld([1,0]), style:"rgba(255,159,28,0.85)"});
+      }
+    }
+
+    return out;
+  }
+
+  // ---------- game state ----------
+  const state = {
+    mode: "practice",          // "practice" | "timed"
+    running: false,            // timed countdown active
+    lastGuess: false,          // timer hit 0; allow one final guess
+    gameOver: false,
+
+    timeLeft: GAME_SECONDS,
+    score: 0,
+    hiScore: 0,
+    round: 1,
+
+    coef: null,
+    segs: [],
+    box: null,
+    map: null,
+    feat: null,
+
+    reveal: false,
+    roundStartTs: 0,           // per-round scoring/spotlight
+    mouse: {x: cv.width/2, y: cv.height/2},
+    radius: 12,
+    r0: 12,
+    rMax: 100,
+    rSpeed: 10 // px per second
+  };
+
+  function loadHiScore(){
+    const v = Number(localStorage.getItem(HI_KEY) || "0");
+    state.hiScore = Number.isFinite(v) ? v : 0;
+    hiScoreEl.textContent = String(state.hiScore);
+  }
+  function saveHiScoreIfNeeded(){
+    if(state.score > state.hiScore){
+      state.hiScore = state.score;
+      localStorage.setItem(HI_KEY, String(state.hiScore));
+      hiScoreEl.textContent = String(state.hiScore);
+    }
+  }
+
+  function updateHUD(){
+    modeLbl.textContent = (state.mode === "timed") ? "Timed" : "Practice";
+    timeLbl.textContent = (state.mode === "timed") ? String(state.timeLeft) : "—";
+    scoreEl.textContent = String(state.score);
+    roundEl.textContent = String(state.round);
+    hiScoreEl.textContent = String(state.hiScore);
+
+    startBtn.disabled = (state.mode === "timed" && state.running);
+    practiceBtn.disabled = (state.mode === "practice");
+  }
+
+  function roundPotentialScore(elapsedSec){
+    const drop = Math.floor(elapsedSec / 2);
+    return clamp(10 - drop, 5, 10);
+  }
+
+  function enableChoices(enabled){
+    choiceButtons.forEach(b => b.disabled = !enabled);
+  }
+
+  function buildRound(){
+    state.reveal = false;
+    nextBtn.disabled = true;
+    enableChoices(true);
+    choiceButtons.forEach(b => b.classList.remove("good","bad"));
+
+    let tries = 0;
+    while(true){
+      tries++;
+      const coef = genCoefficients();
+      coef.type = classify(coef);
+      const feat = features(coef);
+
+      let ax=0, ay=0;
+      if(feat.points.length){ ax = feat.points[0].p[0]; ay = feat.points[0].p[1]; }
+
+      let span = 8;
+      let segs = [];
+      let box = null;
+
+      for(let k=0;k<6;k++){
+        const candidate = {minX:ax-span, maxX:ax+span, minY:ay-span, maxY:ay+span};
+        segs = contourSegments(coef, candidate, 180, 135);
+        const bb = bboxFromSegs(segs);
+        if(bb){
+          box = bb;
+          for(const pt of feat.points){
+            box.minX = Math.min(box.minX, pt.p[0]);
+            box.maxX = Math.max(box.maxX, pt.p[0]);
+            box.minY = Math.min(box.minY, pt.p[1]);
+            box.maxY = Math.max(box.maxY, pt.p[1]);
+          }
+          const w=(box.maxX-box.minX)||1, h=(box.maxY-box.minY)||1;
+          box = {minX:box.minX-0.12*w, maxX:box.maxX+0.12*w, minY:box.minY-0.12*h, maxY:box.maxY+0.12*h};
+          break;
+        }
+        span *= 1.6;
+      }
+
+      if(box){
+        state.coef = coef;
+        state.segs = segs;
+        state.box = box;
+        state.map = makeMapper(box, 64);
+        state.feat = feat;
+
+        state.roundStartTs = performance.now();
+        state.radius = state.r0;
+
+        setTag(statusTag, "", state.mode === "timed"
+          ? (state.lastGuess ? "Last guess!" : "Explore, then guess")
+          : "Explore, then guess"
+        );
+        break;
+      }
+
+      if(tries > 60){
+        state.coef = {a:1,b:1,c:0,d:0,e:0,f:-16,theta:Math.random()*Math.PI*2,type:"circle"};
+        state.feat = features(state.coef);
+        const box2 = {minX:-6,maxX:6,minY:-6,maxY:6};
+        state.segs = contourSegments(state.coef, box2, 180, 135);
+        state.box = bboxFromSegs(state.segs) || box2;
+        state.map = makeMapper(state.box, 64);
+        state.roundStartTs = performance.now();
+        state.radius = state.r0;
+        setTag(statusTag, "", "Explore, then guess");
+        break;
+      }
+    }
+  }
+
+  // ---------- rendering ----------
+  function drawSpotlight(){
+    clearBlack();
+    const mx = state.mouse.x, my = state.mouse.y;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(mx, my, state.radius, 0, Math.PI*2);
+    ctx.clip();
+
+    drawSegments(state.segs, state.map, 1, 2.9);
+
+    const feather = 10;
+    const g = ctx.createRadialGradient(mx,my, Math.max(0,state.radius-feather), mx,my, state.radius);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.85)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(mx,my, state.radius, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(mx,my, state.radius, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(mx,my, 7, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawReveal(){
+    clearBlack();
+    drawSegments(state.segs, state.map, 1, 3.1);
+
+    for(const ln of (state.feat.lines||[])){
+      drawDashedLine(ln.P0, ln.v, state.box, state.map, ln.style);
+    }
+    for(const pt of (state.feat.points||[])){
+      drawPoint(pt.p, state.map, pt.label, pt.color || "rgba(255,159,28,0.95)");
+    }
+
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.font = "600 14px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText(`Answer: ${state.coef.type.toUpperCase()}`, 16, 26);
+    ctx.restore();
+  }
+
+  function frame(ts){
+    const elapsed = (ts - state.roundStartTs)/1000;
+    const pot = roundPotentialScore(elapsed);
+    roundScoreEl.textContent = String(pot);
+
+    // spotlight grows with time (per round), cap at ~100px
+    state.radius = Math.min(state.rMax, state.r0 + state.rSpeed * elapsed);
+    radLbl.textContent = Math.round(state.radius) + "px";
+
+    if(state.reveal) drawReveal();
+    else drawSpotlight();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- timed mode countdown ----------
+  let tickTimer = null;
+  function stopTimer(){
+    if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
+  }
+  function startTimer(){
+    stopTimer();
+    tickTimer = setInterval(() => {
+      if(state.mode !== "timed" || !state.running || state.gameOver) return;
+      // pause countdown while reveal is shown (so players can see features)
+      if(state.reveal) return;
+
+      state.timeLeft -= 1;
+      if(state.timeLeft <= 0){
+        state.timeLeft = 0;
+        state.running = false;
+        state.lastGuess = true;   // allow one last guess on current curve
+        setTag(statusTag, "", "Last guess!");
+        updateHUD();
+        stopTimer();
+        return;
+      }
+      updateHUD();
+    }, 1000);
+  }
+
+  function endGameAndShowModal(){
+    state.gameOver = true;
+    state.running = false;
+    stopTimer();
+    saveHiScoreIfNeeded();
+    updateHUD();
+
+    overBody.textContent = `Final score: ${state.score}. High score: ${state.hiScore}.`;
+    overlay.classList.add("show");
+    enableChoices(false);
+    nextBtn.disabled = true;
+  }
+
+  function startPractice(){
+    overlay.classList.remove("show");
+    stopTimer();
+    state.mode = "practice";
+    state.running = false;
+    state.lastGuess = false;
+    state.gameOver = false;
+    state.timeLeft = GAME_SECONDS;
+    state.score = 0;
+    state.round = 1;
+    updateHUD();
+    buildRound();
+  }
+
+  function startGame(){
+    overlay.classList.remove("show");
+    stopTimer();
+    state.mode = "timed";
+    state.running = true;
+    state.lastGuess = false;
+    state.gameOver = false;
+    state.timeLeft = GAME_SECONDS;
+    state.score = 0;
+    state.round = 1;
+    updateHUD();
+    buildRound();
+    startTimer();
+  }
+
+  // ---------- interactions ----------
+  cv.addEventListener('mousemove', (e) => {
+    const rect = cv.getBoundingClientRect();
+    state.mouse.x = (e.clientX - rect.left) * (cv.width / rect.width);
+    state.mouse.y = (e.clientY - rect.top) * (cv.height / rect.height);
+  });
+
+  function scoreRound(isCorrect){
+    const elapsed = (performance.now() - state.roundStartTs)/1000;
+    const pot = roundPotentialScore(elapsed);
+    return isCorrect ? pot : -5;
+  }
+
+  function onGuess(choice){
+    if(state.reveal || state.gameOver) return;
+
+    const correct = (choice === state.coef.type);
+    const delta = scoreRound(correct);
+    state.score += delta;
+    updateHUD();
+
+    enableChoices(false);
+    nextBtn.disabled = false;
+    state.reveal = true;
+
+    setTag(statusTag, correct ? "good" : "bad",
+      correct ? `Correct! (+${delta})` : `Incorrect. (${delta})`
+    );
+
+    const btn = choiceButtons.find(b => b.dataset.choice === choice);
+    if(btn) btn.classList.add(correct ? "good" : "bad");
+
+    // If time has run out, this was the one last guess => end game now.
+    if(state.mode === "timed" && state.lastGuess){
+      endGameAndShowModal();
+      return;
+    }
+  }
+
+  choiceButtons.forEach(btn => btn.addEventListener('click', () => onGuess(btn.dataset.choice)));
+
+  nextBtn.addEventListener('click', () => {
+    if(state.gameOver) return;
+    state.round += 1;
+    updateHUD();
+
+    // If timer already hit 0 and player revealed (but didn't guess?) => end.
+    if(state.mode === "timed" && state.lastGuess){
+      endGameAndShowModal();
+      return;
+    }
+
+    buildRound();
+  });
+
+  startBtn.addEventListener('click', () => startGame());
+  practiceBtn.addEventListener('click', () => startPractice());
+
+  overPractice.addEventListener('click', () => startPractice());
+  overPlay.addEventListener('click', () => startGame());
+
+  // init
+  loadHiScore();
+  updateHUD();
+  buildRound();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

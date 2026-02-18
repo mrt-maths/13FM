@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Conic from Focus–Directrix–Eccentricity</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --panel:#121a33cc;
+    --panelBorder:#2a3566;
+    --text:#e9ecff;
+    --muted:#b9c2ffcc;
+    --accent:#7cf7d4;
+    --accent2:#ffcc66;
+  }
+  html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 30% 20%, #17214b 0%, var(--bg) 55%, #070a14 100%); color:var(--text); font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;}
+  .wrap{height:100%;display:grid;grid-template-rows:auto 1fr;}
+  header{
+    display:flex; gap:12px; align-items:center; justify-content:space-between;
+    padding:12px 14px; border-bottom:1px solid #1c2550;
+    backdrop-filter: blur(10px);
+    background:linear-gradient(to bottom, #0e1430cc, #0b1020aa);
+  }
+  .left{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+  .badge{
+    padding:6px 10px;border:1px solid #2a3566;border-radius:999px;
+    background:#101842b3; color:var(--muted); font-size:13px;
+  }
+  .controls{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding:8px 10px; border:1px solid var(--panelBorder); border-radius:14px;
+    background:var(--panel);
+  }
+  .controls label{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center; user-select:none;}
+  input[type="range"]{width:220px;}
+  .btn{
+    border:1px solid #2a3566; background:#0f173b;
+    color:var(--text); padding:8px 12px; border-radius:12px;
+    cursor:pointer; font-weight:600; letter-spacing:.2px;
+  }
+  .btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(0,0,0,.25);}
+  .btn:active{transform:translateY(0px);}
+  .btn.set{border-color:#2d8d77; background:#0e2d2a;}
+  .btn.reset{border-color:#7a2f2f; background:#2a0e14;}
+  .btn:disabled{opacity:.55; cursor:not-allowed; transform:none; box-shadow:none;}
+  .stage{position:relative;}
+  canvas{width:100%;height:100%;display:block;}
+  .hint{
+    position:absolute; left:14px; bottom:14px; max-width:min(640px, calc(100% - 28px));
+    padding:10px 12px; border-radius:14px; border:1px solid var(--panelBorder);
+    background:var(--panel); color:var(--muted); font-size:13px; line-height:1.35;
+    backdrop-filter: blur(10px);
+  }
+  .hint b{color:var(--text);}
+  .mini{
+    display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    padding:8px 10px; border:1px solid var(--panelBorder); border-radius:14px;
+    background:var(--panel);
+  }
+  .mini input{transform: translateY(1px);}
+  .sep{opacity:.35;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="left">
+      <div class="badge" id="modeBadge">Edit mode</div>
+
+      <div class="controls">
+        <label>
+          <span>eccentricity</span>
+          <span id="eReadout" style="color:var(--text);font-weight:700;">e = 1.00</span>
+        </label>
+        <input id="eSlider" type="range" min="0" max="5" value="1" step="0.01" />
+        <button class="btn set" id="setBtn">Set</button>
+        <button class="btn reset" id="resetBtn">Reset</button>
+      </div>
+
+      <div class="mini" id="traceControls" style="display:none;">
+        <label><input type="checkbox" id="showSegments"> show PS and PM</label>
+        <span class="sep">|</span>
+        <label><input type="checkbox" id="showLengths"> show lengths</label>
+      </div>
+    </div>
+
+    <div class="badge" id="statusBadge">Drag focus + directrix</div>
+  </header>
+
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="hint" id="hint">
+      <b>Edit:</b> drag the <span style="color:var(--accent2);font-weight:700;">focus</span> point and the two <span style="color:var(--accent);font-weight:700;">directrix</span> endpoints. Adjust <b>e</b>. Click <b>Set</b>.<br>
+      <b>Trace:</b> drag the <span style="color:#ffffff;font-weight:700;">locus</span> point; it stays on the conic and leaves a trail. Use the checkboxes to reveal segments/labels and lengths.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const eSlider = document.getElementById('eSlider');
+  const eReadout = document.getElementById('eReadout');
+  const setBtn = document.getElementById('setBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const modeBadge = document.getElementById('modeBadge');
+  const statusBadge = document.getElementById('statusBadge');
+
+  const traceControls = document.getElementById('traceControls');
+  const showSegments = document.getElementById('showSegments');
+  const showLengths  = document.getElementById('showLengths');
+
+  // ---------- geometry helpers ----------
+  const dot = (ax,ay,bx,by)=>ax*bx+ay*by;
+  const sub = (a,b)=>({x:a.x-b.x,y:a.y-b.y});
+  const len = (v)=>Math.hypot(v.x,v.y);
+  const norm = (v)=> {
+    const L = len(v);
+    return L>1e-9 ? {x:v.x/L,y:v.y/L} : {x:1,y:0};
+  };
+
+  // Foot of perpendicular from P to infinite line through A->B
+  function footToLine(P, A, B){
+    const d = sub(B,A);
+    const dd = d.x*d.x + d.y*d.y;
+    if (dd < 1e-9) return {...A};
+    const t = ((P.x-A.x)*d.x + (P.y-A.y)*d.y) / dd;
+    return {x: A.x + t*d.x, y: A.y + t*d.y};
+  }
+
+  // Given mouse point M, find point on conic along ray from focus F through M.
+  function conicPointFromMouse(M){
+    const e = state.e;
+    const F = state.focus;
+    const A = state.d1, B = state.d2;
+
+    const v = sub(M,F);
+    if (len(v) < 2) return state.locus ? {...state.locus} : null;
+
+    const u = norm(v);
+    const d = sub(B,A);
+    const dL = Math.hypot(d.x,d.y) || 1;
+
+    const nx = -d.y / dL, ny = d.x / dL;
+
+    const k = dot((F.x - A.x),(F.y - A.y), nx, ny);
+    const m = dot(u.x,u.y, nx, ny);
+
+    if (e < 1e-6) return {x:F.x, y:F.y};
+
+    const candidates = [];
+    function tryCase(den, num, want){
+      if (Math.abs(den) < 1e-6) return;
+      const t = num / den;
+      if (t < 0) return;
+      const s = k + t*m;
+      if (want === 'pos' && s < -1e-6) return;
+      if (want === 'neg' && s >  1e-6) return;
+      const P = {x:F.x + t*u.x, y:F.y + t*u.y};
+      const score = Math.hypot(P.x - M.x, P.y - M.y);
+      candidates.push({P, score});
+    }
+
+    tryCase(1 - e*m, e*k, 'pos');
+    tryCase(1 + e*m, -e*k, 'neg');
+
+    if (candidates.length){
+      candidates.sort((a,b)=>a.score-b.score);
+      return candidates[0].P;
+    }
+
+    // fallback sampling
+    let best = null, bestScore = Infinity;
+    for (let i=0;i<240;i++){
+      const ang = (i/240)*Math.PI*2;
+      const uu = {x:Math.cos(ang), y:Math.sin(ang)};
+      const mm = dot(uu.x,uu.y, nx, ny);
+
+      const den1 = 1 - e*mm, num1 = e*k;
+      if (Math.abs(den1) > 1e-6){
+        const t1 = num1/den1;
+        if (t1>=0){
+          const s1 = k + t1*mm;
+          if (s1>=-1e-6){
+            const P = {x:F.x + t1*uu.x, y:F.y + t1*uu.y};
+            const score = Math.hypot(P.x - M.x, P.y - M.y);
+            if (score < bestScore){ bestScore=score; best=P; }
+          }
+        }
+      }
+
+      const den2 = 1 + e*mm, num2 = -e*k;
+      if (Math.abs(den2) > 1e-6){
+        const t2 = num2/den2;
+        if (t2>=0){
+          const s2 = k + t2*mm;
+          if (s2<= 1e-6){
+            const P = {x:F.x + t2*uu.x, y:F.y + t2*uu.y};
+            const score = Math.hypot(P.x - M.x, P.y - M.y);
+            if (score < bestScore){ bestScore=score; best=P; }
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  function resize(){
+    const r = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = Math.floor(w*r);
+    canvas.height = Math.floor(h*r);
+    ctx.setTransform(r,0,0,r,0,0);
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- state ----------
+  const state = {
+    mode: 'edit',
+    e: parseFloat(eSlider.value),
+    focus: {x: 0, y: 0},
+    d1: {x: 0, y: 0},
+    d2: {x: 0, y: 0},
+    locus: null,
+    trail: [],
+    dragging: null,
+    hover: null
+  };
+
+  function initDefault(){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    state.focus = {x: w*0.35, y: h*0.45};
+    state.d1 = {x: w*0.65, y: h*0.25};
+    state.d2 = {x: w*0.65, y: h*0.75};
+    state.locus = null;
+    state.trail = [];
+  }
+
+  // ---------- UI wiring ----------
+  function syncTraceCheckboxState(){
+    showLengths.disabled = !showSegments.checked;
+    if (!showSegments.checked) showLengths.checked = false;
+  }
+  showSegments.addEventListener('change', syncTraceCheckboxState);
+
+  function setMode(m){
+    state.mode = m;
+    if (m === 'edit'){
+      modeBadge.textContent = 'Edit mode';
+      statusBadge.textContent = 'Drag focus + directrix';
+      setBtn.disabled = false;
+      eSlider.disabled = false;
+      traceControls.style.display = 'none';
+      showSegments.checked = false;
+      showLengths.checked = false;
+    } else {
+      modeBadge.textContent = 'Trace mode';
+      statusBadge.textContent = 'Drag the locus point to trace';
+      setBtn.disabled = true;
+      eSlider.disabled = true;
+      traceControls.style.display = 'flex';
+      syncTraceCheckboxState();
+    }
+  }
+
+  eSlider.addEventListener('input', () => {
+    state.e = parseFloat(eSlider.value);
+    eReadout.textContent = `e = ${state.e.toFixed(2)}`;
+    if (state.mode === 'trace' && state.locus){
+      const P = conicPointFromMouse(state.locus);
+      if (P) state.locus = P;
+    }
+  });
+
+  setBtn.addEventListener('click', () => {
+    const F = state.focus;
+    const rays = [
+      {x:F.x + 200, y:F.y},
+      {x:F.x, y:F.y - 200},
+      {x:F.x + 140, y:F.y + 140},
+      {x:F.x - 200, y:F.y},
+      {x:F.x, y:F.y + 200},
+    ];
+    let P = null;
+    for (const M of rays){ P = conicPointFromMouse(M); if (P) break; }
+    if (!P) P = {x:F.x, y:F.y};
+    state.locus = P;
+    state.trail = [P];
+    setMode('trace');
+  });
+
+  resetBtn.addEventListener('click', () => {
+    state.trail = [];
+    state.locus = null;
+    setMode('edit');
+  });
+
+  // ---------- interaction ----------
+  const HIT = 14;
+  function hitTest(p, q){ return q && (Math.hypot(p.x-q.x,p.y-q.y) <= HIT); }
+  function getPointerPos(ev){
+    const rect = canvas.getBoundingClientRect();
+    return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', (ev) => {
+    canvas.setPointerCapture(ev.pointerId);
+    const P = getPointerPos(ev);
+
+    if (state.mode === 'trace' && state.locus && hitTest(P, state.locus)){
+      state.dragging = 'locus';
+      return;
+    }
+    if (state.mode === 'edit'){
+      if (hitTest(P, state.focus)) { state.dragging = 'focus'; return; }
+      if (hitTest(P, state.d1))    { state.dragging = 'd1'; return; }
+      if (hitTest(P, state.d2))    { state.dragging = 'd2'; return; }
+    }
+    state.dragging = null;
+  });
+
+  canvas.addEventListener('pointermove', (ev) => {
+    const P = getPointerPos(ev);
+
+    state.hover = null;
+    if (state.mode === 'edit'){
+      if (hitTest(P, state.focus)) state.hover='focus';
+      else if (hitTest(P, state.d1)) state.hover='d1';
+      else if (hitTest(P, state.d2)) state.hover='d2';
+    } else if (state.mode === 'trace' && state.locus){
+      if (hitTest(P, state.locus)) state.hover='locus';
+    }
+
+    if (!state.dragging) return;
+
+    if (state.dragging === 'focus'){ state.focus = P; return; }
+    if (state.dragging === 'd1'){ state.d1 = P; return; }
+    if (state.dragging === 'd2'){ state.d2 = P; return; }
+
+    if (state.dragging === 'locus'){
+      const Q = conicPointFromMouse(P);
+      if (Q){
+        state.locus = Q;
+        const last = state.trail[state.trail.length-1];
+        if (!last || Math.hypot(Q.x-last.x, Q.y-last.y) > 1.2){
+          state.trail.push(Q);
+          if (state.trail.length > 5000) state.trail.shift();
+        }
+      }
+      return;
+    }
+  });
+
+  canvas.addEventListener('pointerup', () => { state.dragging = null; });
+  canvas.addEventListener('pointercancel', () => { state.dragging = null; });
+
+  // ---------- drawing ----------
+  if (!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      const rr = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+rr, y);
+      this.arcTo(x+w, y,   x+w, y+h, rr);
+      this.arcTo(x+w, y+h, x,   y+h, rr);
+      this.arcTo(x,   y+h, x,   y,   rr);
+      this.arcTo(x,   y,   x+w, y,   rr);
+      this.closePath();
+      return this;
+    };
+  }
+
+  function drawHandle(pt, color){
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 7, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function drawLabel(pt, text, color){
+    ctx.font = '700 16px system-ui,Segoe UI,Roboto,Arial,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const padX = 8;
+    const metrics = ctx.measureText(text);
+    const w = metrics.width + padX*2;
+    const h = 24;
+    const x = pt.x + 12;
+    const y = pt.y - 18;
+
+    ctx.fillStyle = 'rgba(10,14,30,.75)';
+    ctx.strokeStyle = 'rgba(42,53,102,.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x, y - h/2, w, h, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.fillText(text, x + padX, y);
+  }
+
+  function drawDirectrixLine(A,B, color){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const d = sub(B,A);
+    const L = Math.hypot(d.x,d.y);
+    if (L < 1) return;
+    const ux = d.x/L, uy = d.y/L;
+    const t = Math.max(w,h) * 2;
+    const P1 = {x: A.x - ux*t, y: A.y - uy*t};
+    const P2 = {x: A.x + ux*t, y: A.y + uy*t};
+
+    ctx.beginPath();
+    ctx.moveTo(P1.x,P1.y);
+    ctx.lineTo(P2.x,P2.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10,8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawTrail(){
+    if (state.trail.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(state.trail[0].x, state.trail[0].y);
+    for (let i=1;i<state.trail.length;i++) ctx.lineTo(state.trail[i].x, state.trail[i].y);
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.lineWidth = 2.25;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  function drawSegment(a,b, color){
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.25;
+    ctx.stroke();
+  }
+
+  function drawLengthAtMid(a,b, text){
+    const mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+    ctx.font = '600 13px system-ui,Segoe UI,Roboto,Arial,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const padX=8;
+    const metrics = ctx.measureText(text);
+    const w = metrics.width + padX*2;
+    const h = 22;
+
+    ctx.fillStyle = 'rgba(10,14,30,.75)';
+    ctx.strokeStyle = 'rgba(42,53,102,.9)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect(mid.x - w/2, mid.y - h/2, w, h, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(233,236,255,.95)';
+    ctx.fillText(text, mid.x, mid.y);
+  }
+
+  function draw(){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    // grid
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.strokeStyle = '#9fb0ff';
+    ctx.lineWidth = 1;
+    const step = 40;
+    for (let x=0; x<=w; x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+    for (let y=0; y<=h; y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+    ctx.restore();
+
+    // directrix stays visible (but endpoints hidden in trace mode)
+    const directrixColor = (state.mode==='edit') ? 'rgba(124,247,212,.95)' : 'rgba(124,247,212,.55)';
+    drawDirectrixLine(state.d1, state.d2, directrixColor);
+
+    // trail
+    drawTrail();
+
+    // segments/labels/lengths
+    if (state.mode === 'trace' && state.locus && showSegments.checked){
+      const M = footToLine(state.locus, state.d1, state.d2);
+      drawSegment(state.locus, state.focus, 'rgba(255,204,102,.95)');
+      drawSegment(state.locus, M, 'rgba(124,247,212,.95)');
+
+      drawLabel(state.focus, 'S', 'rgba(255,204,102,1)');
+      drawLabel(state.locus, 'P', 'rgba(255,255,255,1)');
+      drawLabel(M, 'M', 'rgba(124,247,212,1)');
+
+      if (showLengths.checked){
+        const PS = Math.hypot(state.locus.x - state.focus.x, state.locus.y - state.focus.y);
+        const MP = Math.hypot(state.locus.x - M.x, state.locus.y - M.y);
+        drawLengthAtMid(state.locus, state.focus, `PS ≈ ${PS.toFixed(1)}`);
+        drawLengthAtMid(state.locus, M,            `MP ≈ ${MP.toFixed(1)}`);
+      }
+    }
+
+    // focus (still visible)
+    const focusColor = (state.mode==='edit') ? 'rgba(255,204,102,.95)' : 'rgba(255,204,102,.55)';
+    drawHandle(state.focus, focusColor);
+
+    // directrix draggable endpoints ONLY in edit mode (invisible after Set)
+    if (state.mode === 'edit'){
+      const endColor = 'rgba(124,247,212,.95)';
+      drawHandle(state.d1, endColor);
+      drawHandle(state.d2, endColor);
+    }
+
+    // locus
+    if (state.mode==='trace' && state.locus){
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,255,255,.65)';
+      ctx.shadowBlur = 12;
+      drawHandle(state.locus, 'rgba(255,255,255,1)');
+      ctx.restore();
+    }
+
+    // hover ring (only over visible/draggable points)
+    let hoverPt = null;
+    if (state.mode==='edit'){
+      if (state.hover==='focus') hoverPt = state.focus;
+      else if (state.hover==='d1') hoverPt = state.d1;
+      else if (state.hover==='d2') hoverPt = state.d2;
+    } else if (state.mode==='trace'){
+      if (state.hover==='locus') hoverPt = state.locus;
+    }
+    if (hoverPt){
+      ctx.beginPath();
+      ctx.arc(hoverPt.x, hoverPt.y, 16, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  // ---------- boot ----------
+  resize();
+  initDefault();
+  eReadout.textContent = `e = ${state.e.toFixed(2)}`;
+  setMode('edit');
+  requestAnimationFrame(draw);
+
+})();
+</script>
+</body>
+</html>
