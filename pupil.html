@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pupil Response</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 24px; max-width: 760px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 18px; margin: 14px 0; }
+    label { display:block; margin: 10px 0 6px; font-weight: 600; }
+    input { width: 100%; padding: 10px; font-size: 16px; }
+    button { padding: 10px 14px; font-size: 16px; border-radius: 10px; border: 1px solid #bbb; cursor: pointer; }
+    button[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .muted { color:#666; font-size: 14px; }
+    .row { display:flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .spacer { flex:1; }
+    code { background:#f6f6f6; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+
+  <h1>Pupil Response</h1>
+
+  <div class="card">
+    <p class="muted">
+      Setup: paste your Firebase config into <code>firebaseConfig</code> near the bottom of this file.
+      Then host on GitHub Pages.
+    </p>
+  </div>
+
+  <div id="screenName" class="card">
+    <h2>1) Enter your name</h2>
+    <label for="pupilName">Name</label>
+    <input id="pupilName" autocomplete="name" placeholder="e.g. Aisha" />
+    <div class="row" style="margin-top:12px;">
+      <div class="spacer"></div>
+      <button id="startBtn">Start</button>
+    </div>
+  </div>
+
+  <div id="screenQuestion" class="card" style="display:none;">
+    <h2 id="qPrompt"></h2>
+    <div id="fields"></div>
+
+    <div class="row" style="margin-top:14px;">
+      <span class="muted" id="countdownText"></span>
+      <div class="spacer"></div>
+      <button id="submitBtn" disabled>Submit</button>
+    </div>
+
+    <p class="muted" id="status"></p>
+  </div>
+
+  <!-- Firebase (v10+) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    // ✅ PASTE YOUR FIREBASE WEB APP CONFIG HERE (Firebase Console → Project settings → Your apps)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCYOEkYrTfgXDuBz99sxAieeuXK5goBgpU",
+      authDomain: "mrt-class-6264c.firebaseapp.com",
+      projectId: "mrt-class-6264c",
+      storageBucket: "mrt-class-6264c.firebasestorage.app",
+      messagingSenderId: "542139103880",
+      appId: "1:542139103880:web:a8d6f9bdda79024aee3d3d",
+      measurementId: "G-YRLLTYWVDR"
+    };
+
+    // Session ID: change this per lesson if you want a fresh set of responses each time.
+    // (Teacher page must match.)
+    const SESSION_ID = "lesson-1";
+
+    // Question config: add more input boxes by adding more objects to fields[].
+    const QUESTION = {
+      id: "q1",
+      prompt: "what is 2x3",
+      fields: [
+        { key: "answer", label: "Your answer", placeholder: "Type here" }
+        // Example additional fields:
+        // { key: "working", label: "Working", placeholder: "Show working..." },
+      ]
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const screenName = document.getElementById("screenName");
+    const screenQuestion = document.getElementById("screenQuestion");
+    const pupilNameInput = document.getElementById("pupilName");
+    const startBtn = document.getElementById("startBtn");
+
+    const qPrompt = document.getElementById("qPrompt");
+    const fieldsDiv = document.getElementById("fields");
+    const submitBtn = document.getElementById("submitBtn");
+    const countdownText = document.getElementById("countdownText");
+    const status = document.getElementById("status");
+
+    let pupilName = "";
+    let remaining = 10;
+    let timer = null;
+
+    function renderFields() {
+      fieldsDiv.innerHTML = "";
+      for (const f of QUESTION.fields) {
+        const label = document.createElement("label");
+        label.textContent = f.label;
+        label.setAttribute("for", `field_${f.key}`);
+
+        const input = document.createElement("input");
+        input.id = `field_${f.key}`;
+        input.placeholder = f.placeholder ?? "";
+        input.dataset.key = f.key;
+
+        fieldsDiv.appendChild(label);
+        fieldsDiv.appendChild(input);
+      }
+    }
+
+    function startCountdown(seconds) {
+      remaining = seconds;
+      submitBtn.disabled = true;
+      countdownText.textContent = `You can submit in ${remaining}s`;
+
+      timer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          countdownText.textContent = "You can submit now.";
+          submitBtn.disabled = false;
+        } else {
+          countdownText.textContent = `You can submit in ${remaining}s`;
+        }
+      }, 1000);
+    }
+
+    startBtn.addEventListener("click", () => {
+      pupilName = pupilNameInput.value.trim();
+      if (!pupilName) {
+        alert("Please enter your name.");
+        return;
+      }
+
+      screenName.style.display = "none";
+      screenQuestion.style.display = "block";
+
+      qPrompt.textContent = QUESTION.prompt;
+      renderFields();
+      startCountdown(10);
+    });
+
+    submitBtn.addEventListener("click", async () => {
+      submitBtn.disabled = true;
+      status.textContent = "Submitting…";
+
+      const data = {};
+      for (const input of fieldsDiv.querySelectorAll("input")) {
+        data[input.dataset.key] = input.value.trim();
+      }
+
+      try {
+        await addDoc(
+          collection(db, "sessions", SESSION_ID, "responses"),
+          {
+            pupilName,
+            questionId: QUESTION.id,
+            prompt: QUESTION.prompt,
+            fields: data,
+            createdAt: serverTimestamp()
+          }
+        );
+        status.textContent = "Submitted ✅ You can leave this page open.";
+      } catch (e) {
+        console.error(e);
+        status.textContent = "Submission failed. Check internet, Firebase config, and Firestore rules.";
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
