@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pupil – 9 Questions</title>
+  <style>
+    :root { --border:#ddd; --muted:#666; --bg:#fafafa; }
+    body { font-family: system-ui, Arial; margin: 20px; max-width: 980px; }
+    h1 { margin: 6px 0 14px; }
+    .card { border:1px solid var(--border); border-radius: 14px; padding: 16px; background: white; }
+    .muted { color: var(--muted); font-size: 14px; }
+    label { display:block; margin: 10px 0 6px; font-weight: 650; }
+    input { width: 100%; padding: 10px 12px; font-size: 16px; border-radius: 12px; border:1px solid #ccc; }
+    button { padding: 10px 14px; font-size: 16px; border-radius: 12px; border:1px solid #bbb; cursor:pointer; background: #fff; }
+    button:hover { background: var(--bg); }
+    button[disabled] { opacity: .55; cursor:not-allowed; }
+    .row { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
+    .spacer { flex: 1; }
+    .grid { margin-top: 14px; display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .pill { border:1px solid var(--border); border-radius: 16px; padding: 12px; background: #fff; }
+    .pill h3 { margin: 0 0 10px; font-size: 16px; display:flex; align-items:center; gap:8px; }
+    .tag { font-size: 12px; color: var(--muted); border:1px solid #e5e5e5; padding: 2px 8px; border-radius: 999px; }
+    .pill .actions { margin-top: 10px; display:flex; gap:10px; align-items:center; }
+    .pill .status { font-size: 13px; color: var(--muted); min-height: 18px; }
+    @media (max-width: 820px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1 id="title">Pupil</h1>
+
+  <div id="screenName" class="card">
+    <h2 style="margin:0 0 8px;">Enter your name</h2>
+    <p class="muted" style="margin:0 0 10px;">Your name will appear on the teacher screen as soon as you submit it.</p>
+    <label for="pupilName">Name</label>
+    <input id="pupilName" autocomplete="name" placeholder="e.g. Aisha" />
+    <div class="row" style="margin-top: 12px;">
+      <div class="spacer"></div>
+      <button id="joinBtn">Join session</button>
+    </div>
+    <p class="muted" id="joinStatus" style="margin-top:10px;"></p>
+  </div>
+
+  <div id="screenQuestions" class="card" style="display:none;">
+    <div class="row">
+      <div>
+        <h2 style="margin:0;">Answer the questions</h2>
+        <p class="muted" style="margin:6px 0 0;">Type an answer, then press <b>Submit</b> for that question. You can change an answer and submit again.</p>
+      </div>
+      <div class="spacer"></div>
+      <button id="refreshPresenceBtn" title="If you change device/network, click this to re-register.">Reconnect</button>
+    </div>
+
+    <div class="grid" id="qGrid"></div>
+    <p class="muted" id="overallStatus" style="margin-top:12px;"></p>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, doc, setDoc, serverTimestamp, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    const firebaseConfig = {"apiKey": "AIzaSyCYOEkYrTfgXDuBz99sxAieeuXK5goBgpU", "authDomain": "mrt-class-6264c.firebaseapp.com", "projectId": "mrt-class-6264c", "storageBucket": "mrt-class-6264c.firebasestorage.app", "messagingSenderId": "542139103880", "appId": "1:542139103880:web:a8d6f9bdda79024aee3d3d", "measurementId": "G-YRLLTYWVDR"};
+    const SESSION_ID = "lesson-1";
+    const QUESTIONS = Array.from({length: 9}, (_, i) => ({ id: `q${i+1}`, label: `Question ${i+1}` }));
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const screenName = document.getElementById("screenName");
+    const screenQuestions = document.getElementById("screenQuestions");
+    const pupilNameInput = document.getElementById("pupilName");
+    const joinBtn = document.getElementById("joinBtn");
+    const joinStatus = document.getElementById("joinStatus");
+    const title = document.getElementById("title");
+    const qGrid = document.getElementById("qGrid");
+    const overallStatus = document.getElementById("overallStatus");
+    const refreshPresenceBtn = document.getElementById("refreshPresenceBtn");
+
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+    const withTimeout = (p, ms) => Promise.race([p, (async () => { await sleep(ms); throw new Error("Timeout: check network / Firestore rules"); })()]);
+
+    function slugifyName(name) {
+      return name.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
+    }
+
+    function getOrCreatePupilId(name) {
+      const key = `mrt_pupil_id_${SESSION_ID}_${slugifyName(name)}`;
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = `${slugifyName(name)}-${Math.random().toString(36).slice(2,8)}`;
+        localStorage.setItem(key, id);
+      }
+      return id;
+    }
+
+    let pupilName = "";
+    let pupilId = "";
+
+    async function upsertPresence() {
+      const ref = doc(db, "sessions", SESSION_ID, "pupils", pupilId);
+      await withTimeout(setDoc(ref, {
+        pupilName,
+        pupilId,
+        connected: true,
+        lastSeen: serverTimestamp()
+      }, { merge: true }), 8000);
+    }
+
+    function buildGrid() {
+      qGrid.innerHTML = "";
+      for (const q of QUESTIONS) {
+        const el = document.createElement("div");
+        el.className = "pill";
+        el.innerHTML = `
+          <h3>${q.label} <span class="tag" id="tag_${q.id}">not submitted</span></h3>
+          <label class="muted" for="inp_${q.id}">Your answer</label>
+          <input id="inp_${q.id}" placeholder="Type answer…" />
+          <div class="actions">
+            <button id="btn_${q.id}">Submit</button>
+            <span class="status" id="st_${q.id}"></span>
+          </div>
+        `;
+        qGrid.appendChild(el);
+
+        const btn = el.querySelector(`#btn_${q.id}`);
+        btn.addEventListener("click", async () => {
+          const input = el.querySelector(`#inp_${q.id}`);
+          const answer = input.value.trim();
+          const st = el.querySelector(`#st_${q.id}`);
+          const tag = el.querySelector(`#tag_${q.id}`);
+          btn.disabled = true;
+          st.textContent = "Submitting…";
+          try {
+            const respRef = doc(db, "sessions", SESSION_ID, "responses", `${pupilId}_${q.id}`);
+            await withTimeout(setDoc(respRef, {
+              pupilName, pupilId,
+              questionId: q.id,
+              questionLabel: q.label,
+              answer,
+              updatedAt: serverTimestamp()
+            }, { merge: true }), 10000);
+            st.textContent = "Submitted ✅";
+            tag.textContent = "submitted";
+          } catch (e) {
+            console.error(e);
+            st.textContent = "Failed ❌ " + (e?.message || String(e));
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      }
+    }
+
+    function showQuestionsUI() {
+      title.textContent = pupilName;
+      screenName.style.display = "none";
+      screenQuestions.style.display = "block";
+      buildGrid();
+
+      const respCol = collection(db, "sessions", SESSION_ID, "responses");
+      onSnapshot(respCol, (snap) => {
+        const mine = snap.docs.map(d => d.data()).filter(r => r.pupilId === pupilId);
+        for (const q of QUESTIONS) {
+          const tag = document.getElementById(`tag_${q.id}`);
+          const found = mine.find(r => r.questionId === q.id);
+          tag.textContent = found ? "submitted" : "not submitted";
+        }
+      });
+    }
+
+    joinBtn.addEventListener("click", async () => {
+      pupilName = pupilNameInput.value.trim();
+      if (!pupilName) { alert("Please enter your name."); return; }
+      pupilId = getOrCreatePupilId(pupilName);
+
+      joinBtn.disabled = true;
+      joinStatus.textContent = "Joining…";
+      try {
+        await upsertPresence();
+        joinStatus.textContent = "Joined ✅";
+        showQuestionsUI();
+      } catch (e) {
+        console.error(e);
+        joinStatus.textContent = "Could not join ❌ " + (e?.message || String(e));
+      } finally {
+        joinBtn.disabled = false;
+      }
+    });
+
+    refreshPresenceBtn.addEventListener("click", async () => {
+      refreshPresenceBtn.disabled = true;
+      overallStatus.textContent = "Reconnecting…";
+      try {
+        await upsertPresence();
+        overallStatus.textContent = "Connected ✅";
+      } catch (e) {
+        console.error(e);
+        overallStatus.textContent = "Reconnect failed ❌ " + (e?.message || String(e));
+      } finally {
+        refreshPresenceBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
