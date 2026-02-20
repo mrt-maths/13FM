@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Teacher – 9 Questions + Images</title>
+  <style>
+    :root { --border:#ddd; --muted:#666; --bg:#fafafa; }
+    body { font-family: system-ui, Arial; margin: 0; }
+    header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: #fff; display:flex; gap: 12px; align-items:center; flex-wrap: wrap; }
+    header h1 { margin: 0; font-size: 18px; }
+    header .muted { color: var(--muted); font-size: 13px; }
+    .wrap { display:grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 58px); }
+    aside { border-right: 1px solid var(--border); padding: 14px; background: #fff; }
+    main { padding: 14px; background: var(--bg); }
+    .card { border:1px solid var(--border); border-radius: 14px; padding: 14px; background:#fff; }
+    .pupil { padding: 8px 10px; border: 1px solid #eee; border-radius: 12px; margin: 8px 0; display:flex; justify-content: space-between; gap: 10px; align-items:center; }
+    .pillgrid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .pill { border:1px solid var(--border); border-radius: 16px; padding: 12px; background: #fff; }
+    .pill h3 { margin: 0 0 10px; font-size: 16px; display:flex; align-items:center; justify-content: space-between; gap: 10px; }
+    .tiny { font-size: 12px; color: var(--muted); }
+    button { padding: 9px 12px; font-size: 14px; border-radius: 12px; border:1px solid #bbb; cursor:pointer; background: #fff; }
+    button:hover { background: var(--bg); }
+    button.danger { border-color:#d99; }
+    .row { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
+    .spacer { flex:1; }
+
+    .modalBack { position: fixed; inset: 0; background: rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding: 18px; }
+    .modal { width: min(980px, 95vw); max-height: 85vh; overflow: hidden; border-radius: 16px; background: #fff; border: 1px solid #ddd; display:flex; flex-direction: column; }
+    .modal header { border-bottom: 1px solid #eee; padding: 12px 14px; background:#fff; display:flex; align-items:center; gap: 10px; }
+    .modal header h2 { margin:0; font-size: 16px; }
+    .modal .content { padding: 12px 14px; overflow: auto; background: #fff; }
+    .respRow { border-top: 1px solid #f0f0f0; padding: 10px 0; }
+    .respRow:first-child { border-top: none; }
+    .name { font-weight: 700; }
+    .answer { margin-top: 4px; font-size: 18px; }
+    .imgGrid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .thumb { width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 1px solid #eee; background: #fff; }
+    a { color: inherit; text-decoration: none; }
+
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      aside { border-right:none; border-bottom: 1px solid var(--border); }
+      .pillgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .imgGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 560px) {
+      .pillgrid { grid-template-columns: 1fr; }
+      .imgGrid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Teacher view</h1>
+    <span class="muted">Session: <b id="sessionLabel">lesson-1</b></span>
+    <span class="muted" id="connStatus">Connecting…</span>
+    <div class="spacer"></div>
+    <button id="viewImagesBtn">View images</button>
+    <button class="danger" id="endSessionBtn" title="Downloads all responses and images list, then clears session data">End session (download + clear)</button>
+  </header>
+
+  <div class="wrap">
+    <aside>
+      <div class="card">
+        <h2 style="margin:0 0 10px;">Connected pupils</h2>
+        <div class="tiny" id="pupilCount">0 pupils</div>
+        <div id="pupilList" style="margin-top:10px;"></div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="pillgrid" id="pillGrid"></div>
+    </main>
+  </div>
+
+  <div class="modalBack" id="modalBack">
+    <div class="modal">
+      <header>
+        <h2 id="modalTitle">Responses</h2>
+        <div class="spacer"></div>
+        <button id="closeModalBtn">Close</button>
+      </header>
+      <div class="content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    const firebaseConfig = {"apiKey": "AIzaSyCYOEkYrTfgXDuBz99sxAieeuXK5goBgpU", "authDomain": "mrt-class-6264c.firebaseapp.com", "projectId": "mrt-class-6264c", "storageBucket": "mrt-class-6264c.firebasestorage.app", "messagingSenderId": "542139103880", "appId": "1:542139103880:web:a8d6f9bdda79024aee3d3d", "measurementId": "G-YRLLTYWVDR"};
+    const SESSION_ID = "lesson-1";
+    const QUESTIONS = Array.from({length: 9}, (_, i) => ({ id: `q${i+1}`, label: `Question ${i+1}` }));
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const connStatus = document.getElementById("connStatus");
+    const pupilList = document.getElementById("pupilList");
+    const pupilCount = document.getElementById("pupilCount");
+    const pillGrid = document.getElementById("pillGrid");
+    const endSessionBtn = document.getElementById("endSessionBtn");
+    const viewImagesBtn = document.getElementById("viewImagesBtn");
+
+    const modalBack = document.getElementById("modalBack");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalContent = document.getElementById("modalContent");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[s]));
+    }
+
+    function buildPills() {
+      pillGrid.innerHTML = "";
+      for (const q of QUESTIONS) {
+        const el = document.createElement("div");
+        el.className = "pill";
+        el.innerHTML = `
+          <h3>
+            <span>${q.label}</span>
+            <span class="tiny" id="count_${q.id}">0 response(s)</span>
+          </h3>
+          <div class="row">
+            <button id="view_${q.id}">Display responses</button>
+          </div>
+          <div class="tiny" style="margin-top:10px;">(Opens a scrollable pop-up)</div>
+        `;
+        pillGrid.appendChild(el);
+        el.querySelector(`#view_${q.id}`).addEventListener("click", () => openResponsesModal(q.id, q.label));
+      }
+    }
+
+    let allResponses = [];
+    let pupils = [];
+    let allImages = [];
+
+    function renderPupils() {
+      const sorted = pupils.slice().sort((a,b) => (a.pupilName||"").localeCompare(b.pupilName||""));
+      pupilCount.textContent = `${sorted.length} pupil(s)`;
+      pupilList.innerHTML = sorted.map(p => `
+        <div class="pupil">
+          <div><b>${escapeHtml(p.pupilName || "Unknown")}</b></div>
+          <div class="tiny">connected</div>
+        </div>
+      `).join("");
+    }
+
+    function updateCounts() {
+      for (const q of QUESTIONS) {
+        const set = new Set(allResponses.filter(r => r.questionId === q.id && (r.answer ?? "") !== "").map(r => r.pupilId));
+        const el = document.getElementById(`count_${q.id}`);
+        if (el) el.textContent = `${set.size} response(s)`;
+      }
+    }
+
+    function openResponsesModal(qid, label) {
+      modalTitle.textContent = `Responses – ${label}`;
+      const rows = allResponses
+        .filter(r => r.questionId === qid)
+        .sort((a,b) => ((b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0)));
+
+      modalContent.innerHTML = rows.length
+        ? rows.map(r => `
+            <div class="respRow">
+              <div class="name">${escapeHtml(r.pupilName || "Unknown")}</div>
+              <div class="answer">${escapeHtml(r.answer ?? "")}</div>
+            </div>
+          `).join("")
+        : `<div class="tiny">No responses yet.</div>`;
+
+      modalBack.style.display = "flex";
+    }
+
+    function openImagesModal() {
+      modalTitle.textContent = `Images (${allImages.length})`;
+      if (!allImages.length) {
+        modalContent.innerHTML = `<div class="tiny">No images uploaded yet.</div>`;
+        modalBack.style.display = "flex";
+        return;
+      }
+
+      const rows = allImages.slice().sort((a,b) => ((b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+      modalContent.innerHTML = `
+        <div class="tiny" style="margin-bottom:10px;">Click a thumbnail to open the full image in a new tab.</div>
+        <div class="imgGrid">
+          ${rows.map(img => `
+            <a href="${img.url}" target="_blank" rel="noopener" title="${escapeHtml(img.pupilName || "Unknown")}">
+              <img class="thumb" src="${img.url}" alt="Image from ${escapeHtml(img.pupilName || "Unknown")}" />
+              <div class="tiny" style="margin-top:6px;"><b>${escapeHtml(img.pupilName || "Unknown")}</b></div>
+            </a>
+          `).join("")}
+        </div>
+      `;
+      modalBack.style.display = "flex";
+    }
+
+    closeModalBtn.addEventListener("click", () => { modalBack.style.display = "none"; });
+    modalBack.addEventListener("click", (e) => { if (e.target === modalBack) modalBack.style.display = "none"; });
+    viewImagesBtn.addEventListener("click", openImagesModal);
+
+    async function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function clearSessionData() {
+      const pupilsSnap = await getDocs(collection(db, "sessions", SESSION_ID, "pupils"));
+      const respSnap = await getDocs(collection(db, "sessions", SESSION_ID, "responses"));
+      const imgSnap = await getDocs(collection(db, "sessions", SESSION_ID, "images"));
+      const refs = [...pupilsSnap.docs.map(d => d.ref), ...respSnap.docs.map(d => d.ref), ...imgSnap.docs.map(d => d.ref)];
+
+      let i = 0;
+      while (i < refs.length) {
+        const batch = writeBatch(db);
+        const chunk = refs.slice(i, i + 450);
+        for (const r of chunk) batch.delete(r);
+        await batch.commit();
+        i += 450;
+      }
+    }
+
+    endSessionBtn.addEventListener("click", async () => {
+      const ok = confirm("End session? Downloads pupils/responses/images list, then clears Firestore session data. (It does NOT delete files in Storage.)");
+      if (!ok) return;
+
+      endSessionBtn.disabled = true;
+      endSessionBtn.textContent = "Ending session…";
+      try {
+        const pupilsSnap = await getDocs(collection(db, "sessions", SESSION_ID, "pupils"));
+        const respSnap = await getDocs(collection(db, "sessions", SESSION_ID, "responses"));
+        const imgSnap = await getDocs(collection(db, "sessions", SESSION_ID, "images"));
+
+        const pupilsData = pupilsSnap.docs.map(d => d.data());
+        const respData = respSnap.docs.map(d => d.data());
+        const imgData = imgSnap.docs.map(d => d.data());
+
+        let out = "";
+        out += `Session: ${SESSION_ID}\n`;
+        out += `Exported: ${new Date().toISOString()}\n\n`;
+
+        out += "PUPILS\n------\n";
+        pupilsData.sort((a,b) => (a.pupilName||"").localeCompare(b.pupilName||"")).forEach(p => {
+          out += `- ${p.pupilName} (id: ${p.pupilId})\n`;
+        });
+
+        out += "\nRESPONSES\n---------\n";
+        for (const q of QUESTIONS) {
+          out += `${q.label}\n----------\n`;
+          respData
+            .filter(r => r.questionId === q.id)
+            .sort((a,b) => (a.pupilName||"").localeCompare(b.pupilName||""))
+            .forEach(r => { out += `${r.pupilName}: ${(r.answer ?? "").replace(/\n/g, " ")}\n`; });
+          out += "\n";
+        }
+
+        out += "IMAGES\n------\n";
+        imgData.sort((a,b) => ((b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))).forEach(img => {
+          out += `${img.pupilName}: ${img.url}\n`;
+        });
+        out += "\nNOTE: Images are stored in Firebase Storage; this export lists URLs.\n";
+
+        await downloadTextFile(`mrt-class_${SESSION_ID}_export.txt`, out);
+        await clearSessionData();
+        alert("Session ended. Export downloaded and Firestore session data cleared.");
+      } catch (e) {
+        console.error(e);
+        alert("Failed to end session: " + (e?.message || String(e)));
+      } finally {
+        endSessionBtn.disabled = false;
+        endSessionBtn.textContent = "End session (download + clear)";
+      }
+    });
+
+    buildPills();
+
+    const pupilsQ = query(collection(db, "sessions", SESSION_ID, "pupils"), orderBy("pupilName", "asc"));
+    onSnapshot(pupilsQ, (snap) => {
+      pupils = snap.docs.map(d => d.data());
+      const src = snap.metadata.fromCache ? "cache/offline" : "server";
+      connStatus.textContent = `Connected (${src})`;
+      renderPupils();
+    }, (err) => {
+      console.error(err);
+      connStatus.textContent = "Pupils listener error: " + (err?.message || String(err));
+    });
+
+    const respQ = query(collection(db, "sessions", SESSION_ID, "responses"), orderBy("updatedAt", "desc"));
+    onSnapshot(respQ, (snap) => {
+      allResponses = snap.docs.map(d => d.data());
+      updateCounts();
+    }, (err) => {
+      console.error(err);
+      connStatus.textContent = "Responses listener error: " + (err?.message || String(err));
+    });
+
+    const imgQ = query(collection(db, "sessions", SESSION_ID, "images"), orderBy("updatedAt", "desc"));
+    onSnapshot(imgQ, (snap) => { allImages = snap.docs.map(d => d.data()); }, (err) => {
+      console.error(err);
+      connStatus.textContent = "Images listener error: " + (err?.message || String(err));
+    });
+  </script>
+</body>
+</html>
