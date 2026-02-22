@@ -591,11 +591,6 @@
       catch (e) { console.error(e); joinStatus.textContent = "Could not join ❌ " + (e?.message || String(e)); }
       finally { joinBtn.disabled = false; }
     });
-      if (!ok) return;
-      clearSessionIdentity();
-      location.reload();
-    });
-
     (async function autoRejoin() {
       const saved = loadSessionIdentity();
       if (!saved?.pupilName || !saved?.pupilId) return;
