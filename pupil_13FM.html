@@ -81,19 +81,8 @@
       <h2 style="margin:0 0 8px;">Enter your name</h2>
       <p class="muted" style="margin:0 0 10px;">This page remembers you if you reload.</p>
       <label for="pupilName">Name</label>
-      <input id="pupilName" autocomplete="name" list="nameList" placeholder="Type your name exactly…" />
-      <datalist id="nameList">
-        <option value="Aqmer"></option>
-        <option value="Danial"></option>
-        <option value="Farhan"></option>
-        <option value="Linda"></option>
-        <option value="Petr"></option>
-        <option value="Rayan"></option>
-        <option value="Shahwaiz"></option>
-        <option value="Yin"></option>
-        <option value="Yousef"></option>
-      </datalist>
-      <p class="tiny" style="margin:1px 0 0;">Class list: Aqmer, Danial, Farhan, Linda, Petr, Rayan, Shahwaiz, Yin, Yousef</p><div class="btnRow">
+      <input id="pupilName" placeholder="Type your name…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" />
+      <div class="btnRow">
         <div class="spacer"></div>
         <button id="joinBtn">Join session</button>
       </div>
@@ -589,7 +578,7 @@
       pupilName = name.trim();
       pupilId = getOrCreatePupilId(pupilName);
       saveSessionIdentity(pupilName, pupilId);
-      await upsertPresence({ handUp: false, handUpCount: 0, behaviour: "😊", pollChoice: "" });
+      await upsertPresence({ handUp: false, handUpCount: 0, behaviour: "😊", pollChoice: "" , className: "13FM" });
       showMainUI();
     }
 
