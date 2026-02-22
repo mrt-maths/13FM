@@ -81,19 +81,19 @@
       <h2 style="margin:0 0 8px;">Enter your name</h2>
       <p class="muted" style="margin:0 0 10px;">This page remembers you if you reload.</p>
       <label for="pupilName">Name</label>
-      <select id="pupilName">
-        <option value="">Select your name…</option>
-        <option value="Aqmer">Aqmer</option>
-<option value="Danial">Danial</option>
-<option value="Farhan">Farhan</option>
-<option value="Linda">Linda</option>
-<option value="Petr">Petr</option>
-<option value="Rayan">Rayan</option>
-<option value="Shahwaiz">Shahwaiz</option>
-<option value="Yin">Yin</option>
-<option value="Yousef">Yousef</option>
-      </select>
-      <div class="btnRow">
+      <input id="pupilName" autocomplete="name" list="nameList" placeholder="Type your name exactly…" />
+      <datalist id="nameList">
+        <option value="Aqmer"></option>
+        <option value="Danial"></option>
+        <option value="Farhan"></option>
+        <option value="Linda"></option>
+        <option value="Petr"></option>
+        <option value="Rayan"></option>
+        <option value="Shahwaiz"></option>
+        <option value="Yin"></option>
+        <option value="Yousef"></option>
+      </datalist>
+      <p class="tiny" style="margin:8px 0 0;">Class list: Aqmer, Danial, Farhan, Linda, Petr, Rayan, Shahwaiz, Yin, Yousef</p><div class="btnRow">
         <div class="spacer"></div>
         <button id="joinBtn">Join session</button>
       </div>
@@ -232,6 +232,7 @@
     let pupilId = "";
     let settings = { topic: "—", className: "13FM" };
 
+    const NAME_CANON = {"aqmer": "Aqmer", "danial": "Danial", "farhan": "Farhan", "linda": "Linda", "petr": "Petr", "rayan": "Rayan", "shahwaiz": "Shahwaiz", "yin": "Yin", "yousef": "Yousef"};
     const ALLOWED_NAMES = new Set(["Aqmer", "Danial", "Farhan", "Linda", "Petr", "Rayan", "Shahwaiz", "Yin", "Yousef"]);
     const CANON_QIDS = Array.from({length:9}, (_,i)=>`q${i+1}`);
     let questionTextById = Object.fromEntries(CANON_QIDS.map((qid, i) => [qid, `Question ${i+1}`]));
@@ -582,7 +583,9 @@
     }
 
     async function joinWithName(name) {
-      if (!ALLOWED_NAMES.has(name)) throw new Error("Name not on the class list.");
+      const canon = NAME_CANON[(name || "").trim().toLowerCase()];
+      if (!canon) throw new Error("Name not on the class list.");
+      name = canon;
       pupilName = name.trim();
       pupilId = getOrCreatePupilId(pupilName);
       saveSessionIdentity(pupilName, pupilId);
