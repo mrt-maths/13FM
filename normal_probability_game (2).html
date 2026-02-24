@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Normal Probability Game (24 Questions)</title>
+
+  <!-- MathJax -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(','\\)'], ['$', '$']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --ink:#e9ecff; --muted:#a9b0da;
+      --accent:#7aa2ff; --good:#39d98a; --bad:#ff5c7a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background: radial-gradient(1200px 800px at 20% 10%, #182556 0%, var(--bg) 55%, #070b16 100%);
+      color:var(--ink);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+    .wrap{width:min(1100px, 98vw); display:grid; gap:14px; grid-template-columns: 1fr;}
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 18px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+      overflow:hidden;
+    }
+    .pad{padding:16px 16px 14px;}
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.12);
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius: 999px;
+      border:1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.05);
+      color:var(--muted);
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .pill strong{color:var(--ink); font-weight:800;}
+    h1{
+      margin:0; font-size:16px; letter-spacing:0.2px;
+      display:flex; align-items:center; gap:10px;
+    }
+    h1 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent); box-shadow:0 0 0 4px rgba(122,162,255,0.18);}
+    button{
+      border:none; cursor:pointer;
+      padding:10px 12px;
+      border-radius: 12px;
+      font-weight:900;
+      color: #071022;
+      background: var(--accent);
+      transition: transform 0.05s ease;
+      min-width: 128px;
+    }
+    button:active{transform: translateY(1px);}
+    button.secondary{
+      background: rgba(255,255,255,0.10);
+      color: var(--ink);
+      border:1px solid rgba(255,255,255,0.14);
+      min-width: 128px;
+    }
+    button:disabled{opacity:0.55; cursor:not-allowed;}
+
+    .dist{
+      font-size:15px; color:var(--muted);
+      margin:2px 0 0;
+    }
+    .dist .box{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.12);
+      color: rgba(233,236,255,0.92);
+    }
+
+    .qgrid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:12px;
+      margin-top:12px;
+    }
+    @media (max-width: 980px){
+      .qgrid{grid-template-columns: 1fr;}
+      button{min-width: 110px;}
+    }
+
+    .qcard{
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.14);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height: 270px;
+    }
+    .qhdr{
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+    }
+    .qhdr .qtitle{
+      font-weight:950;
+      font-size:13px;
+      color:rgba(233,236,255,0.92);
+    }
+    .qhdr .badge{
+      font-weight:950;
+      font-size:12px;
+      padding:5px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .qhdr .badge.good{ color:#071022; background: rgba(57,217,138,0.85); border-color: rgba(57,217,138,0.95); }
+    .qhdr .badge.bad{ color:#071022; background: rgba(255,92,122,0.90); border-color: rgba(255,92,122,0.95); }
+
+    .qbody{padding:10px 12px; display:flex; flex-direction:column; gap:10px; flex:1;}
+    .qtext{
+      font-size:17px;
+      font-weight:900;
+      line-height:1.2;
+      margin:0;
+      min-height: 46px;
+    }
+    canvas{
+      width:100%;
+      height:120px;
+      background: rgba(0,0,0,0.10);
+      border-radius: 12px;
+      display:block;
+    }
+    input[type="text"]{
+      width:100%;
+      padding:11px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.18);
+      color: var(--ink);
+      font-size:16px;
+      outline:none;
+    }
+    input[type="text"]:focus{ border-color: rgba(122,162,255,0.55); box-shadow:0 0 0 4px rgba(122,162,255,0.16); }
+    .tiny{color:var(--muted); font-size:12px; margin-top:10px; line-height:1.35;}
+    .divider{height:1px; background: rgba(255,255,255,0.12); margin:12px 0;}
+
+    .footerRow{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;
+      margin-top: 10px;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      background: rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.12);
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .overlay{
+      position:fixed; inset:0;
+      display:none; align-items:center; justify-content:center;
+      background: rgba(0,0,0,0.72);
+      padding:18px;
+      z-index: 99;
+    }
+    .panel{
+      width:min(860px, 96vw);
+      border-radius:20px;
+      border:1px solid rgba(255,255,255,0.14);
+      background: rgba(10,14,30,0.92);
+      box-shadow: 0 30px 90px rgba(0,0,0,0.55);
+      overflow:hidden;
+      max-height: 90vh;
+      display:flex;
+      flex-direction:column;
+    }
+    .panel .hdr{
+      padding:16px;
+      border-bottom:1px solid rgba(255,255,255,0.12);
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+    .panel .body{
+      padding:16px;
+      overflow:auto;
+    }
+    .big{
+      font-size:54px;
+      font-weight:950;
+      letter-spacing: 1px;
+      text-align:center;
+      margin: 18px 0 8px;
+    }
+    .sub{
+      text-align:center;
+      color: rgba(233,236,255,0.75);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    th,td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,0.10); vertical-align:top;}
+    th{position:sticky; top:0; background: rgba(18,26,51,0.95); z-index:2; text-align:left; color:var(--muted); font-weight:900;}
+    tr:last-child td{border-bottom:none;}
+    .stars{font-size:22px; letter-spacing:2px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <h1><span class="dot"></span>Normal Probability Game</h1>
+          <button id="fsBtn" class="secondary" style="min-width:140px;">Fullscreen</button>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+          <span class="pill">Round: <strong id="roundPill">0/4</strong></span>
+          <span class="pill">Score: <strong id="score">0</strong>/24</span>
+          <span class="pill">High: <strong id="highScore">0</strong>/24</span>
+        </div>
+      </div>
+
+      <div class="pad">
+        <div class="dist" id="distLine">Distribution: <span class="box">—</span></div>
+        <div class="qgrid" id="qgrid"></div>
+
+        <div class="divider"></div>
+
+        <div class="footerRow">
+          <div class="tiny" id="roundHint">
+            Enter the 6 probabilities (use <span class="kbd">Tab</span>), then press <span class="kbd">Enter</span> to submit all.
+            Correct if within <span class="kbd">±0.005</span>. (+1 right, -1 wrong)
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button id="submitBtn" disabled>Submit 6</button>
+            <button id="startBtn" class="secondary">Start</button>
+          </div>
+        </div>
+
+        <div class="tiny" style="margin-top:10px;">
+          Stars: <strong>★★★</strong> if score &gt; <strong>18</strong>, <strong>★★</strong> if score ≥ <strong>12</strong>, <strong>★</strong> if correct ≥ <strong>12</strong>.
+          <br/>Note: Here \(\,P(X=k)=0\,\) exactly.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Countdown overlay -->
+  <div class="overlay" id="countOverlay" aria-hidden="true">
+    <div class="panel">
+      <div class="hdr">
+        <div style="font-weight:950;">New distribution starting…</div>
+        <div class="pill">Round <strong id="countRound">1</strong>/4</div>
+      </div>
+      <div class="body">
+        <div class="sub" id="countSub">\(X \sim \mathcal{N}(\cdot,\cdot)\) starting in</div>
+        <div class="big" id="countNum">5</div>
+        <div class="sub" style="margin-bottom:0;">Get ready to type fast.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Round summary overlay -->
+  <div class="overlay" id="summaryOverlay" aria-hidden="true">
+    <div class="panel">
+      <div class="hdr">
+        <div>
+          <div style="font-size:18px;font-weight:950;" id="summaryTitle">Round summary</div>
+          <div style="color:rgba(233,236,255,0.75);font-size:13px;margin-top:2px;" id="summarySub">Incorrect/unanswered questions</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button id="summaryNextBtn">Next round</button>
+          <button id="summaryCloseBtn" class="secondary">Close</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="dist" style="margin-bottom:12px;">
+          Distribution: <span class="box" id="summaryDist">—</span>
+        </div>
+
+        <div id="allCorrectMsg" class="tiny" style="display:none; margin-bottom:10px;">
+          Perfect round: all 6 correct.
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:44%;">Question</th>
+              <th style="width:20%;">Your answer</th>
+              <th style="width:20%;">Correct</th>
+            </tr>
+          </thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+
+        <div class="tiny" style="margin-top:12px;">
+          Tip: Use 4 d.p. Any answer within ±0.005 counts. Press <span class="kbd">Enter</span> to continue once you've reviewed.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- End overlay -->
+  <div class="overlay" id="endOverlay" aria-hidden="true">
+    <div class="panel">
+      <div class="hdr">
+        <div>
+          <div style="font-size:18px;font-weight:950;">Finished!</div>
+          <div style="color:rgba(233,236,255,0.75);font-size:13px;margin-top:2px;">Your 24-question score</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="stars" id="stars">—</div>
+          <button id="playAgainBtn">Play again</button>
+        </div>
+      </div>
+      <div class="body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pill">Final score: <strong id="finalScore">0</strong>/24</div>
+          <div class="pill">Correct: <strong id="finalCorrect">0</strong></div>
+          <div class="pill">Wrong: <strong id="finalWrong">0</strong></div>
+          <div class="pill">High: <strong id="finalHigh">0</strong>/24</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  function erf(x){
+    const sign = x < 0 ? -1 : 1;
+    x = Math.abs(x);
+    const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+    const t = 1/(1+p*x);
+    const y = 1 - (((((a5*t + a4)*t + a3)*t + a2)*t + a1)*t)*Math.exp(-x*x);
+    return sign*y;
+  }
+  function phi(z){ return 0.5*(1 + erf(z/Math.SQRT2)); }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function rndChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function fmtProb(x){ return clamp(x,0,1).toFixed(4); }
+  function fmtNum(x){
+    const ax = Math.abs(x);
+    if (ax >= 100) return String(Math.round(x));
+    if (ax >= 10) return (Math.round(x*10)/10).toString().replace(/\.0$/,'');
+    if (ax >= 1) return (Math.round(x*100)/100).toString().replace(/\.0+$/,'').replace(/(\.\d*[1-9])0+$/,'$1');
+    return (Math.round(x*10000)/10000).toString().replace(/\.0+$/,'').replace(/(\.\d*[1-9])0+$/,'$1');
+  }
+  function normalPdf(x, mu, sigma){
+    const z = (x - mu)/sigma;
+    return Math.exp(-0.5*z*z) / (sigma*Math.sqrt(2*Math.PI));
+  }
+  function invPhi(p){
+    let lo=-6, hi=6;
+    for(let i=0;i<80;i++){
+      const mid=(lo+hi)/2;
+      if (phi(mid) < p) lo=mid; else hi=mid;
+    }
+    return (lo+hi)/2;
+  }
+  async function typeset(){
+    if (window.MathJax && MathJax.typesetPromise){
+      try{ await MathJax.typesetPromise(); } catch(e){}
+    }
+  }
+
+  const TOL = 0.005;
+  const P_MIN = 0.015, P_MAX = 0.985;
+  const ROUNDS = 4;
+  const Q_PER_ROUND = 6;
+  const MAX_SCORE = ROUNDS * Q_PER_ROUND; // 24
+  const HS_KEY = "normal_prob_game_highscore_24";
+  const STAR3_SCORE_GT = 18;
+  const STAR2_SCORE_GE = 12;
+  const STAR1_CORRECT_GE = 12;
+
+  let running = false;
+  let phase = "idle"; // idle | countdown | answering | paused | finished
+  let round = 0;
+  let mu = 0, sigma = 1, distStyle = "var";
+  let score = 0, correct = 0, wrong = 0, attempts = 0;
+  let questions = []; // {type, qLatex, pTrue, shadeSpec, meta}
+  let summaryJustOpenedAt = 0;
+
+  const el = (id)=>document.getElementById(id);
+  const qgrid = el("qgrid");
+  const distLine = el("distLine");
+  const roundPill = el("roundPill");
+  const scoreEl = el("score");
+  const highScoreEl = el("highScore");
+  const submitBtn = el("submitBtn");
+  const startBtn = el("startBtn");
+  const roundHint = el("roundHint");
+
+  const fsBtn = el("fsBtn");
+
+  const countOverlay = el("countOverlay");
+  const countNum = el("countNum");
+  const countRound = el("countRound");
+  const countSub = el("countSub");
+
+  const summaryOverlay = el("summaryOverlay");
+  const summaryNextBtn = el("summaryNextBtn");
+  const summaryCloseBtn = el("summaryCloseBtn");
+  const summaryTitle = el("summaryTitle");
+  const summarySub = el("summarySub");
+  const summaryDist = el("summaryDist");
+  const summaryBody = el("summaryBody");
+  const allCorrectMsg = el("allCorrectMsg");
+
+  const endOverlay = el("endOverlay");
+  const starsEl = el("stars");
+  const finalScoreEl = el("finalScore");
+  const finalCorrectEl = el("finalCorrect");
+  const finalWrongEl = el("finalWrong");
+  const finalHighEl = el("finalHigh");
+  const playAgainBtn = el("playAgainBtn");
+
+  function getHighScore(){
+    const v = Number(localStorage.getItem(HS_KEY) || "0");
+    return isFinite(v) ? v : 0;
+  }
+  function setHighScore(v){ localStorage.setItem(HS_KEY, String(v)); }
+
+  function updateTop(){
+    roundPill.textContent = `${round}/${ROUNDS}`;
+    scoreEl.textContent = score;
+    highScoreEl.textContent = getHighScore();
+    submitBtn.disabled = !(phase === "answering");
+  }
+
+  function newDistribution(){
+    const sigmaChoices = [0.05,0.08,0.1,0.12,0.15,0.2,0.25,0.3,0.4,0.5,0.8,1,1.5,2,3,4,5,7.5,10,12.5,15,20,25,30,40,50,75,100];
+    sigma = rndChoice(sigmaChoices);
+
+    let muChoices;
+    if (sigma <= 0.2) muChoices = [0,0.5,1,2,3,5,8,10,12,13,15,20];
+    else if (sigma <= 5) muChoices = [-5,-2,0,1,2,5,8,10,12,15,20,30,50];
+    else if (sigma <= 25) muChoices = [0,10,20,30,50,75,100,150,200,250,300,500];
+    else muChoices = [0,50,100,150,200,300,500,800,1000];
+
+    mu = rndChoice(muChoices);
+    sigma = Math.max(1e-6, sigma);
+    distStyle = Math.random() < 0.5 ? "var" : "sd2";
+  }
+
+  function distLatex(){
+    const muTxt = fmtNum(mu);
+    if (distStyle === "var"){
+      const variance = sigma*sigma;
+      const varTxt = fmtNum(variance);
+      return `\\(X\\sim \\mathcal{N}(${muTxt},\\,${varTxt})\\)`;
+    } else {
+      const nice = Math.abs(sigma - Math.round(sigma)) < 1e-9;
+      const s = fmtNum(sigma);
+      const sd2 = nice ? `${s}^{2}` : `(${s})^{2}`;
+      return `\\(X\\sim \\mathcal{N}(${muTxt},\\,${sd2})\\)`;
+    }
+  }
+
+  function probGE(k){ return 1 - phi((k - mu)/sigma); }
+  function probLE(k){ return phi((k - mu)/sigma); }
+  function probBetween(r, s){ return phi((s - mu)/sigma) - phi((r - mu)/sigma); }
+
+  function pickKForTargetP(side){
+    const pTarget = P_MIN + Math.random()*(P_MAX - P_MIN);
+    const pLeft = (side==="left") ? pTarget : (1 - pTarget);
+    const z = invPhi(pLeft);
+    const k = mu + sigma*z;
+    return {k};
+  }
+
+  function genOneQuestion(){
+    const types = ["ge","gt","le","lt","between","eq"];
+    const type = rndChoice(types);
+
+    let qLatex="", pTrue=0, shadeSpec=null, meta={};
+
+    if (type === "eq"){
+      const base = mu + sigma * (Math.random()*2.6 - 1.3);
+      const k = Math.round(base);
+      qLatex = `\\(P(X=${k})\\)`;
+      pTrue = 0;
+      shadeSpec = { type:"none" };
+      meta.bounds = [String(k)];
+      return { type, qLatex, pTrue, shadeSpec, meta };
+    }
+
+    if (["ge","gt","le","lt"].includes(type)){
+      const isLeft = (type==="le" || type==="lt");
+      const {k} = pickKForTargetP(isLeft ? "left" : "right");
+      const kDisp = fmtNum(k);
+      qLatex = (type==="ge") ? `\\(P(X\\ge ${kDisp})\\)` :
+               (type==="gt") ? `\\(P(X> ${kDisp})\\)` :
+               (type==="le") ? `\\(P(X\\le ${kDisp})\\)` :
+                               `\\(P(X< ${kDisp})\\)`;
+      pTrue = clamp(isLeft ? probLE(k) : probGE(k), 0, 1);
+      shadeSpec = { type: isLeft ? "left" : "right", a: k };
+      meta.bounds = [kDisp];
+    } else {
+      const pTarget = P_MIN + Math.random()*(P_MAX - P_MIN);
+      const c = 0.2 + Math.random()*0.6;
+      const leftP = clamp(c - pTarget/2, 0.001, 0.999);
+      const rightP = clamp(c + pTarget/2, 0.001, 0.999);
+      const r = mu + sigma*invPhi(leftP);
+      const s = mu + sigma*invPhi(rightP);
+      const rDisp = fmtNum(r), sDisp = fmtNum(s);
+      qLatex = `\\(P(${rDisp} < X < ${sDisp})\\)`;
+      pTrue = clamp(probBetween(r, s), 0, 1);
+      shadeSpec = { type:"between", a:r, b:s };
+      meta.bounds = [rDisp, sDisp];
+    }
+
+    if (pTrue < P_MIN || pTrue > P_MAX || !isFinite(pTrue)) return genOneQuestion();
+    return { type, qLatex, pTrue, shadeSpec, meta };
+  }
+
+  function genQuestionsWithConstraints(){
+    const qs = [];
+    let safety = 0;
+    let eqCount = 0;
+    let muUseCount = 0;
+    const muDisp = fmtNum(mu);
+
+    function usesMu(q){
+      if (!q || !q.meta || !q.meta.bounds) return false;
+      // compare displayed bounds to displayed mu (covers rounding)
+      return q.meta.bounds.some(b => b === muDisp);
+    }
+
+    while (qs.length < Q_PER_ROUND && safety < 3000){
+      safety++;
+      const q = genOneQuestion();
+
+      if (q.type === "eq" && eqCount >= 1) continue;
+
+      const muHere = usesMu(q);
+      if (muHere && muUseCount >= 1) continue;
+
+      qs.push(q);
+      if (q.type === "eq") eqCount++;
+      if (muHere) muUseCount++;
+    }
+
+    while (qs.length < Q_PER_ROUND){
+      qs.push(genOneQuestion());
+    }
+    return qs;
+  }
+
+  function drawMini(canvas, shade){
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fillRect(0,0,W,H);
+
+    const padX = 26, padY = 20;
+    const xMin = mu - 4*sigma, xMax = mu + 4*sigma;
+    const pdfMax = normalPdf(mu, mu, sigma);
+
+    const xToPx = (x)=> padX + (x - xMin) / (xMax - xMin) * (W - 2*padX);
+    const yToPy = (y)=> (H - padY) - (y / pdfMax) * (H - 2*padY);
+
+    if (shade && shade.type !== "none"){
+      ctx.beginPath();
+      let xa=xMin, xb=xMax;
+      if (shade.type === "left") xb = clamp(shade.a, xMin, xMax);
+      else if (shade.type === "right") xa = clamp(shade.a, xMin, xMax);
+      else if (shade.type === "between"){
+        xa = clamp(shade.a, xMin, xMax);
+        xb = clamp(shade.b, xMin, xMax);
+        if (xb < xa){ const t=xa; xa=xb; xb=t; }
+      }
+      ctx.moveTo(xToPx(xa), yToPy(0));
+      const N = 140;
+      for (let i=0;i<=N;i++){
+        const x = xa + (xb-xa)*(i/N);
+        const y = normalPdf(x, mu, sigma);
+        ctx.lineTo(xToPx(x), yToPy(y));
+      }
+      ctx.lineTo(xToPx(xb), yToPy(0));
+      ctx.closePath();
+      ctx.fillStyle = "rgba(122,162,255,0.28)";
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    const M = 240;
+    for (let i=0;i<=M;i++){
+      const x = xMin + (xMax-xMin)*(i/M);
+      const y = normalPdf(x, mu, sigma);
+      const px = xToPx(x), py = yToPy(y);
+      if (i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = "rgba(233,236,255,0.92)";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(padX, yToPy(0));
+    ctx.lineTo(W-padX, yToPy(0));
+    ctx.strokeStyle = "rgba(233,236,255,0.20)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  async function buildQuestionGrid(){
+    qgrid.innerHTML = "";
+    distLine.innerHTML = `Distribution: <span class="box">${distLatex()}</span>`;
+
+    for (let i=0;i<questions.length;i++){
+      const q = questions[i];
+
+      const card = document.createElement("div");
+      card.className = "qcard";
+
+      const hdr = document.createElement("div");
+      hdr.className = "qhdr";
+
+      const title = document.createElement("div");
+      title.className = "qtitle";
+      title.textContent = `Q${i+1}`;
+
+      const badge = document.createElement("div");
+      badge.className = "badge";
+      badge.textContent = "—";
+      badge.id = `badge_${i}`;
+
+      hdr.appendChild(title);
+      hdr.appendChild(badge);
+
+      const body = document.createElement("div");
+      body.className = "qbody";
+
+      const qtext = document.createElement("div");
+      qtext.className = "qtext";
+      qtext.innerHTML = q.qLatex;
+
+      const canv = document.createElement("canvas");
+      canv.width = 420;
+      canv.height = 120;
+
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.inputMode = "decimal";
+      inp.autocomplete = "off";
+      inp.placeholder = "Probability";
+      inp.id = `inp_${i}`;
+      inp.disabled = !(phase === "answering");
+
+      inp.addEventListener("keydown", (e)=>{
+        if (e.key === "Enter"){
+          e.preventDefault();
+          e.stopPropagation();
+          if (phase === "answering") submitAll();
+        }
+      });
+
+      body.appendChild(qtext);
+      body.appendChild(canv);
+      body.appendChild(inp);
+
+      card.appendChild(hdr);
+      card.appendChild(body);
+      qgrid.appendChild(card);
+
+      setTimeout(()=>drawMini(canv, q.shadeSpec), 0);
+    }
+
+    await typeset();
+    const first = document.getElementById("inp_0");
+    if (first) first.focus();
+  }
+
+  function setInputsEnabled(enabled){
+    for (let i=0;i<Q_PER_ROUND;i++){
+      const inp = document.getElementById(`inp_${i}`);
+      if (inp) inp.disabled = !enabled;
+    }
+  }
+
+  function parseAnswer(s){
+    s = (s||"").trim();
+    if (!s) return null;
+    if (/^-?\d+(\.\d+)?\s*\/\s*-?\d+(\.\d+)?$/.test(s)){
+      const [a,b] = s.split("/").map(x=>parseFloat(x));
+      if (!isFinite(a) || !isFinite(b) || b===0) return null;
+      return a/b;
+    }
+    const v = Number(s);
+    return isFinite(v) ? v : null;
+  }
+
+  function showCountdown(nextRound){
+    phase = "countdown";
+    updateTop();
+
+    countOverlay.style.display = "flex";
+    countOverlay.setAttribute("aria-hidden","false");
+    countRound.textContent = String(nextRound);
+    countSub.innerHTML = `${distLatex()}\\;\\text{ starting in}`;
+    typeset();
+
+    let t = 5;
+    countNum.textContent = String(t);
+
+    const handle = setInterval(()=>{
+      t -= 1;
+      if (t > 0) countNum.textContent = String(t);
+      else if (t === 0) countNum.textContent = "GO!";
+      else {
+        clearInterval(handle);
+        countOverlay.style.display = "none";
+        countOverlay.setAttribute("aria-hidden","true");
+        beginAnswering();
+      }
+    }, 850);
+  }
+
+  function beginRound(n){
+    round = n;
+    newDistribution();
+    questions = genQuestionsWithConstraints();
+
+    roundHint.innerHTML = `Type the 6 answers, then press <span class="kbd">Enter</span> to submit all.`;
+    updateTop();
+    showCountdown(round);
+  }
+
+  async function beginAnswering(){
+    phase = "answering";
+    updateTop();
+    await buildQuestionGrid();
+    setInputsEnabled(true);
+  }
+
+  async function openSummary(distStr, incorrectRows, allCorrect){
+    summaryTitle.textContent = `Round ${round} summary`;
+    summarySub.textContent = allCorrect ? "Perfect!" : "Incorrect / unanswered questions";
+    summaryDist.innerHTML = distStr;
+
+    summaryBody.innerHTML = "";
+    allCorrectMsg.style.display = allCorrect ? "block" : "none";
+
+    if (allCorrect){
+      const tr=document.createElement("tr");
+      const td=document.createElement("td");
+      td.colSpan=3;
+      td.style.color="rgba(233,236,255,0.75)";
+      td.textContent="No incorrect questions this round.";
+      tr.appendChild(td);
+      summaryBody.appendChild(tr);
+    } else {
+      for (const row of incorrectRows){
+        const tr=document.createElement("tr");
+        const tdQ=document.createElement("td"); tdQ.innerHTML = row.qLatex;
+        const tdU=document.createElement("td"); tdU.innerHTML = row.userLatex;
+        const tdC=document.createElement("td"); tdC.innerHTML = row.correctLatex;
+        tr.appendChild(tdQ); tr.appendChild(tdU); tr.appendChild(tdC);
+        summaryBody.appendChild(tr);
+      }
+    }
+
+    summaryNextBtn.textContent = (round < ROUNDS) ? "Next round" : "Finish";
+    summaryOverlay.style.display = "flex";
+    summaryOverlay.setAttribute("aria-hidden","false");
+    summaryJustOpenedAt = Date.now();
+    await typeset();
+  }
+
+  async function submitAll(){
+    if (phase !== "answering") return;
+
+    phase = "paused";
+    updateTop();
+    setInputsEnabled(false);
+
+    const distStr = distLatex();
+    const incorrectRows = [];
+    let allCorrect = true;
+
+    for (let i=0;i<Q_PER_ROUND;i++){
+      const q = questions[i];
+      const inp = document.getElementById(`inp_${i}`);
+      const badge = document.getElementById(`badge_${i}`);
+
+      const userVal = parseAnswer(inp ? inp.value : "");
+      attempts++;
+
+      const ok = (userVal !== null) && (Math.abs(userVal - q.pTrue) <= TOL);
+
+      if (ok){
+        score += 1;
+        correct += 1;
+        if (badge){
+          badge.classList.add("good");
+          badge.classList.remove("bad");
+          badge.textContent = "+1 ✓";
+        }
+      } else {
+        allCorrect = false;
+        score -= 1;
+        wrong += 1;
+        if (badge){
+          badge.classList.add("bad");
+          badge.classList.remove("good");
+          badge.textContent = "-1 ✕";
+        }
+        const userLatex = (userVal === null) ? `\\(\\text{blank/invalid}\\)` : `\\(${fmtProb(clamp(userVal,0,1))}\\)`;
+        const correctLatex = `\\(${fmtProb(q.pTrue)}\\)`;
+        incorrectRows.push({ qLatex: q.qLatex, userLatex, correctLatex });
+      }
+    }
+
+    score = Math.max(-MAX_SCORE, Math.min(MAX_SCORE, score));
+    updateTop();
+
+    // Always show summary now
+    await openSummary(distStr, incorrectRows, allCorrect);
+  }
+
+  function closeSummary(){
+    summaryOverlay.style.display = "none";
+    summaryOverlay.setAttribute("aria-hidden","true");
+  }
+
+  async function nextRoundOrFinish(){
+    closeSummary();
+    if (round < ROUNDS) beginRound(round + 1);
+    else finishGame();
+  }
+
+  function finishGame(){
+    phase = "finished";
+    running = false;
+    updateTop();
+
+    let stars = "";
+    if (score > STAR3_SCORE_GT) stars = "★★★";
+    else if (score >= STAR2_SCORE_GE) stars = "★★";
+    else if (correct >= STAR1_CORRECT_GE) stars = "★";
+    else stars = "—";
+
+    const hs = getHighScore();
+    const newHS = Math.max(hs, score);
+    if (newHS !== hs) setHighScore(newHS);
+
+    starsEl.textContent = stars;
+    finalScoreEl.textContent = score;
+    finalCorrectEl.textContent = correct;
+    finalWrongEl.textContent = wrong;
+    finalHighEl.textContent = getHighScore();
+
+    endOverlay.style.display = "flex";
+    endOverlay.setAttribute("aria-hidden","false");
+
+    submitBtn.disabled = true;
+    startBtn.textContent = "Start";
+    startBtn.classList.add("secondary");
+  }
+
+  function startGame(){
+    running = true;
+    phase = "idle";
+    round = 0;
+    score = 0; correct = 0; wrong = 0; attempts = 0;
+    questions = [];
+
+    endOverlay.style.display = "none";
+    endOverlay.setAttribute("aria-hidden","true");
+    closeSummary();
+
+    startBtn.textContent = "Start";
+    submitBtn.disabled = true;
+
+    updateTop();
+    beginRound(1);
+  }
+
+  // Fullscreen
+  function isFullscreen(){ return !!document.fullscreenElement; }
+  async function toggleFullscreen(){
+    try{
+      if (!isFullscreen()){
+        await document.documentElement.requestFullscreen();
+        fsBtn.textContent = "Exit fullscreen";
+      } else {
+        await document.exitFullscreen();
+        fsBtn.textContent = "Fullscreen";
+      }
+    }catch(e){}
+  }
+  document.addEventListener("fullscreenchange", ()=>{
+    fsBtn.textContent = isFullscreen() ? "Exit fullscreen" : "Fullscreen";
+  });
+  fsBtn.addEventListener("click", toggleFullscreen);
+
+  // Buttons
+  submitBtn.addEventListener("click", submitAll);
+  startBtn.addEventListener("click", ()=>{ if (!running) startGame(); });
+  summaryCloseBtn.addEventListener("click", closeSummary);
+  summaryNextBtn.addEventListener("click", nextRoundOrFinish);
+  playAgainBtn.addEventListener("click", ()=>{ endOverlay.style.display="none"; startGame(); });
+
+  // Global Enter: if summary open, advance (but not instantly)
+  document.addEventListener("keydown", (e)=>{
+    if (e.key !== "Enter") return;
+
+    if (summaryOverlay.style.display === "flex"){
+      const dt = Date.now() - summaryJustOpenedAt;
+      if (dt > 450){
+        e.preventDefault();
+        nextRoundOrFinish();
+      }
+    } else if (phase === "answering"){
+      const ae = document.activeElement;
+      if (!(ae && ae.tagName === "INPUT")){
+        e.preventDefault();
+        submitAll();
+      }
+    }
+  });
+
+  // Init
+  highScoreEl.textContent = getHighScore();
+  updateTop();
+  typeset();
+})();
+</script>
+</body>
+</html>
