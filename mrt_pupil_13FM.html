@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pupil – Class Responses</title>
+  <style>
+    :root { --border:#ddd; --muted:#666; --bg:#fafafa; --blue:#e7f2ff; --blue2:#d7ecff; }
+    body { font-family: system-ui, Arial; margin: 0; background: var(--bg); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 14px; }
+    .card { border:1px solid var(--border); border-radius: 14px; padding: 16px; background: white; }
+    .muted { color: var(--muted); font-size: 14px; }
+    label { display:block; margin: 10px 0 6px; font-weight: 650; }
+    input, textarea, select { width: 100%; padding: 10px 12px; font-size: 16px; border-radius: 12px; border:1px solid #ccc; box-sizing: border-box; }
+    button { padding: 10px 14px; font-size: 15px; border-radius: 12px; border:1px solid #bbb; cursor:pointer; background: #fff; }
+    button:hover { background: #f5f5f5; }
+    button[disabled] { opacity: .55; cursor:not-allowed; }
+    .btnRow { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; margin-top: 12px; }
+    .btnRow button { padding: 9px 12px; border-radius: 999px; }
+    .btnPrimary { border-color:#88a; background: #fff; }
+    .btnPrimary.active { background: var(--blue2); border-color:#66a; }
+    .spacer { flex: 1; }
+    .grid { margin-top: 14px; display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .pill { border:1px solid var(--border); border-radius: 16px; padding: 12px; background: #fff; }
+    .pill h3 { margin: 0 0 10px; font-size: 16px; display:flex; align-items:center; justify-content: space-between; gap:8px; }
+    .tag { font-size: 12px; color: var(--muted); border:1px solid #e5e5e5; padding: 2px 8px; border-radius: 999px; }
+    .hidden { display:none; }
+    .dropzone { border: 2px dashed #cfcfcf; border-radius: 16px; padding: 16px; background: #fff; }
+    .preview { margin-top: 10px; max-height: 280px; width: 100%; object-fit: contain; border: 1px solid #eee; border-radius: 12px; background: #fff; }
+    .tiny { font-size: 12px; color: var(--muted); }
+    .stickyTop { position: sticky; top: 0; z-index: 50; background: var(--bg); border-bottom: 1px solid #eaeaea; }
+    .topBar { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 12px 14px; }
+    .topPill { background: var(--blue); border: 1px solid #cfe4ff; border-radius: 14px; padding: 10px 12px; }
+    .topPill .k { font-size: 12px; color: #2d5a8a; }
+    .topPill .v { font-size: 14px; font-weight: 750; margin-top: 2px; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; display:flex; align-items:center; gap:8px; }
+    .react { font-size: 20px; margin-left: 6px; }
+    .choiceRow { display:flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
+    .choiceBtn { border: 1px solid #ddd; background: #fff; border-radius: 999px; padding: 6px 10px; font-size: 13px; cursor:pointer; user-select:none; }
+    .choiceBtn.active { background: var(--blue2); border-color:#66a; }
+    .helpText { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .topBar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
+      .topBar { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="stickyTop">
+    <div class="container">
+      <div class="topBar">
+        <div class="topPill">
+          <div class="k">Pupil</div>
+          <div class="v" id="pupilDisplay">—</div>
+        </div>
+        <div class="topPill">
+          <div class="k">Date</div>
+          <div class="v" id="dateDisplay">—</div>
+        </div>
+        <div class="topPill">
+          <div class="k">Title</div>
+          <div class="v" id="topicDisplay">—</div>
+        </div>
+        <div class="topPill">
+          <div class="k">Class</div>
+          <div class="v" id="classDisplay">13FM</div>
+        </div>
+        <div class="topPill">
+          <div class="k">Teacher</div>
+          <div class="v">Mr Thorpe</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="screenName" class="card">
+      <h2 style="margin:0 0 8px;">Enter your name</h2>
+      <p class="muted" style="margin:0 0 10px;">This page remembers you if you reload.</p>
+      <label for="pupilName">Name</label>
+      <input id="pupilName" placeholder="Type your name…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" />
+      <div class="btnRow">
+        <div class="spacer"></div>
+        <button id="joinBtn">Join session</button>
+      </div>
+      <p class="muted" id="joinStatus" style="margin-top:10px;"></p>
+    </div>
+
+    <div id="screenMain" class="card hidden">
+      <div class="btnRow" style="margin-top:0;">
+        <button class="btnPrimary active" id="tabQuestionsBtn">Questions</button>
+        <button class="btnPrimary" id="tabImagesBtn">Images</button>
+        <button class="btnPrimary" id="handUpBtn" title="Toggle silent hands up">✋ Hand up</button>
+        <div class="choiceRow" id="pollRow" style="margin:0;">
+          <div class="choiceBtn" data-poll="A">A</div>
+          <div class="choiceBtn" data-poll="B">B</div>
+          <div class="choiceBtn" data-poll="C">C</div>
+          <div class="choiceBtn" data-poll="D">D</div>
+          <div class="choiceBtn" data-poll="True">True</div>
+          <div class="choiceBtn" data-poll="False">False</div>
+        </div>
+
+        <div class="spacer"></div>
+        <button id="downloadMineBtn" title="Download your answers as a text file">Download my answers</button>
+        
+      </div>
+
+      <div id="tabQuestions">
+        <div class="grid" id="qGrid"></div>
+        <div class="helpText">Tip: press <b>Enter</b> to submit an answer. Use <b>Shift+Enter</b> for a new line.</div>
+      </div>
+
+      <div id="tabImages" class="hidden" style="margin-top:12px;">
+        <p class="muted" style="margin:0 0 12px;">
+          Upload <b>one</b> screenshot. Uploading again will <b>replace</b> your previous image.
+          Paste (Ctrl+V) into the box below or use the file picker.
+        </p>
+
+        <label for="imgTitle">Image title (optional)</label>
+        <input id="imgTitle" placeholder="e.g. My working for Q4" />
+
+        <div class="dropzone" id="pasteZone" tabindex="0" style="margin-top:10px;">
+          <div class="btnRow" style="margin-top:0;">
+            <div>
+              <b>Paste / drop zone</b>
+              <div class="tiny">Click here then paste (Ctrl+V), or drag and drop an image. Or use the file picker.</div>
+            </div>
+            <div class="spacer"></div>
+            <input type="file" id="fileInput" accept="image/*" />
+          </div>
+
+          <img id="imgPreview" class="preview hidden" alt="Preview" />
+          <div class="btnRow">
+            <button id="uploadBtn" disabled>Upload image</button>
+            <span class="muted" id="uploadStatus"></span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <b>Your current uploaded image</b>
+          <div class="tiny" style="margin-top:6px;">Teacher can view this from “View images”.</div>
+          <div id="myImage" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, doc, setDoc, serverTimestamp, collection, onSnapshot, getDocs, query, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+    const firebaseConfig = {"apiKey": "AIzaSyCYOEkYrTfgXDuBz99sxAieeuXK5goBgpU", "authDomain": "mrt-class-6264c.firebaseapp.com", "projectId": "mrt-class-6264c", "storageBucket": "mrt-class-6264c.firebasestorage.app", "messagingSenderId": "542139103880", "appId": "1:542139103880:web:a8d6f9bdda79024aee3d3d", "measurementId": "G-YRLLTYWVDR"};
+    const SESSION_ID = "lesson-1";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    const screenName = document.getElementById("screenName");
+    const screenMain = document.getElementById("screenMain");
+    const pupilNameInput = document.getElementById("pupilName");
+    const joinBtn = document.getElementById("joinBtn");
+    const joinStatus = document.getElementById("joinStatus");
+    const downloadMineBtn = document.getElementById("downloadMineBtn");
+
+    const tabQuestionsBtn = document.getElementById("tabQuestionsBtn");
+    const tabImagesBtn = document.getElementById("tabImagesBtn");
+    const tabQuestions = document.getElementById("tabQuestions");
+    const tabImages = document.getElementById("tabImages");
+    const qGrid = document.getElementById("qGrid");
+
+    const handUpBtn = document.getElementById("handUpBtn");
+
+    const pupilDisplay = document.getElementById("pupilDisplay");
+    const dateDisplay = document.getElementById("dateDisplay");
+    const topicDisplay = document.getElementById("topicDisplay");
+    const classDisplay = document.getElementById("classDisplay");
+
+    const pasteZone = document.getElementById("pasteZone");
+    const fileInput = document.getElementById("fileInput");
+    const imgPreview = document.getElementById("imgPreview");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const uploadStatus = document.getElementById("uploadStatus");
+    const myImage = document.getElementById("myImage");
+    const imgTitle = document.getElementById("imgTitle");
+
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+    const withTimeout = (p, ms, label="Timeout") => Promise.race([p, (async () => { await sleep(ms); throw new Error(label); })()]);
+
+    function formatDateFancy(d) {
+      const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const day = d.getDate();
+      const suffix = (n) => {
+        if (n % 100 >= 11 && n % 100 <= 13) return "th";
+        switch (n % 10) { case 1: return "st"; case 2: return "nd"; case 3: return "rd"; default: return "th"; }
+      };
+      return `${days[d.getDay()]} ${day}${suffix(day)} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    dateDisplay.textContent = formatDateFancy(new Date());
+
+    function slugifyName(name) { return name.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, ""); }
+    function getOrCreatePupilId(name) {
+      const key = `mrt_pupil_id_${SESSION_ID}_${slugifyName(name)}`;
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = `${slugifyName(name)}-${Math.random().toString(36).slice(2,8)}`;
+        localStorage.setItem(key, id);
+      }
+      return id;
+    }
+    function saveSessionIdentity(name, id) { localStorage.setItem(`mrt_saved_${SESSION_ID}`, JSON.stringify({ pupilName: name, pupilId: id })); }
+    function loadSessionIdentity() { try { return JSON.parse(localStorage.getItem(`mrt_saved_${SESSION_ID}`) || "null"); } catch { return null; } }
+    function clearSessionIdentity() { localStorage.removeItem(`mrt_saved_${SESSION_ID}`); }
+
+    let pupilName = "";
+    let pupilId = "";
+    let settings = { topic: "—", className: "13FM" };
+
+    const NAME_CANON = {"aqmer": "Aqmer", "danial": "Danial", "farhan": "Farhan", "linda": "Linda", "petr": "Petr", "rayan": "Rayan", "shahwaiz": "Shahwaiz", "yin": "Yin", "yousef": "Yousef"};
+    const ALLOWED_NAMES = new Set(["Aqmer", "Danial", "Farhan", "Linda", "Petr", "Rayan", "Shahwaiz", "Yin", "Yousef"]);
+    const CANON_QIDS = Array.from({length:9}, (_,i)=>`q${i+1}`);
+    let questionTextById = Object.fromEntries(CANON_QIDS.map((qid, i) => [qid, `Question ${i+1}`]));
+
+    let handUp = false;
+    let behaviourEmoji = "😊";
+
+    function localAnswerKey(qid) { return `mrt_ans_${SESSION_ID}_${pupilId}_${qid}`; }
+    function localChoiceKey(qid) { return `mrt_choice_${SESSION_ID}_${pupilId}_${qid}`; }
+
+    async function upsertPresence(extra = {}) {
+      const ref = doc(db, "sessions", SESSION_ID, "pupils", pupilId);
+      await withTimeout(setDoc(ref, { pupilName, pupilId, connected: true, lastSeen: serverTimestamp(), ...extra }, { merge: true }), 12000, "Presence write timeout");
+    }
+
+    function setHandUpUI() {
+      handUpBtn.classList.toggle("active", handUp);
+      handUpBtn.textContent = handUp ? "✋ Hand up (on)" : "✋ Hand up";
+    }
+
+    
+    // Global poll (A/B/C/D/True/False) – separate from questions.
+    const pollRow = document.getElementById("pollRow");
+    let pollChoice = "";
+
+    function setPollUI() {
+      if (!pollRow) return;
+      pollRow.querySelectorAll("[data-poll]").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-poll") === pollChoice);
+      });
+    }
+
+    async function setPollChoice(next) {
+      // clicking the active option clears it (so teacher can see who hasn't selected)
+      pollChoice = (pollChoice === next) ? "" : next;
+      setPollUI();
+      try {
+        await upsertPresence({ pollChoice });
+      } catch (e) {
+        console.error(e);
+        alert("Could not update poll choice: " + (e?.message || String(e)));
+      }
+    }
+
+    if (pollRow) {
+      pollRow.addEventListener("click", (e) => {
+        const btn = e.target?.closest?.("[data-poll]");
+        if (!btn) return;
+        setPollChoice(btn.getAttribute("data-poll"));
+      });
+    }
+
+    handUpBtn.addEventListener("click", async () => {
+      try {
+        const next = !handUp;
+        const extra = next ? { handUp: true, handUpCount: increment(1) } : { handUp: false };
+        await upsertPresence(extra);
+        handUp = next;
+        setHandUpUI();
+      } catch (e) {
+        console.error(e);
+        alert("Could not update hand up: " + (e?.message || String(e)));
+      }
+    });
+
+    function renderTopName() {
+      pupilDisplay.textContent = "";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = pupilName || "—";
+      const behSpan = document.createElement("span");
+      behSpan.textContent = behaviourEmoji || "😊";
+      behSpan.title = "Behaviour";
+      pupilDisplay.appendChild(nameSpan);
+      pupilDisplay.appendChild(behSpan);
+    }
+
+    async function submitResponse(qid) {
+      const input = document.getElementById(`inp_${qid}`);
+      const answer = (input?.value ?? "").trim();
+      const tag = document.getElementById(`tag_${qid}`);
+      if (tag) tag.textContent = "sending…";
+      try {
+        const respRef = doc(db, "sessions", SESSION_ID, "responses", `${pupilId}_${qid}`);
+        await withTimeout(setDoc(respRef, {
+          pupilName, pupilId,
+          questionId: qid,
+          questionLabel: questionTextById[qid] || qid,
+          answer,
+          updatedAt: serverTimestamp()
+        }, { merge: true }), 15000, "Response write timeout");
+        if (tag) {
+          tag.textContent = "submitted";
+          tag.style.borderColor = "#cfe4ff";
+          tag.animate([{transform:"scale(1)"},{transform:"scale(1.05)"},{transform:"scale(1)"}], {duration:220});
+        }
+      } catch (e) {
+        console.error(e);
+        if (tag) tag.textContent = "failed";
+      }
+    }
+
+    function buildGrid() {
+      qGrid.innerHTML = "";
+      for (const qid of CANON_QIDS) {
+        const el = document.createElement("div");
+        el.className = "pill";
+        el.innerHTML = `
+          <h3>
+            <span id="qLabel_${qid}">${questionTextById[qid]}</span>
+            <span>
+              <span class="tag" id="tag_${qid}">not submitted</span>
+              <span class="react" id="react_${qid}" title="Teacher feedback" style="display:none;"></span>
+            </span>
+          </h3>
+          <label class="muted" for="inp_${qid}">Your answer</label>
+          <textarea id="inp_${qid}" rows="2" placeholder="Type answer…"></textarea>
+        `;
+        qGrid.appendChild(el);
+
+        const input = el.querySelector(`#inp_${qid}`);
+        const saved = localStorage.getItem(localAnswerKey(qid));
+        if (saved !== null) input.value = saved;
+
+        input.addEventListener("input", () => { localStorage.setItem(localAnswerKey(qid), input.value); });
+        input.addEventListener("keydown", async (ev) => {
+          if (ev.key === "Enter" && !ev.shiftKey) {
+            ev.preventDefault();
+            await submitResponse(qid);
+          }
+        });
+      }
+    }
+
+    function switchTab(which) {
+      const isQ = which === "q";
+      tabQuestionsBtn.classList.toggle("active", isQ);
+      tabImagesBtn.classList.toggle("active", !isQ);
+      tabQuestions.classList.toggle("hidden", !isQ);
+      tabImages.classList.toggle("hidden", isQ);
+    }
+    tabQuestionsBtn.addEventListener("click", () => switchTab("q"));
+    tabImagesBtn.addEventListener("click", () => switchTab("i"));
+
+    function renderMyImage(docData) {
+      if (!docData?.url) { myImage.innerHTML = `<div class="tiny">No image uploaded yet.</div>`; return; }
+      const when = docData.updatedAt?.seconds ? new Date(docData.updatedAt.seconds * 1000).toLocaleString() : "";
+      const titleTxt = docData.title ? `<div class="tiny" style="margin-top:6px;"><b>Title:</b> ${docData.title}</div>` : "";
+      myImage.innerHTML = `
+        <div>
+          <a href="${docData.url}" target="_blank" rel="noopener">
+            <img src="${docData.url}" class="preview" style="max-height:220px;" alt="Your uploaded image" />
+          </a>
+          ${titleTxt}
+          <div class="tiny" style="margin-top:6px;">Last updated: ${when}</div>
+        </div>
+      `;
+    }
+
+    function yymmdd(d) {
+      const yy = String(d.getFullYear()).slice(2);
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const dd = String(d.getDate()).padStart(2,"0");
+      return yy + mm + dd;
+    }
+    function safeFilePart(str, fallback) {
+      const s = (str || "").toString().trim().replace(/[^a-z0-9\-_ ]/gi, "").replace(/\s+/g, "-");
+      return s || fallback;
+    }
+    async function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    downloadMineBtn.addEventListener("click", async () => {
+      try {
+        const respSnap = await getDocs(collection(db, "sessions", SESSION_ID, "responses"));
+        const mine = respSnap.docs.map(d => d.data()).filter(r => r.pupilId === pupilId);
+        const now = new Date();
+        const filename = `${yymmdd(now)}-${safeFilePart(settings.className,"Class")}-${safeFilePart(settings.topic,"Topic")}-${safeFilePart(pupilName,"pupil")}.txt`;
+
+        let out = "";
+        out += `Date: ${formatDateFancy(now)}\n`;
+        out += `Class: ${settings.className || ""}\n`;
+        out += `Topic: ${settings.topic || ""}\n`;
+        out += `Pupil: ${pupilName}\n\n`;
+        for (const qid of CANON_QIDS) {
+          out += `${questionTextById[qid]}\n`;
+          const r = mine.find(x => x.questionId === qid);
+          const ans = (r?.answer ?? "").trim();
+          out += `${ans}\n`;
+          if (r?.reaction) out += `Teacher: ${r.reaction}\n`;
+          out += "\n";
+        }
+        await downloadTextFile(filename, out);
+      } catch (e) {
+        console.error(e);
+        alert("Could not download: " + (e?.message || String(e)));
+      }
+    });
+
+    // Image upload helpers
+    let pendingBlob = null;
+    function setPendingImage(blob) {
+      pendingBlob = blob;
+      imgPreview.src = URL.createObjectURL(blob);
+      imgPreview.classList.remove("hidden");
+      uploadBtn.disabled = false;
+      uploadStatus.textContent = "";
+    }
+    pasteZone.addEventListener("paste", (e) => {
+      const items = e.clipboardData?.items || [];
+      for (const it of items) {
+        if (it.type && it.type.startsWith("image/")) {
+          const blob = it.getAsFile();
+          if (blob) { setPendingImage(blob); e.preventDefault(); return; }
+        }
+      }
+    });
+    pasteZone.addEventListener("dragover", (e) => { e.preventDefault(); pasteZone.style.background = "#fcfcfc"; });
+    pasteZone.addEventListener("dragleave", () => { pasteZone.style.background = "#fff"; });
+    pasteZone.addEventListener("drop", (e) => {
+      e.preventDefault(); pasteZone.style.background = "#fff";
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith("image/")) setPendingImage(file);
+    });
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (file && file.type.startsWith("image/")) setPendingImage(file);
+    });
+
+    function awaitUploadAndGetUrl(task, storageRef) {
+      return new Promise((resolve, reject) => {
+        const timeoutMs = 120000;
+        const t = setTimeout(() => reject(new Error("Upload timed out (Storage rules / network)")), timeoutMs);
+        task.on("state_changed",
+          (snap) => {
+            const pct = snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0;
+            uploadStatus.textContent = `Uploading… ${pct}%`;
+          },
+          (err) => { clearTimeout(t); reject(err); },
+          async () => {
+            try {
+              clearTimeout(t);
+              uploadStatus.textContent = "Finalising…";
+              const url = await withTimeout(getDownloadURL(storageRef), 30000, "URL fetch timed out (Storage rules / network)");
+              resolve(url);
+            } catch (e) { reject(e); }
+          }
+        );
+      });
+    }
+
+    uploadBtn.addEventListener("click", async () => {
+      if (!pendingBlob) return;
+      uploadBtn.disabled = true;
+      uploadStatus.textContent = "Uploading… 0%";
+      try {
+        const path = `sessions/${SESSION_ID}/pupilImages/${pupilId}/latest`;
+        const r = sRef(storage, path);
+        const metadata = { contentType: pendingBlob.type || "image/png" };
+        const task = uploadBytesResumable(r, pendingBlob, metadata);
+        const url = await awaitUploadAndGetUrl(task, r);
+
+        const titleStr = (imgTitle.value || "").trim();
+        const imgDocRef = doc(db, "sessions", SESSION_ID, "images", pupilId);
+
+        await withTimeout(setDoc(imgDocRef, {
+          pupilName, pupilId,
+          url, storagePath: path,
+          title: titleStr,
+          updatedAt: serverTimestamp()
+        }, { merge: true }), 20000, "Image metadata write timed out (Firestore rules / network)");
+
+        uploadStatus.textContent = "Uploaded ✅ (replaced previous)";
+        pendingBlob = null;
+      } catch (e) {
+        console.error(e);
+        const code = e?.code ? ` (${e.code})` : "";
+        uploadStatus.textContent = "Upload failed ❌ " + (e?.message || String(e)) + code;
+        uploadBtn.disabled = false;
+      }
+    });
+
+    function showMainUI() {
+      renderTopName();
+      screenName.classList.add("hidden");
+      screenMain.classList.remove("hidden");
+      setHandUpUI();
+      buildGrid();
+      setPollUI();
+
+      onSnapshot(doc(db, "sessions", SESSION_ID, "meta", "settings"), (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        settings.topic = d.topic || "—";
+        settings.className = d.className || "—";
+        topicDisplay.textContent = settings.topic;
+      });
+
+      // Keep 9 boxes ALWAYS; only update labels received.
+      onSnapshot(collection(db, "sessions", SESSION_ID, "questions"), (snap) => {
+        snap.docs.forEach(ds => {
+          const d = ds.data();
+          if (d?.id && CANON_QIDS.includes(d.id)) {
+            questionTextById[d.id] = d.text || d.label || questionTextById[d.id];
+            const labelEl = document.getElementById(`qLabel_${d.id}`);
+            if (labelEl) labelEl.textContent = questionTextById[d.id];
+          }
+        });
+      });
+
+      // Listen to my responses for reactions + (optional) server-side choice sync
+      onSnapshot(collection(db, "sessions", SESSION_ID, "responses"), (snap) => {
+        const mine = snap.docs.map(d => d.data()).filter(r => r.pupilId === pupilId);
+        for (const qid of CANON_QIDS) {
+          const tag = document.getElementById(`tag_${qid}`);
+          const react = document.getElementById(`react_${qid}`);
+          const found = mine.find(r => r.questionId === qid);
+          if (tag) tag.textContent = found && ((found.answer ?? "").trim() !== "" || (found.choice ?? "").trim() !== "") ? "submitted" : "not submitted";
+          const emoji = found?.reaction || "";
+          if (react) {
+            if (emoji) { react.style.display = "inline"; react.textContent = emoji; }
+            else { react.style.display = "none"; react.textContent = ""; }
+          }
+        }
+      });
+
+      onSnapshot(doc(db, "sessions", SESSION_ID, "images", pupilId), (snap) => { renderMyImage(snap.exists() ? snap.data() : null); });
+
+      // My pupil doc: behaviour + handUp reflect teacher controls
+      onSnapshot(doc(db, "sessions", SESSION_ID, "pupils", pupilId), (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        handUp = !!d.handUp;
+        behaviourEmoji = d.behaviour || "😊";
+        pollChoice = (d.pollChoice || "").trim();
+        setHandUpUI();
+        setPollUI();
+        renderTopName();
+      });
+    }
+
+    async function joinWithName(name) {
+      const canon = NAME_CANON[(name || "").trim().toLowerCase()];
+      if (!canon) throw new Error("Name not on the class list.");
+      name = canon;
+      pupilName = name.trim();
+      pupilId = getOrCreatePupilId(pupilName);
+      saveSessionIdentity(pupilName, pupilId);
+      await upsertPresence({ handUp: false, handUpCount: 0, behaviour: "😊", pollChoice: "" , className: "13FM" });
+      showMainUI();
+    }
+
+    joinBtn.addEventListener("click", async () => {
+      const name = pupilNameInput.value.trim();
+      if (!name) { alert("Please enter your name."); return; }
+      joinBtn.disabled = true;
+      joinStatus.textContent = "Joining…";
+      try { await joinWithName(name); joinStatus.textContent = "Joined ✅"; }
+      catch (e) { console.error(e); joinStatus.textContent = "Could not join ❌ " + (e?.message || String(e)); }
+      finally { joinBtn.disabled = false; }
+    });
+    (async function autoRejoin() {
+      const saved = loadSessionIdentity();
+      if (!saved?.pupilName || !saved?.pupilId) return;
+      pupilName = saved.pupilName;
+      pupilId = saved.pupilId;
+      try { await upsertPresence({}); showMainUI(); }
+      catch (e) { console.error(e); clearSessionIdentity(); }
+    })();
+  </script>
+</body>
+</html>
