@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sampling Distribution Demo</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+body { font-family: Arial; margin:0; }
+header { padding:10px; text-align:center; font-size:20px; }
+.grid { display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1.2fr 1fr; gap:10px; padding:10px; height: calc(100vh - 60px); }
+.panel { border:1px solid #ccc; padding:10px; position:relative; overflow:auto; }
+canvas { width:100%; height:100%; cursor:pointer; }
+.sampleText { color: blue; }
+.meanText { color: red; }
+.draggable { display:inline-block; padding:8px; border:1px solid black; cursor:grab; color:red; margin-top:5px; }
+.fullscreen { position:fixed !important; top:0; left:0; width:100vw; height:100vh; background:white; z-index:999; }
+button { margin:5px; }
+
+/* Shake animation */
+@keyframes shake {
+  0% { transform: translate(0px, 0px); }
+  25% { transform: translate(3px, -3px); }
+  50% { transform: translate(-3px, 3px); }
+  75% { transform: translate(3px, 3px); }
+  100% { transform: translate(0px, 0px); }
+}
+.shaking {
+  animation: shake 0.3s infinite;
+}
+</style>
+</head>
+<body>
+
+<header>
+\(\text{Distribution of the sample mean for } X \sim \mathcal{N}(100,15^2)\)
+<br>
+<button onclick="toggleAuto()" id="autoBtn" disabled>Automate</button>
+</header>
+
+<div class="grid">
+
+<div class="panel" id="popPanel">
+<button onclick="toggleFull('popPanel')">⛶</button>
+<canvas id="popChart"></canvas>
+</div>
+
+<div class="panel" id="meanPanel">
+<button onclick="toggleFull('meanPanel')">⛶</button>
+<canvas id="meanChart"></canvas>
+</div>
+
+<div class="panel">
+<label>Sample size n (2–100): <input id="nInput" type="number" min="2" max="100" value="5"></label>
+<div id="sampleValues" class="sampleText"></div>
+<div id="meanReveal" class="meanText"></div>
+<div id="meanBox"></div>
+</div>
+
+<div class="panel">
+<p id="stats"></p>
+<p id="count"></p>
+</div>
+
+</div>
+
+<script>
+const bins = Array.from({length:101}, (_,i)=>i+50);
+let popData = [];
+let meanCounts = Array(101).fill(0);
+let totalMeans = 0;
+let manualCount = 0;
+let currentMean = null;
+let autoRunning = false;
+let startTime;
+let currentN = 5;
+
+function shakePopulation(duration=400) {
+  const panel = document.getElementById('popPanel');
+  panel.classList.add('shaking');
+  setTimeout(()=> panel.classList.remove('shaking'), duration);
+}
+
+function resetMeans() {
+  meanCounts = Array(101).fill(0);
+  totalMeans = 0;
+  manualCount = 0;
+  document.getElementById('autoBtn').disabled = true;
+  meanChart.data.datasets[0].data = meanCounts;
+  meanChart.update();
+  updateStats();
+}
+
+document.getElementById('nInput').addEventListener('change', function() {
+  let val = parseInt(this.value);
+  if (isNaN(val) || val < 2 || val > 100) {
+    this.value = currentN;
+    return;
+  }
+  currentN = val;
+  resetMeans();
+});
+
+function normalCDF(x, mu, sigma) {
+  return 0.5 * (1 + erf((x - mu)/(sigma*Math.sqrt(2))));
+}
+function erf(x) {
+  const sign = x >= 0 ? 1 : -1;
+  x = Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t = 1/(1+p*x);
+  const y = 1-((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+
+function initPop() {
+  for (let k of bins) {
+    let p = normalCDF(k+0.5,100,15) - normalCDF(k-0.5,100,15);
+    popData.push(Math.round(p*1000000));
+  }
+}
+
+function inverseNormal() {
+  let u = Math.random();
+  let v = Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+function sample(n) {
+  let vals = [];
+  for (let i=0;i<n;i++) vals.push(100 + 15*inverseNormal());
+  return vals;
+}
+function mean(arr) {
+  return arr.reduce((a,b)=>a+b,0)/arr.length;
+}
+
+async function takeSample() {
+  if (autoRunning) return;
+
+  shakePopulation();
+
+  document.getElementById('meanBox').innerHTML='';
+  document.getElementById('meanReveal').innerText='';
+
+  let vals = sample(currentN);
+
+  let display = [];
+  for (let v of vals) {
+    display.push(v.toFixed(1));
+    document.getElementById('sampleValues').innerHTML = '<span class="sampleText">Sample: ' + display.join(', ') + '</span>';
+    await new Promise(r=>setTimeout(r,80));
+  }
+
+  currentMean = mean(vals);
+  document.getElementById('meanReveal').innerText = "Click to reveal mean";
+
+  document.getElementById('meanReveal').onclick = () => {
+    document.getElementById('meanReveal').innerHTML = '<span class="meanText">Mean: ' + currentMean.toFixed(1) + '</span>';
+    createDraggableMean();
+  }
+}
+
+function createDraggableMean() {
+  const box = document.getElementById('meanBox');
+  box.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'draggable';
+  div.draggable = true;
+  div.innerText = currentMean.toFixed(1);
+  div.ondragstart = (e)=> e.dataTransfer.setData("text", currentMean);
+  box.appendChild(div);
+}
+
+const popChart = new Chart(document.getElementById('popChart'), {
+  type: 'bar',
+  data: { labels: bins, datasets: [{ label:'Population', data: popData, backgroundColor:'blue' }] },
+  options: { maintainAspectRatio:false }
+});
+
+const meanChartCanvas = document.getElementById('meanChart');
+const meanChart = new Chart(meanChartCanvas, {
+  type: 'bar',
+  data: { labels: bins, datasets: [{ label:'Sample Means', data: meanCounts, backgroundColor:'red' }] },
+  options: { maintainAspectRatio:false }
+});
+
+meanChartCanvas.addEventListener('dragover', e => e.preventDefault());
+meanChartCanvas.addEventListener('drop', e => {
+  e.preventDefault();
+  const m = parseFloat(e.dataTransfer.getData("text"));
+  const bucket = Math.round(m) - 50;
+  if (bucket>=0 && bucket<101) {
+    meanCounts[bucket]++;
+    totalMeans++;
+    meanChart.update();
+    updateStats();
+
+    document.getElementById('meanBox').innerHTML='';
+    document.getElementById('meanReveal').innerText='';
+
+    manualCount++;
+    if (manualCount >= 10) document.getElementById('autoBtn').disabled = false;
+  }
+});
+
+function updateStats() {
+  let meanVal = 0;
+  for (let i=0;i<101;i++) meanVal += (i+50)*meanCounts[i];
+  meanVal /= totalMeans || 1;
+
+  let varVal = 0;
+  for (let i=0;i<101;i++) varVal += meanCounts[i]*Math.pow((i+50)-meanVal,2);
+  varVal /= totalMeans || 1;
+
+  document.getElementById('stats').innerText = `Mean of X̄: ${meanVal.toFixed(2)} | Variance of X̄: ${varVal.toFixed(2)}`;
+  document.getElementById('count').innerText = `Number of sample means: ${totalMeans}`;
+}
+
+function toggleAuto() {
+  autoRunning = !autoRunning;
+  const btn = document.getElementById('autoBtn');
+  btn.innerText = autoRunning ? 'Pause' : 'Automate';
+
+  if (autoRunning) {
+    startTime = Date.now();
+    autoStep();
+  }
+}
+
+function autoStep() {
+  if (!autoRunning) return;
+
+  shakePopulation(200);
+
+  let elapsed = (Date.now() - startTime)/1000;
+  let rate = Math.min(100, 1 + (99 * elapsed / 60));
+
+  for (let i=0;i<Math.floor(rate);i++) {
+    let vals = sample(currentN);
+    let m = mean(vals);
+
+    document.getElementById('sampleValues').innerHTML =
+      '<span class="sampleText">Sample: ' + vals.map(v=>v.toFixed(1)).join(', ') + '</span> ' +
+      '<span class="meanText">Mean: ' + m.toFixed(1) + '</span>';
+
+    let bucket = Math.round(m) - 50;
+    if (bucket>=0 && bucket<101) {
+      meanCounts[bucket]++;
+      totalMeans++;
+    }
+  }
+
+  meanChart.update();
+  updateStats();
+
+  setTimeout(autoStep, 10);
+}
+
+function toggleFull(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('fullscreen');
+}
+
+initPop();
+popChart.update();
+
+document.getElementById('popChart').onclick = takeSample;
+</script>
+
+</body>
+</html>
