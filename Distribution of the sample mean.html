@@ -75,6 +75,10 @@ let autoRunning = false;
 let startTime;
 let currentN = 5;
 
+// Secret click tracking
+let meanChartClickCount = 0;
+let lastClickTime = 0;
+
 function shakePopulation(duration=400) {
   const panel = document.getElementById('popPanel');
   panel.classList.add('shaking');
@@ -186,6 +190,21 @@ const meanChart = new Chart(meanChartCanvas, {
 });
 
 meanChartCanvas.addEventListener('dragover', e => e.preventDefault());
+
+// Secret rapid-click unlock for automate
+meanChartCanvas.addEventListener('click', () => {
+  const now = Date.now();
+  if (now - lastClickTime < 400) {
+    meanChartClickCount++;
+  } else {
+    meanChartClickCount = 1;
+  }
+  lastClickTime = now;
+
+  if (meanChartClickCount >= 10 && totalMeans > 0) {
+    document.getElementById('autoBtn').disabled = false;
+  }
+});
 meanChartCanvas.addEventListener('drop', e => {
   e.preventDefault();
   const m = parseFloat(e.dataTransfer.getData("text"));
