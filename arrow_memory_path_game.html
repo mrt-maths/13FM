@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memory Path Game</title>
+<style>
+  body { font-family: Arial; text-align: center; }
+  #grid { display: grid; gap: 5px; justify-content: center; margin: 20px; }
+  .cell {
+    width: 50px; height: 50px; border: 1px solid #333;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; cursor: pointer;
+  }
+  .correct { background-color: lightgreen; }
+  .wrong { background-color: lightcoral; }
+</style>
+</head>
+<body>
+<h2>Memory Path Game</h2>
+<p id="info"></p>
+<p id="score"></p>
+<div id="grid"></div>
+
+<script>
+let n = 8;
+let lives = 3;
+let path = [];
+let userStep = 0;
+let showing = true;
+let countdownInterval;
+let timeLeft = 0;
+let bestScore = 0;
+let bestLevel = 0;
+let bestProgress = 0;
+
+const gridEl = document.getElementById("grid");
+const info = document.getElementById("info");
+const scoreEl = document.getElementById("score");
+
+function createGrid() {
+  gridEl.innerHTML = "";
+  gridEl.style.gridTemplateColumns = `repeat(${n}, 50px)`;
+
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < n; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.onclick = () => handleClick(cell);
+      gridEl.appendChild(cell);
+    }
+  }
+}
+
+function generatePath() {
+  path = [];
+  let r = Math.floor(Math.random() * 4);
+
+  for (let c = 0; c < n; c++) {
+    path.push({ r, c });
+    if (c < n - 1) {
+      const move = Math.floor(Math.random() * 3) - 1;
+      r = Math.max(0, Math.min(3, r + move));
+    }
+  }
+}
+
+function startCountdown(ms) {
+  clearInterval(countdownInterval);
+  timeLeft = Math.ceil(ms / 1000);
+  updateInfo();
+
+  countdownInterval = setInterval(() => {
+    timeLeft--;
+    updateInfo();
+    if (timeLeft <= 0) clearInterval(countdownInterval);
+  }, 1000);
+}
+
+function updateInfo() {
+  if (showing) {
+    info.textContent = `Memorise the path! Time left: ${timeLeft}s | Lives: ${lives}`;
+  } else {
+    info.textContent = `Repeat the path! Lives: ${lives}`;
+  }
+
+  scoreEl.textContent = `High score: ${bestScore.toFixed(1)}`;
+}
+
+function showPath() {
+  showing = true;
+  userStep = 0;
+  const cells = document.querySelectorAll(".cell");
+
+  cells.forEach(cell => {
+    cell.textContent = "";
+    cell.classList.remove("correct", "wrong");
+  });
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const curr = path[i];
+    const next = path[i + 1];
+    const idx = curr.r * n + curr.c;
+
+    let arrow = "→";
+    if (next.r < curr.r) arrow = "↗";
+    if (next.r > curr.r) arrow = "↘";
+
+    cells[idx].textContent = arrow;
+  }
+
+  const time = 20000 + 5000 * (n - 8);
+  startCountdown(time);
+
+  setTimeout(() => {
+    cells.forEach(cell => cell.textContent = "");
+    showing = false;
+    updateInfo();
+  }, time);
+}
+
+function updateHighScore() {
+  const level = n - 8;
+  const progress = userStep / path.length;
+  const score = level + progress;
+
+  if (score > bestScore) {
+    bestScore = score;
+    bestLevel = level;
+    bestProgress = progress;
+  }
+}
+
+function resetClicks() {
+  const cells = document.querySelectorAll(".cell");
+  cells.forEach(cell => {
+    cell.classList.remove("correct", "wrong");
+    cell.textContent = "";
+  });
+  userStep = 0;
+}
+
+function handleClick(cell) {
+  if (showing) return;
+
+  const r = Number(cell.dataset.r);
+  const c = Number(cell.dataset.c);
+  const expected = path[userStep];
+
+  if (r === expected.r && c === expected.c) {
+    cell.classList.add("correct");
+    userStep++;
+
+    updateHighScore();
+    updateInfo();
+
+    if (userStep === path.length) {
+      setTimeout(() => {
+        n++;
+        startLevel();
+      }, 500);
+    }
+  } else {
+    updateHighScore();
+    lives--;
+
+    resetClicks();
+
+    if (lives === 0) {
+      alert(`Game Over! High score: ${bestScore.toFixed(1)}`);
+      n = 8;
+      lives = 3;
+      bestScore = 0;
+      startLevel();
+    } else {
+      setTimeout(showPath, 800);
+    }
+  }
+}
+
+function startLevel() {
+  createGrid();
+  generatePath();
+  showPath();
+}
+
+startLevel();
+</script>
+</body>
+</html>
