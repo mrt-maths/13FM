@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Normal Hypothesis Testing Quiz</title>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+body { font-family: Arial; max-width: 900px; margin: auto; }
+#scenario { position: sticky; top: 0; background: white; padding: 10px; z-index: 10; border-bottom: 2px solid #ccc; }
+.question { margin: 15px 0; padding: 15px; border: 1px solid #ccc; border-radius: 10px; }
+button { margin: 5px 0; display:block; }
+.correct { color: green; }
+.locked { opacity: 0.5; pointer-events: none; }
+.collapsed { background: #f5f5f5; }
+#popup { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: white; border: 2px solid black; padding: 20px; display: none; z-index: 100; }
+</style>
+</head>
+<body>
+
+<h2>Normal Hypothesis Testing Quiz</h2>
+<p id="scenario"></p>
+<div id="quiz"></div>
+<div id="popup"></div>
+
+<script>
+let totalClicks = 0;
+let lockedUntil = Array(11).fill(0);
+let completed = Array(11).fill(false);
+
+const contexts = [
+"battery life of devices (hours)","daily sales of a shop (AED)","waiting time at a clinic (minutes)",
+"test scores of students (marks)","weight of packages (kg)","delivery time (minutes)",
+"height of plants (cm)","fuel consumption (litres)","website load time (seconds)","number of customers per day"
+];
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(arr){ return arr.map(v=>[v,Math.random()]).sort((a,b)=>a[1]-b[1]).map(v=>v[0]); }
+
+function erf(x){ const sign=x>=0?1:-1; x=Math.abs(x);
+const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+const t=1/(1+p*x);
+const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+return sign*y; }
+function normCDF(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }
+
+const zMapOne = {0.1:1.2816,0.05:1.6448,0.01:2.3263,0.001:3.0902};
+const zMapTwo = {0.1:1.6448,0.05:1.9600,0.01:2.5758,0.001:3.2905};
+
+function generateScenario(){
+const context = rand(contexts);
+const mu = Math.floor(Math.random()*50)+20;
+const sigma = rand([2,4,5,10]);
+const n = Math.floor(Math.random()*81)+20;
+const alpha = rand([0.1,0.05,0.01,0.001]);
+const tailType = rand(["left","right","two"]);
+const se = sigma/Math.sqrt(n);
+const zcrit = tailType==="two" ? zMapTwo[alpha] : zMapOne[alpha];
+const direction = tailType==="left"?-1:1;
+const xbar = +(mu + direction*zcrit*se*(0.9+Math.random()*0.2)).toFixed(2);
+
+const giveVariance = Math.random() < 0.5;
+const varianceVal = sigma * sigma;
+
+return {context, mu, sigma, varianceVal, giveVariance, n, xbar, alpha, tailType, zcrit};
+}
+
+const data = generateScenario();
+const se = data.sigma/Math.sqrt(data.n);
+const variance = (data.sigma**2)/data.n;
+const z = (data.xbar - data.mu)/se;
+
+let p;
+if(data.tailType==="left") p = normCDF(z);
+else if(data.tailType==="right") p = 1-normCDF(z);
+else p = 2*Math.min(normCDF(z),1-normCDF(z));
+p = Math.max(p,0.0001);
+
+function to3sf(x){ return Number.parseFloat(x).toPrecision(3); }
+
+let alphaText = (data.alpha*100)+"%";
+let testText = data.tailType==="left"?"has decreased":data.tailType==="right"?"has increased":"has changed";
+
+function makeQuestion(q, options, correct){
+const shuffled = shuffle(options.map((opt,i)=>({opt,i})));
+return { q, options: shuffled.map(o=>o.opt), correct: shuffled.findIndex(o=>o.i===correct) };
+}
+
+function getAltUnit(context){
+if(context.includes("cm")) return context.replace("cm","m");
+if(context.includes("kg")) return context.replace("kg","g");
+if(context.includes("minutes")) return context.replace("minutes","seconds");
+if(context.includes("hours")) return context.replace("hours","minutes");
+return context;
+}
+const unitAlt = getAltUnit(data.context);
+
+const questions = [
+makeQuestion("1. Select the null hypothesis",
+[`\\(H_0: μ = ${data.mu}\\)`,`\\(H_0: μ = ${data.xbar}\\)`,`\\(H_0: x̄ = μ\\)`,`\\(H_0: μ > ${data.mu}\\)`],0),
+makeQuestion("2. Select the alternative hypothesis",
+[`\\(H_1: μ > ${data.mu}\\)`,`\\(H_1: μ < ${data.mu}\\)`,`\\(H_1: μ ≠ ${data.mu}\\)`,`\\(H_1: x̄ ≠ μ\\)`],
+data.tailType==="left"?1:data.tailType==="right"?0:2),
+makeQuestion("3. Define μ",
+[`population mean ${data.context}`,`population mean ${unitAlt}`,`sample mean ${data.context}`,`sample mean ${unitAlt}`],0),
+makeQuestion("4. Identify the observed value",
+[`x̄ = ${data.mu}`,`x̄ = ${data.xbar}`,`μ = ${data.xbar}`,`σ = ${data.xbar}`],1)
+];
+
+questions.push(makeQuestion("5. Distribution of the observed value",
+[`\\(\\bar{X} \\sim N(${data.mu}, ${(variance).toFixed(3)})\\)` ,`\\(\\bar{X} \\sim N(${data.mu}, ${(se).toFixed(3)})\\)`,`\\(\\bar{X} \\sim N(${data.xbar}, ${(variance).toFixed(3)})\\)`,`\\(\\bar{X} \\sim N(${data.mu}, ${(data.sigma**2).toFixed(3)})\\)`],0));
+
+questions.push(makeQuestion("6. z-value",[(z).toFixed(3),(z+0.3).toFixed(3),(z-0.3).toFixed(3),(-z).toFixed(3)],0));
+
+questions.push(makeQuestion("7. Critical z-value",
+["1.2816","1.6448","1.9600","2.3263","2.5758","3.0902","3.2905"],
+["1.2816","1.6448","1.9600","2.3263","2.5758","3.0902","3.2905"].indexOf(data.zcrit.toFixed(4))
+));
+
+questions.push(makeQuestion("8. p-value",
+[to3sf(p),to3sf(p*1.2),to3sf(p*0.8),to3sf(p*0.6)],0));
+
+const lower = (data.mu - data.zcrit*se).toFixed(3);
+const upper = (data.mu + data.zcrit*se).toFixed(3);
+
+questions.push(makeQuestion("9. Critical Region",
+data.tailType==="two"?
+[`\\(\\bar{X} < ${lower}\\) or \\(\\bar{X} > ${upper}\\)` ,`\\(\\bar{X} > ${lower}\\) or \\(\\bar{X} < ${upper}\\)` ,`\\(\\bar{X} > ${upper}\\)`,`\\(\\bar{X} < ${lower}\\)`]
+: data.tailType==="left"?
+[`\\(\\bar{X} < ${lower}\\)`,`\\(\\bar{X} > ${lower}\\)`,`\\(\\bar{X} < ${data.mu}\\)`,`\\(\\bar{X} > ${data.mu}\\)`]
+:[`\\(\\bar{X} > ${upper}\\)`,`\\(\\bar{X} < ${upper}\\)`,`\\(\\bar{X} > ${data.mu}\\)`,`\\(\\bar{X} < ${data.mu}\\)`]
+,0));
+
+questions.push(makeQuestion("10. Decision",
+[(p < data.alpha)?"Reject H_0":"Accept H_0",
+(p < data.alpha)?"Accept H_0":"Reject H_0"],0));
+
+questions.push(makeQuestion("11. Conclusion in context",
+[
+`There is sufficient evidence, at the ${alphaText} level, to suggest that mean ${data.context} ${testText}`,
+`There is insufficient evidence, at the ${alphaText} level, to suggest that mean ${data.context} ${testText}`,
+`There is sufficient evidence, at the ${alphaText} level, to suggest that mean ${data.context} has not increased`,
+`There is insufficient evidence, at the ${alphaText} level, to suggest that mean ${data.context} has not decreased`
+],
+(p < data.alpha) ? 0 : 1
+));
+
+const quizDiv = document.getElementById("quiz");
+
+function render(){
+quizDiv.innerHTML = "";
+questions.forEach((qObj, idx) => {
+const div = document.createElement("div");
+div.className = "question";
+
+if(completed[idx]){
+div.classList.add("collapsed");
+const correctAnswer = qObj.options[qObj.correct];
+div.innerHTML = `${qObj.q}: <span class='correct'>${correctAnswer}</span>`;
+quizDiv.appendChild(div);
+return;
+}
+
+if(idx>0 && !completed[idx-1]) div.classList.add("locked");
+
+const title = document.createElement("p");
+title.innerHTML = qObj.q;
+div.appendChild(title);
+
+qObj.options.forEach((opt,i)=>{
+const btn = document.createElement("button");
+btn.innerHTML = opt;
+
+btn.onclick = ()=>{
+if(Date.now() < lockedUntil[idx]) return;
+if(idx>0 && !completed[idx-1]) return;
+
+totalClicks++;
+
+if(i===qObj.correct){
+completed[idx]=true;
+} else {
+lockedUntil[idx] = Date.now() + 10000;
+setTimeout(()=>render(),1000);
+}
+
+render();
+checkEnd();
+};
+
+ div.appendChild(btn);
+});
+
+quizDiv.appendChild(div);
+});
+
+if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+}
+
+function checkEnd(){
+if(completed.every(c=>c)){
+const popup = document.getElementById("popup");
+popup.style.display = "block";
+const percent = (11/totalClicks*100).toFixed(1);
+popup.innerHTML = `<h3>Score: ${percent}%</h3><p>Total clicks: ${totalClicks}</p><button onclick="location.reload()">Next Quiz</button>`;
+}
+}
+
+const varianceText = data.giveVariance
+? `The population variance is ${data.varianceVal}.`
+: `The population standard deviation is ${data.sigma}.`;
+
+document.getElementById("scenario").innerHTML =
+`A company claims that the mean ${data.context} is ${data.mu}. A sample of ${data.n} observations has mean ${data.xbar}. ${varianceText} Test at the ${alphaText} significance level whether the mean ${testText}.`;
+
+window.onload = render;
+</script>
+
+</body>
+</html>
