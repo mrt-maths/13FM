@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Matrix Transformation Visualiser</title>
+  <style>
+    body { font-family: Arial; }
+    canvas { border: 1px solid black; cursor: crosshair; }
+    input { width: 50px; }
+    #message { color: red; font-weight: bold; }
+  </style>
+</head>
+
+<body>
+
+<h2>Matrix Transformation Visualiser</h2>
+
+<input id="a" value="1">
+<input id="b" value="1"><br>
+<input id="c" value="1">
+<input id="d" value="0"><br><br>
+
+Mode:
+<select id="mode">
+  <option value="point">Point mode</option>
+  <option value="line">Line mode</option>
+</select>
+
+<br><br>
+
+<label><input type="checkbox" id="snap"> Snap to grid</label><br>
+<label><input type="checkbox" id="invPoints"> Invariant points</label><br>
+<label><input type="checkbox" id="invPointLines"> Line of invariant points</label><br>
+<label><input type="checkbox" id="invLines"> Invariant lines</label>
+
+<p id="message"></p>
+
+<canvas id="canvas" width="600" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const scale = 30;
+const origin = {x:300,y:300};
+
+let A = {x:2,y:2};
+let B = {x:-2,y:-2};
+let dragging = null;
+
+// --- helpers ---
+function toCanvas(p){
+  return {x:origin.x+p.x*scale, y:origin.y-p.y*scale};
+}
+function toMath(x,y){
+  return {x:(x-origin.x)/scale, y:(origin.y-y)/scale};
+}
+
+function getM(){
+  return {a:+a.value, b:+b.value, c:+c.value, d:+d.value};
+}
+
+function det(M){
+  return M.a*M.d - M.b*M.c;
+}
+
+function isZero(M){
+  return M.a===0 && M.b===0 && M.c===0 && M.d===0;
+}
+
+function isIdentity(M){
+  return M.a===1 && M.b===0 && M.c===0 && M.d===1;
+}
+
+function transform(p,M){
+  return {x:M.a*p.x + M.b*p.y, y:M.c*p.x + M.d*p.y};
+}
+
+// --- drawing ---
+function drawGrid(){
+  ctx.strokeStyle="rgba(0,0,0,0.08)";
+  ctx.lineWidth=1;
+  ctx.setLineDash([]);
+
+  for(let i=-10;i<=10;i++){
+    let p1=toCanvas({x:i,y:-10});
+    let p2=toCanvas({x:i,y:10});
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+
+    p1=toCanvas({x:-10,y:i});
+    p2=toCanvas({x:10,y:i});
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+  }
+
+  let o=toCanvas({x:0,y:0});
+  ctx.strokeStyle="black";
+  ctx.beginPath();
+  ctx.moveTo(o.x-6,o.y); ctx.lineTo(o.x+6,o.y);
+  ctx.moveTo(o.x,o.y-6); ctx.lineTo(o.x,o.y+6);
+  ctx.stroke();
+}
+
+function drawPoint(p,color){
+  let c=toCanvas(p);
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.arc(c.x,c.y,5,0,Math.PI*2);
+  ctx.fill();
+}
+
+function drawLabel(p,text){
+  let c=toCanvas(p);
+  ctx.fillStyle="black";
+  ctx.font="14px Arial";
+  ctx.fillText(text, c.x+6, c.y-6);
+}
+
+function drawCircle(p){
+  let c=toCanvas(p);
+  ctx.strokeStyle="black";
+  ctx.beginPath();
+  ctx.arc(c.x,c.y,4,0,Math.PI*2);
+  ctx.stroke();
+}
+
+function drawLine(p1,p2,color="black",width=1,dashed=false){
+  let c1=toCanvas(p1), c2=toCanvas(p2);
+  ctx.strokeStyle=color;
+  ctx.lineWidth=width;
+
+  ctx.setLineDash(dashed ? [6,6] : []);
+
+  ctx.beginPath();
+  ctx.moveTo(c1.x,c1.y);
+  ctx.lineTo(c2.x,c2.y);
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+  ctx.lineWidth=1;
+}
+
+// --- maths ---
+function invariantPointSlope(M){
+  let A=M.a-1, B=M.b, C=M.c, D=M.d-1;
+  if(Math.abs(A*D-B*C)>1e-6) return null;
+  if(Math.abs(B)>1e-6) return -A/B;
+  if(Math.abs(C)>1e-6) return -C/D;
+  return null;
+}
+
+// detect repeated eigenvalue with infinite directions
+function isAllDirectionsCase(M){
+  let {a,b,c,d}=M;
+  return Math.abs(b)<1e-6 && Math.abs(c)<1e-6 && Math.abs(a-d)<1e-6;
+}
+
+// gcd
+function gcd(a,b){
+  while(b!==0){
+    let t=b;
+    b=a%b;
+    a=t;
+  }
+  return a;
+}
+
+// draw all invariant directions
+function drawAllDirections(){
+  let used=new Set();
+
+  for(let i=-10;i<=10;i++){
+    let boundary = [
+      {x:i,y:10},{x:i,y:-10},
+      {x:10,y:i},{x:-10,y:i}
+    ];
+
+    boundary.forEach(p=>{
+      if(p.x===0 && p.y===0) return;
+
+      let g=gcd(Math.abs(p.x),Math.abs(p.y));
+      let dx=p.x/g, dy=p.y/g;
+
+      let key=dx+","+dy;
+      if(used.has(key)) return;
+      used.add(key);
+
+      drawLine(
+        {x:-10*dx,y:-10*dy},
+        {x:10*dx,y:10*dy},
+        "green",2
+      );
+    });
+  }
+}
+
+function eigenData(M){
+  let {a,b,c,d}=M;
+  let tr=a+d, determinant=det(M);
+  let disc=tr*tr-4*determinant;
+  if(disc<0) return [];
+
+  let l1=(tr+Math.sqrt(disc))/2;
+  let l2=(tr-Math.sqrt(disc))/2;
+
+  let result=[];
+  [l1,l2].forEach(l=>{
+    if(Math.abs(b)>1e-6){
+      result.push({m:(l-a)/b, lambda:l});
+    }
+  });
+  return result;
+}
+
+function infiniteFamily(M,m){
+  let {b,d}=M;
+  if(Math.abs(b)<1e-6) return false;
+  return Math.abs(d - m*b - 1)<1e-6;
+}
+
+// --- invariants ---
+function drawInvariants(M){
+
+  // invariant points
+  if(invPoints.checked){
+    let m=invariantPointSlope(M);
+    if(m===null){
+      drawCircle({x:0,y:0});
+    } else {
+      for(let x=-10;x<=10;x++){
+        let y=m*x;
+        if(Math.abs(y-Math.round(y))<1e-6){
+          drawCircle({x:x,y:Math.round(y)});
+        }
+      }
+    }
+  }
+
+  // line of invariant points
+  if(invPointLines.checked){
+    let m=invariantPointSlope(M);
+    if(m!==null){
+      drawLine({x:-10,y:m*(-10)},{x:10,y:m*(10)},"blue",3);
+    }
+  }
+
+  // invariant lines
+  if(invLines.checked){
+
+    if(isAllDirectionsCase(M)){
+      drawAllDirections();
+      return;
+    }
+
+    let data=eigenData(M);
+
+    data.forEach(obj=>{
+      let m=obj.m;
+      let dashed=Math.abs(obj.lambda)<1e-6;
+
+      drawLine(
+        {x:-10,y:m*(-10)},
+        {x:10,y:m*(10)},
+        "green",2,dashed
+      );
+
+      if(infiniteFamily(M,m)){
+        for(let c=-10;c<=10;c++){
+          drawLine(
+            {x:-10,y:m*(-10)+c},
+            {x:10,y:m*(10)+c},
+            "green",2
+          );
+        }
+      }
+    });
+  }
+}
+
+// --- main ---
+function draw(){
+
+  let M=getM();
+
+  if(isZero(M) || isIdentity(M)){
+    canvas.style.display="none";
+    message.textContent="enter a matrix which is not the zero matrix or the identity matrix";
+    return;
+  }
+
+  canvas.style.display="block";
+  message.textContent="";
+
+  ctx.clearRect(0,0,600,600);
+  drawGrid();
+
+  let A2=transform(A,M);
+  let B2=transform(B,M);
+
+  if(mode.value==="point"){
+    drawPoint(A,"red");
+    drawPoint(A2,"pink");
+    drawLabel(A,"A");
+    drawLabel(A2,"A'");
+  }
+
+  if(mode.value==="line"){
+    drawLine(A,B,"black",2);
+    drawLine(A2,B2,"purple",2);
+
+    drawPoint(A,"red");
+    drawPoint(B,"blue");
+    drawPoint(A2,"pink");
+    drawPoint(B2,"cyan");
+
+    drawLabel(A,"A");
+    drawLabel(B,"B");
+    drawLabel(A2,"A'");
+    drawLabel(B2,"B'");
+  }
+
+  drawInvariants(M);
+}
+
+// --- interaction ---
+canvas.addEventListener("mousedown",e=>{
+  let m=toMath(e.offsetX,e.offsetY);
+  if(Math.hypot(m.x-A.x,m.y-A.y)<0.5) dragging="A";
+  if(mode.value==="line" && Math.hypot(m.x-B.x,m.y-B.y)<0.5) dragging="B";
+});
+
+canvas.addEventListener("mousemove",e=>{
+  if(!dragging) return;
+
+  let m=toMath(e.offsetX,e.offsetY);
+
+  if(snap.checked){
+    m.x=Math.round(m.x);
+    m.y=Math.round(m.y);
+  }
+
+  if(dragging==="A") A=m;
+  if(dragging==="B") B=m;
+
+  draw();
+});
+
+canvas.addEventListener("mouseup",()=>dragging=null);
+
+document.querySelectorAll("input,select").forEach(el=>{
+  el.addEventListener("input",draw);
+});
+
+draw();
+</script>
+
+</body>
+</html>
