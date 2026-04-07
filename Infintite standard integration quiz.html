@@ -21,15 +21,15 @@ button { display:block; margin:10px auto; padding:12px; width:90%; font-size:16p
 <p id="question"></p>
 <div id="answers"></div>
 <p id="feedback"></p>
-<p>Score: <span id="score">0</span></p>
+<p>Score: <span id="score">0 / 0</span></p>
 </div>
 
 <script>
-let score = 0;
+let correctCount = 0;
+let totalClicks = 0;
 
 function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-
 function gcd(a,b){ return b ? gcd(b,a%b) : a; }
 
 function frac(n,d){
@@ -44,14 +44,12 @@ function coeff(n,d=1){
     let g = gcd(Math.abs(n),Math.abs(d));
     n/=g; d/=g;
     if(d<0){ n=-n; d=-d; }
-
     if(n===d) return "";
     if(n===-d) return "-";
     if(d===1) return `${n}`;
     return `\\frac{${n}}{${d}}`;
 }
 
-// builds ax or ax+b cleanly
 function buildLinear(a,b){
     let xPart = (a===1) ? "x" : `${a}x`;
     if(b===0) return xPart;
@@ -63,32 +61,45 @@ function unique(arr){
 }
 
 function newQuestion(){
-    let type = randInt(1,6);
-    let useShift = Math.random() < 0.5;
+    let type = randInt(1,7);
 
     let a = randInt(1,4);
-    let b = useShift ? randInt(-5,5) : 0;
-
+    let b = Math.random()<0.5 ? randInt(-5,5) : 0;
     let inside = buildLinear(a,b);
 
     let q, correct, wrongs=[];
 
-    // EXP
+    // ROOT (FIXED)
     if(type===1){
+        let p = randInt(1,4);
+
+        q = `\\(\\int ${p}\\sqrt{${inside}} \\, dx\\)`;
+
+        correct = `\\(${frac(2*p,3*a)}(${inside})^{3/2} + c\\)`;
+
+        wrongs = [
+            `\\(${2*p}(${inside})^{3/2} + c\\)`,
+            `\\(${p}(${inside})^{2} + c\\)`,
+            `\\(${2*p}\\sqrt{${inside}} + c\\)`
+        ];
+    }
+
+    // EXP
+    if(type===2){
         let k = randInt(1,5);
         q = `\\(\\int ${k===1?"":k}\\mathrm{e}^{${inside}} \\, dx\\)`;
 
-        correct = `\\(${coeff(k,a)}\\mathrm{e}^{${inside}} + c\\)`;
+        correct = `\\(${frac(k,a)}\\mathrm{e}^{${inside}} + c\\)`;
 
         wrongs = [
             `\\(${k*a}\\mathrm{e}^{${inside}} + c\\)`,
             `\\(${k}\\mathrm{e}^{${inside}} + c\\)`,
-            `\\(${coeff(k,a)}\\mathrm{e}^{x} + c\\)`
+            `\\(${frac(k,a)}\\mathrm{e}^{x} + c\\)`
         ];
     }
 
     // SIN
-    if(type===2){
+    if(type===3){
         let k = randInt(1,5)*(Math.random()<0.5?-1:1);
         q = `\\(\\int ${coeff(k)}\\sin(${inside}) \\, dx\\)`;
 
@@ -102,7 +113,7 @@ function newQuestion(){
     }
 
     // TAN
-    if(type===3){
+    if(type===4){
         q = `\\(\\int \\tan(${inside}) \\, dx\\)`;
 
         correct = `\\(-${frac(1,a)}\\ln|\\cos(${inside})| + c\\)`;
@@ -114,59 +125,59 @@ function newQuestion(){
         ];
     }
 
-    // POWER
-    if(type===4){
-        let p = randInt(1,4);
-        let nType = choice(["pos","sqrt","neg"]);
-
-        if(nType==="sqrt"){
-            q = `\\(\\int ${p}\\sqrt{${inside}} \\, dx\\)`;
-            correct = `\\(${coeff(2*p,a)}\\sqrt{${inside}} + c\\)`;
-        }
-        else if(nType==="neg"){
-            q = `\\(\\int ${p}(${inside})^{-2} \\, dx\\)`;
-            correct = `\\(${coeff(-p,a)}(${inside})^{-1} + c\\)`;
-        }
-        else{
-            let n = randInt(3,5);
-            q = `\\(\\int ${p}(${inside})^{${n}} \\, dx\\)`;
-            correct = `\\(${coeff(p,a*(n+1))}(${inside})^{${n+1}} + c\\)`;
-        }
-
-        wrongs = [
-            `\\(${p}(${inside})^{2} + c\\)`,
-            `\\(${coeff(p,a)}(${inside})^{2} + c\\)`,
-            `\\(${p}(${inside}) + c\\)`
-        ];
-    }
-
-    // 1/x TYPE
+    // LOG TYPES (balanced)
     if(type===5){
         let k = randInt(1,5);
-        let m = randInt(1,4);
+        let useSimple = Math.random() < 0.2;
 
-        q = `\\(\\int \\frac{${k}}{${m}x} \\, dx\\)`;
+        if(useSimple){
+            let m = randInt(1,4);
+            q = `\\(\\int \\frac{${k}}{${m}x} \\, dx\\)`;
+            correct = `\\(${frac(k,m)}\\ln(x) + c\\)`;
 
-        correct = `\\(${frac(k,m)}\\ln(x) + c\\)`;
+            wrongs = [
+                `\\(${k}\\ln(x) + c\\)`,
+                `\\(${frac(1,m)}\\ln(x) + c\\)`,
+                `\\(${frac(k,m)}x + c\\)`
+            ];
+        } else {
+            q = `\\(\\int \\frac{${k}}{${inside}} \\, dx\\)`;
+            correct = `\\(${frac(k,a)}\\ln|${inside}| + c\\)`;
 
-        wrongs = [
-            `\\(${k}\\ln(x) + c\\)`,
-            `\\(${frac(1,m)}\\ln(x) + c\\)`,
-            `\\(${frac(k,m)}x + c\\)`
-        ];
+            wrongs = [
+                `\\(${k}\\ln|${inside}| + c\\)`,
+                `\\(${frac(1,a)}\\ln|${inside}| + c\\)`,
+                `\\(${frac(k,a)}(${inside}) + c\\)`
+            ];
+        }
     }
 
-    // CONSTANT
+    // CONSTANTS (expanded)
     if(type===6){
-        let c = choice(["7","7\\pi","7\\mathrm{e}"]);
-        q = `\\(\\int ${c} \\, dx\\)`;
+        let c = choice(["7","-\\pi","3\\mathrm{e}","1"]);
 
+        q = `\\(\\int ${c} \\, dx\\)`;
         correct = `\\(${c}x + c\\)`;
 
         wrongs = [
             `\\(${c} + c\\)`,
             `\\(${c}x^2 + c\\)`,
-            `\\(x${c}^2 + c\\)`
+            c==="-\\pi" ? `\\(-\\frac{\\pi^2}{2} + c\\)` :
+            c==="3\\mathrm{e}" ? `\\(\\frac{3\\mathrm{e}^2}{2} + c\\)` :
+            `\\(\\frac{1^2}{2} + c\\)`
+        ];
+    }
+
+    // SEC^2
+    if(type===7){
+        q = `\\(\\int \\sec^2(${inside}) \\, dx\\)`;
+
+        correct = `\\(${frac(1,a)}\\tan(${inside}) + c\\)`;
+
+        wrongs = [
+            `\\(${frac(1,a)}\\sec(${inside}) + c\\)`,
+            `\\(\\tan(${inside}) + c\\)`,
+            `\\(-${frac(1,a)}\\tan(${inside}) + c\\)`
         ];
     }
 
@@ -182,15 +193,16 @@ function newQuestion(){
         let btn = document.createElement("button");
         btn.innerHTML = ans;
         btn.onclick = function(){
+            totalClicks++;
             if(ans===correct){
                 btn.classList.add("correct");
-                score++;
+                correctCount++;
                 document.getElementById("feedback").innerText = "Correct!";
             } else {
                 btn.classList.add("wrong");
                 document.getElementById("feedback").innerText = "Incorrect";
             }
-            document.getElementById("score").innerText = score;
+            document.getElementById("score").innerText = `${correctCount} / ${totalClicks}`;
             setTimeout(newQuestion, 900);
         };
         ansDiv.appendChild(btn);
