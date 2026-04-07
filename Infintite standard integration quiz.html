@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Advanced Integration Quiz</title>
+<title>Integration Quiz</title>
 
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <style>
 body { font-family: Arial; text-align: center; background:#f5f5f5; }
-.box { background:white; padding:20px; margin:40px auto; width:720px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1);}
+.box { background:white; padding:20px; margin:40px auto; width:720px; border-radius:10px; }
 button { display:block; margin:10px auto; padding:12px; width:90%; font-size:16px; cursor:pointer; }
 .correct { background:#c8f7c5; }
 .wrong { background:#f7c5c5; }
@@ -32,136 +32,141 @@ function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 function gcd(a,b){ return b ? gcd(b,a%b) : a; }
 
-function simplify(n,d){
+function frac(n,d){
     let g = gcd(Math.abs(n),Math.abs(d));
     n/=g; d/=g;
     if(d<0){ n=-n; d=-d; }
-    return [n,d];
-}
-
-function frac(n,d){
-    let [a,b] = simplify(n,d);
-    if(b===1) return `${a}`;
-    return `\\frac{${a}}{${b}}`;
+    if(d===1) return `${n}`;
+    return `\\frac{${n}}{${d}}`;
 }
 
 function coeff(n,d=1){
-    let [a,b] = simplify(n,d);
-    if(a===b) return "";
-    if(a===-b) return "-";
-    if(b===1) return `${a}`;
-    return `\\frac{${a}}{${b}}`;
+    let g = gcd(Math.abs(n),Math.abs(d));
+    n/=g; d/=g;
+    if(d<0){ n=-n; d=-d; }
+
+    if(n===d) return "";
+    if(n===-d) return "-";
+    if(d===1) return `${n}`;
+    return `\\frac{${n}}{${d}}`;
 }
 
-function ax(a,b){
-    if(a===1) return `x ${b>=0?'+':''}${b}`;
-    return `${a}x ${b>=0?'+':''}${b}`;
+// builds ax or ax+b cleanly
+function buildLinear(a,b){
+    let xPart = (a===1) ? "x" : `${a}x`;
+    if(b===0) return xPart;
+    return `${xPart} ${b>0?'+':''}${b}`;
 }
 
-// remove duplicates
 function unique(arr){
     return [...new Set(arr)];
 }
 
 function newQuestion(){
     let type = randInt(1,6);
+    let useShift = Math.random() < 0.5;
+
+    let a = randInt(1,4);
+    let b = useShift ? randInt(-5,5) : 0;
+
+    let inside = buildLinear(a,b);
+
     let q, correct, wrongs=[];
 
-    // 1. CONSTANTS
+    // EXP
     if(type===1){
+        let k = randInt(1,5);
+        q = `\\(\\int ${k===1?"":k}\\mathrm{e}^{${inside}} \\, dx\\)`;
+
+        correct = `\\(${coeff(k,a)}\\mathrm{e}^{${inside}} + c\\)`;
+
+        wrongs = [
+            `\\(${k*a}\\mathrm{e}^{${inside}} + c\\)`,
+            `\\(${k}\\mathrm{e}^{${inside}} + c\\)`,
+            `\\(${coeff(k,a)}\\mathrm{e}^{x} + c\\)`
+        ];
+    }
+
+    // SIN
+    if(type===2){
+        let k = randInt(1,5)*(Math.random()<0.5?-1:1);
+        q = `\\(\\int ${coeff(k)}\\sin(${inside}) \\, dx\\)`;
+
+        correct = `\\(${coeff(-k,a)}\\cos(${inside}) + c\\)`;
+
+        wrongs = [
+            `\\(${coeff(k,a)}\\cos(${inside}) + c\\)`,
+            `\\(${coeff(-k)}\\cos(${inside}) + c\\)`,
+            `\\(${coeff(-k,a)}\\sin(${inside}) + c\\)`
+        ];
+    }
+
+    // TAN
+    if(type===3){
+        q = `\\(\\int \\tan(${inside}) \\, dx\\)`;
+
+        correct = `\\(-${frac(1,a)}\\ln|\\cos(${inside})| + c\\)`;
+
+        wrongs = [
+            `\\(${frac(1,a)}\\ln|\\cos(${inside})| + c\\)`,
+            `\\(\\ln|\\tan(${inside})| + c\\)`,
+            `\\(${frac(1,a)}\\tan(${inside}) + c\\)`
+        ];
+    }
+
+    // POWER
+    if(type===4){
+        let p = randInt(1,4);
+        let nType = choice(["pos","sqrt","neg"]);
+
+        if(nType==="sqrt"){
+            q = `\\(\\int ${p}\\sqrt{${inside}} \\, dx\\)`;
+            correct = `\\(${coeff(2*p,a)}\\sqrt{${inside}} + c\\)`;
+        }
+        else if(nType==="neg"){
+            q = `\\(\\int ${p}(${inside})^{-2} \\, dx\\)`;
+            correct = `\\(${coeff(-p,a)}(${inside})^{-1} + c\\)`;
+        }
+        else{
+            let n = randInt(3,5);
+            q = `\\(\\int ${p}(${inside})^{${n}} \\, dx\\)`;
+            correct = `\\(${coeff(p,a*(n+1))}(${inside})^{${n+1}} + c\\)`;
+        }
+
+        wrongs = [
+            `\\(${p}(${inside})^{2} + c\\)`,
+            `\\(${coeff(p,a)}(${inside})^{2} + c\\)`,
+            `\\(${p}(${inside}) + c\\)`
+        ];
+    }
+
+    // 1/x TYPE
+    if(type===5){
+        let k = randInt(1,5);
+        let m = randInt(1,4);
+
+        q = `\\(\\int \\frac{${k}}{${m}x} \\, dx\\)`;
+
+        correct = `\\(${frac(k,m)}\\ln(x) + c\\)`;
+
+        wrongs = [
+            `\\(${k}\\ln(x) + c\\)`,
+            `\\(${frac(1,m)}\\ln(x) + c\\)`,
+            `\\(${frac(k,m)}x + c\\)`
+        ];
+    }
+
+    // CONSTANT
+    if(type===6){
         let c = choice(["7","7\\pi","7\\mathrm{e}"]);
         q = `\\(\\int ${c} \\, dx\\)`;
+
         correct = `\\(${c}x + c\\)`;
 
         wrongs = [
             `\\(${c} + c\\)`,
-            `\\(x${c}^2 + c\\)`,
-            `\\(${c}x^2 + c\\)`
-        ];
-    }
-
-    // 2. POWER (ax+b)^n
-    if(type===2){
-        let a=randInt(1,4), b=randInt(-5,5), p=randInt(1,4);
-        let n = choice([3,4,5,-2,"1/2","-1/2"]);
-
-        let inside = `${a}x ${b>=0?'+':''}${b}`;
-
-        if(n===-2){
-            correct = `\\(${coeff(-p,a)}(${inside})^{-1} + c\\)`;
-        }
-        else if(n==="1/2"){
-            correct = `\\(${coeff(2*p,a)}\\sqrt{${inside}} + c\\)`;
-        }
-        else if(n==="-1/2"){
-            correct = `\\(${coeff(2*p,a)}(${inside})^{1/2} + c\\)`;
-        }
-        else{
-            correct = `\\(${coeff(p,a*(n+1))}(${inside})^{${n+1}} + c\\)`;
-        }
-
-        q = `\\(\\int ${p}(${inside})^{${n}} \\, dx\\)`;
-
-        wrongs = [
-            `\\(${coeff(p,n+1)}(${inside})^{${n+1}} + c\\)`,
-            `\\(${coeff(p,a)}(${inside})^{${n+1}} + c\\)`,
-            `\\(${p*n}(${inside})^{${n-1}} + c\\)`
-        ];
-    }
-
-    // 3. TAN
-    if(type===3){
-        let a=randInt(1,4);
-        q = `\\(\\int \\tan(${a}x) \\, dx\\)`;
-
-        correct = `\\(-${frac(1,a)}\\ln|\\cos(${a}x)| + c\\)`;
-
-        wrongs = [
-            `\\(${frac(1,a)}\\ln|\\cos(${a}x)| + c\\)`,
-            `\\(\\ln|\\tan(${a}x)| + c\\)`,
-            `\\(${frac(1,a)}\\tan(${a}x) + c\\)`
-        ];
-    }
-
-    // 4. COT
-    if(type===4){
-        let a=randInt(1,4);
-        q = `\\(\\int \\cot(${a}x) \\, dx\\)`;
-
-        correct = `\\(${frac(1,a)}\\ln|\\sin(${a}x)| + c\\)`;
-
-        wrongs = [
-            `\\(-${frac(1,a)}\\ln|\\sin(${a}x)| + c\\)`,
-            `\\(\\ln|\\cot(${a}x)| + c\\)`,
-            `\\(${frac(1,a)}\\cot(${a}x) + c\\)`
-        ];
-    }
-
-    // 5. SEC^2
-    if(type===5){
-        let a=randInt(1,4);
-        q = `\\(\\int \\sec^2(${a}x) \\, dx\\)`;
-
-        correct = `\\(${frac(1,a)}\\tan(${a}x) + c\\)`;
-
-        wrongs = [
-            `\\(${frac(1,a)}\\sec(${a}x) + c\\)`,
-            `\\(\\tan(${a}x) + c\\)`,
-            `\\(-${frac(1,a)}\\tan(${a}x) + c\\)`
-        ];
-    }
-
-    // 6. EXPONENTIAL
-    if(type===6){
-        let a=randInt(1,4), k=randInt(1,5);
-        q = `\\(\\int ${k}\\mathrm{e}^{${a}x} \\, dx\\)`;
-
-        correct = `\\(${frac(k,a)}\\mathrm{e}^{${a}x} + c\\)`;
-
-        wrongs = [
-            `\\(${k*a}\\mathrm{e}^{${a}x} + c\\)`,
-            `\\(${k}\\mathrm{e}^{${a}x} + c\\)`,
-            `\\(${frac(k,a)}\\mathrm{e}^{x} + c\\)`
+            `\\(${c}x^2 + c\\)`,
+            `\\(x${c}^2 + c\\)`
         ];
     }
 
