@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3D Knight Game (Enhanced)</title>
+<style>
+body { font-family: Arial; text-align: center; }
+canvas { border:1px solid #333; margin-top:20px; }
+button { margin: 3px; }
+</style>
+</head>
+<body>
+<h2>3D Knight vs Castle (9×9×9)</h2>
+<p id="info"></p>
+<div>
+  <button onclick="setView('3D')">3D</button>
+  <button onclick="setView('X')">View X</button>
+  <button onclick="setView('Y')">View Y</button>
+  <button onclick="setView('Z')">View Z</button>
+</div>
+<canvas id="canvas" width="500" height="500"></canvas>
+<div id="controls"></div>
+
+<script>
+const size = 4;
+let knight = {x:0,y:0,z:0};
+let castle = randomPos();
+let moves = 0;
+let viewMode = '3D';
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const directions = [
+"FU","FD","FL","FR","BU","BD","BL","BR",
+"UF","UB","UL","UR","DF","DB","DL","DR",
+"LF","LB","LU","LD","RF","RB","RU","RD"
+];
+
+function randomPos(){
+  return {
+    x: Math.floor(Math.random()*9)-4,
+    y: Math.floor(Math.random()*9)-4,
+    z: Math.floor(Math.random()*9)-4
+  };
+}
+
+function setView(v){
+  viewMode = v;
+  draw();
+}
+
+function project(x,y,z){
+  const scale = 25;
+  if(viewMode==='3D'){
+    return {
+      px: 250 + (x - y) * scale,
+      py: 250 + (x + y) * scale/2 - z*scale
+    };
+  }
+  if(viewMode==='X'){ // look along x-axis → yz plane
+    return {
+      px: 250 + y*scale,
+      py: 250 - z*scale
+    };
+  }
+  if(viewMode==='Y'){ // look along y-axis → xz plane
+    return {
+      px: 250 + x*scale,
+      py: 250 - z*scale
+    };
+  }
+  if(viewMode==='Z'){ // look along z-axis → xy plane
+    return {
+      px: 250 + x*scale,
+      py: 250 + y*scale
+    };
+  }
+}
+
+function drawAxes(){
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 1;
+
+  const axes = [
+    [[-size,0,0],[size,0,0]],
+    [[0,-size,0],[0,size,0]],
+    [[0,0,-size],[0,0,size]]
+  ];
+
+  axes.forEach(a=>{
+    const p1 = project(...a[0]);
+    const p2 = project(...a[1]);
+    ctx.beginPath();
+    ctx.moveTo(p1.px,p1.py);
+    ctx.lineTo(p2.px,p2.py);
+    ctx.stroke();
+  });
+}
+
+function drawCube(){
+  ctx.strokeStyle = "#aaa";
+
+  const corners = [];
+  for(let x of [-size,size]){
+    for(let y of [-size,size]){
+      for(let z of [-size,size]){
+        corners.push([x,y,z]);
+      }
+    }
+  }
+
+  function edge(a,b){
+    const p1 = project(...a);
+    const p2 = project(...b);
+    ctx.beginPath();
+    ctx.moveTo(p1.px,p1.py);
+    ctx.lineTo(p2.px,p2.py);
+    ctx.stroke();
+  }
+
+  // draw edges of cube
+  for(let c1 of corners){
+    for(let c2 of corners){
+      const diff = Math.abs(c1[0]-c2[0]) + Math.abs(c1[1]-c2[1]) + Math.abs(c1[2]-c2[2]);
+      if(diff === size*2){ // connect edges
+        if((c1[0]===c2[0] && c1[1]===c2[1]) ||
+           (c1[0]===c2[0] && c1[2]===c2[2]) ||
+           (c1[1]===c2[1] && c1[2]===c2[2])){
+          edge(c1,c2);
+        }
+      }
+    }
+  }
+}
+
+function drawPoint(x,y,z,color,label){
+  const p = project(x,y,z);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(p.px, p.py, 6, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = "black";
+  ctx.fillText(label, p.px+8, p.py);
+}
+
+function draw(){
+  ctx.clearRect(0,0,500,500);
+
+  drawCube();
+  drawAxes();
+
+  drawPoint(knight.x, knight.y, knight.z, "blue", "♞");
+  drawPoint(castle.x, castle.y, castle.z, "red", "♜");
+
+  document.getElementById("info").innerText =
+    `Moves: ${moves} | Knight: (${knight.x},${knight.y},${knight.z}) | Castle: (${castle.x},${castle.y},${castle.z}) | View: ${viewMode}`;
+}
+
+function moveKnight(code){
+  let dx=0, dy=0, dz=0;
+
+  function applyMove(c, big=true){
+    const val = big ? 2 : 1;
+    if(c==='F') dx += val;
+    if(c==='B') dx -= val;
+    if(c==='L') dy -= val;
+    if(c==='R') dy += val;
+    if(c==='U') dz += val;
+    if(c==='D') dz -= val;
+  }
+
+  applyMove(code[0], true);
+  applyMove(code[1], false);
+
+  const nx = knight.x + dx;
+  const ny = knight.y + dy;
+  const nz = knight.z + dz;
+
+  if(Math.abs(nx)>size || Math.abs(ny)>size || Math.abs(nz)>size){
+    return;
+  }
+
+  knight = {x:nx,y:ny,z:nz};
+  moves++;
+
+  if(knight.x===castle.x && knight.y===castle.y && knight.z===castle.z){
+    showWin();
+    return;
+  }
+
+  draw();
+}
+
+function showWin(){
+  document.body.innerHTML = "<h1>🟡🔵⚫🔴🟢</h1><p>Level Complete in "+moves+" moves!</p><button onclick='location.reload()'>Next Level</button>";
+}
+
+function createControls(){
+  const controls = document.getElementById("controls");
+  directions.forEach(d=>{
+    const btn = document.createElement("button");
+    btn.innerText = d;
+    btn.onclick = ()=>moveKnight(d);
+    controls.appendChild(btn);
+  });
+}
+
+createControls();
+draw();
+</script>
+</body>
+</html>
