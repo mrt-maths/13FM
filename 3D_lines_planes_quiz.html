@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Lines and Planes Quiz</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+      color: #222;
+    }
+
+    .main {
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    button, select, input {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .question {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 28px;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .option {
+      min-height: 160px;
+      border: 2px solid #d7d7d7;
+      border-radius: 16px;
+      padding: 16px;
+      background: #fafafa;
+      cursor: pointer;
+      transition: 0.2s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .option:hover {
+      border-color: #666;
+      transform: scale(1.01);
+    }
+
+    .option.correct {
+      background: #ddf6e3;
+      border-color: #1b8f3f;
+    }
+
+    .option.wrong {
+      background: #fde5e5;
+      border-color: #c62828;
+    }
+
+    .score {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .celebration {
+      text-align: center;
+      font-size: 2rem;
+      margin-top: 24px;
+      color: #1b8f3f;
+      font-weight: bold;
+    }
+
+    .math-text {
+      font-size: 1.1rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 900px) {
+      .options-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+
+<div class="main">
+  <h1>3D Lines and Planes Quiz</h1>
+
+  <div class="topbar">
+    <button onclick="setMode('solo')">Solo Mode</button>
+    <button onclick="setMode('class')">Class Mode</button>
+
+    <div id="classControls" class="hidden">
+      Pupils:
+      <input type="number" id="pupilCount" value="20" min="2" max="40">
+      <button onclick="newClassQuestion()">Start Class Round</button>
+    </div>
+
+    <button onclick="newSoloQuestion()">Next Question</button>
+  </div>
+
+  <div class="panel">
+    <div class="question" id="question"></div>
+
+    <div class="options-grid" id="options"></div>
+
+    <div class="score" id="score">Score: 0 / 0</div>
+
+    <div class="celebration hidden" id="celebration">
+      🎉 Excellent! All correct selections found! 🎉
+    </div>
+  </div>
+</div>
+
+<script>
+
+let score = 0;
+let total = 0;
+let mode = 'solo';
+let classCorrect = 0;
+let classSelected = 0;
+let classAttempts = 0;
+
+function randInt(a,b){
+  return Math.floor(Math.random()*(b-a+1))+a;
+}
+
+function vec(){
+  return [randInt(-5,5),randInt(-5,5),randInt(-5,5)];
+}
+
+function nonZeroVec(){
+  let v;
+  do {
+    v = vec();
+  } while(v[0]===0 && v[1]===0 && v[2]===0);
+  return v;
+}
+
+function dot(a,b){
+  return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+}
+
+function cross(a,b){
+  return [
+    a[1]*b[2]-a[2]*b[1],
+    a[2]*b[0]-a[0]*b[2],
+    a[0]*b[1]-a[1]*b[0]
+  ];
+}
+
+function equal(a,b){
+  return a.every((x,i)=>x===b[i]);
+}
+
+function vecLatex(v){
+  return `\\begin{pmatrix}${v[0]}\\\\${v[1]}\\\\${v[2]}\\end{pmatrix}`;
+}
+
+function makeLineVector(P){
+  const d = nonZeroVec();
+  const t = randInt(-3,3);
+  const A = [P[0]-t*d[0],P[1]-t*d[1],P[2]-t*d[2]];
+
+  return {
+    text:`$$\\mathbf{r}=${vecLatex(A)}+\\lambda ${vecLatex(d)}$$`,
+    valid:true
+  };
+}
+
+function makeCartesianLine(P){
+  const d = nonZeroVec();
+  const t = randInt(-3,3);
+  const A = [P[0]-t*d[0],P[1]-t*d[1],P[2]-t*d[2]];
+
+  function fracPart(variable,a,dv){
+    const top = a>=0 ? `${variable}-${a}` : `${variable}+${Math.abs(a)}`;
+    return `\\frac{${top}}{${dv}}`; 
+  }
+
+  const parts=[];
+
+  if(d[0]!==0) parts.push(fracPart('x',A[0],d[0]));
+  else parts.push(`x=${A[0]}`);
+
+  if(d[1]!==0) parts.push(fracPart('y',A[1],d[1]));
+  else parts.push(`y=${A[1]}`);
+
+  if(d[2]!==0) parts.push(fracPart('z',A[2],d[2]));
+  else parts.push(`z=${A[2]}`);
+
+  return {
+    text:`$$${parts.join('=')}$$`,
+    valid:true
+  };
+}
+
+function makeCartesianPlane(P){
+  const n = nonZeroVec();
+  const d = dot(n,P);
+
+  return {
+    text:`$$${n[0]}x${n[1]>=0?'+':''}${n[1]}y${n[2]>=0?'+':''}${n[2]}z=${d}$$`,
+    valid:true
+  };
+}
+
+function makeVectorPlane(P){
+  const d1 = nonZeroVec();
+  let d2;
+
+  do {
+    d2 = nonZeroVec();
+  } while(equal(cross(d1,d2),[0,0,0]));
+
+  const l = randInt(-2,2);
+  const m = randInt(-2,2);
+
+  const A = [
+    P[0]-l*d1[0]-m*d2[0],
+    P[1]-l*d1[1]-m*d2[1],
+    P[2]-l*d1[2]-m*d2[2]
+  ];
+
+  return {
+    text:`$$\\mathbf{r}=${vecLatex(A)}+\\lambda ${vecLatex(d1)}+\\mu ${vecLatex(d2)}$$`,
+    valid:true
+  };
+}
+
+function makeScalarProductPlane(P){
+  const a = nonZeroVec();
+  const b = dot(P,a);
+
+  return {
+    text:`$$\\mathbf{r}\\cdot ${vecLatex(a)}=${b}$$`,
+    valid:true
+  };
+}
+
+function makeLineAB(P){
+  const d = nonZeroVec();
+  const t1 = randInt(-2,2);
+  const t2 = randInt(3,5);
+
+  const A = [P[0]-t1*d[0],P[1]-t1*d[1],P[2]-t1*d[2]];
+  const B = [P[0]-t2*d[0],P[1]-t2*d[1],P[2]-t2*d[2]];
+
+  return {
+    text:`$$\\text{The line through }(${A.join(',')})\\text{ and }(${B.join(',')})$$`,
+    valid:true
+  };
+}
+
+function makeLineParallel(P){
+  const d = nonZeroVec();
+  const t = randInt(-3,3);
+  const A = [P[0]-t*d[0],P[1]-t*d[1],P[2]-t*d[2]];
+
+  return {
+    text:`$$\\text{The line through }(${A.join(',')})\\text{ parallel to }${vecLatex(d)}$$`,
+    valid:true
+  };
+}
+
+function makePlaneABC(P){
+  const d1 = nonZeroVec();
+  let d2;
+
+  do {
+    d2 = nonZeroVec();
+  } while(equal(cross(d1,d2),[0,0,0]));
+
+  const A = P;
+  const B = [P[0]+d1[0],P[1]+d1[1],P[2]+d1[2]];
+  const C = [P[0]+d2[0],P[1]+d2[1],P[2]+d2[2]];
+
+  return {
+    text:`$$\\text{The plane through }(${A.join(',')}),(${B.join(',')}),(${C.join(',')})$$`,
+    valid:true
+  };
+}
+
+function makePlanePerp(P){
+  const n = nonZeroVec();
+
+  return {
+    text:`$$\\text{The plane through }(${P.join(',')})\\text{ perpendicular to }${vecLatex(n)}$$`,
+    valid:true
+  };
+}
+
+const soloGenerators = [
+  makeLineVector,
+  makeCartesianLine,
+  makeCartesianPlane,
+  makeVectorPlane,
+  makeScalarProductPlane,
+  makeLineAB,
+  makeLineParallel,
+  makePlaneABC,
+  makePlanePerp
+];
+
+const classGenerators = [
+  makeLineVector,
+  makeCartesianLine,
+  makeCartesianPlane,
+  makeVectorPlane,
+  makeScalarProductPlane,
+  makeLineAB,
+  makeLineParallel,
+  makePlaneABC,
+  makePlanePerp
+];
+
+function randomWrong(P){
+  const shifted = [P[0]+randInt(1,3),P[1]+randInt(1,3),P[2]+randInt(1,3)];
+  const active = mode==='class' ? classGenerators : soloGenerators;
+  const g = active[randInt(0,active.length-1)](shifted);
+  g.valid = false;
+  return g;
+}
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function renderOptions(options, multi=false){
+  const div = document.getElementById('options');
+  div.innerHTML = '';
+
+  document.getElementById('celebration').classList.add('hidden');
+
+  if(mode==='class'){
+    div.style.gridTemplateColumns = '1fr';
+  }
+  else {
+    div.style.gridTemplateColumns = '1fr 1fr';
+  }
+
+  options.forEach((opt,index)=>{
+    const el = document.createElement('div');
+    el.className = 'option math-text';
+
+    if(mode==='solo'){
+      el.innerHTML = opt.text;
+
+      el.onclick = ()=>{
+        if(el.classList.contains('correct') || el.classList.contains('wrong')) return;
+
+        total++;
+
+        if(opt.valid){
+          score++;
+          el.classList.add('correct');
+        }
+        else {
+          el.classList.add('wrong');
+          [...div.children].forEach((child,i)=>{
+            if(options[i].valid) child.classList.add('correct');
+          });
+        }
+
+        document.getElementById('score').textContent = `Score: ${score} / ${total}`;
+      };
+    }
+    else {
+      el.innerHTML = `
+        <div style="width:100%">
+          <div>${opt.text}</div>
+          <div style="margin-top:16px; display:flex; justify-content:center; gap:12px;">
+            <button class="yesBtn">Yes</button>
+            <button class="noBtn">No</button>
+          </div>
+        </div>
+      `;
+
+      opt.userAnswer = null;
+
+      const yesBtn = el.querySelector('.yesBtn');
+      const noBtn = el.querySelector('.noBtn');
+
+      yesBtn.onclick = (e)=>{
+        e.stopPropagation();
+        opt.userAnswer = true;
+        yesBtn.style.background = '#1b8f3f';
+        noBtn.style.background = '#2563eb';
+        checkClassReady(options);
+      };
+
+      noBtn.onclick = (e)=>{
+        e.stopPropagation();
+        opt.userAnswer = false;
+        noBtn.style.background = '#c62828';
+        yesBtn.style.background = '#2563eb';
+        checkClassReady(options);
+      };
+    }
+
+    div.appendChild(el);
+  });
+
+  if(mode==='class'){
+    const existingButton = document.getElementById('checkButton');
+    if(existingButton) existingButton.remove();
+
+    const existingFeedback = document.getElementById('feedbackText');
+    if(existingFeedback) existingFeedback.remove();
+
+    const checkButton = document.createElement('button');
+    checkButton.id = 'checkButton';
+    checkButton.textContent = 'Check Answers';
+    checkButton.style.display = 'none';
+    checkButton.style.margin = '20px auto';
+
+    const feedback = document.createElement('div');
+    feedback.id = 'feedbackText';
+    feedback.style.textAlign = 'center';
+    feedback.style.fontSize = '1.2rem';
+    feedback.style.fontWeight = 'bold';
+    feedback.style.marginTop = '18px';
+
+    checkButton.onclick = ()=>{
+      const cards = [...div.children].filter(c=>c.classList.contains('option'));
+
+      let correctCount = 0;
+
+      options.forEach((opt)=>{
+        if(opt.userAnswer===opt.valid){
+          correctCount++;
+        }
+      });
+
+      if(classAttempts===0 && correctCount < options.length){
+        feedback.textContent = `${correctCount} out of ${options.length} correct. You may now correct two answers.`;
+        classAttempts = 1;
+      }
+      else {
+        options.forEach((opt,i)=>{
+          const card = cards[i];
+
+          if(opt.userAnswer===opt.valid){
+            card.classList.add('correct');
+          }
+          else {
+            card.classList.add('wrong');
+          }
+        });
+
+        if(correctCount===options.length){
+          feedback.textContent = `Perfect score: ${correctCount} out of ${options.length}`;
+          document.getElementById('celebration').classList.remove('hidden');
+        }
+        else {
+          feedback.textContent = `Final score: ${correctCount} out of ${options.length}`;
+        }
+      }
+    };
+
+    div.parentElement.appendChild(checkButton);
+    div.parentElement.appendChild(feedback);
+  }
+
+  if(window.MathJax && MathJax.typeset){
+    MathJax.typeset();
+  }
+}
+
+function checkClassReady(options){
+  const ready = options.every(o=>o.userAnswer!==null);
+  const btn = document.getElementById('checkButton');
+
+  if(btn){
+    btn.style.display = ready ? 'block' : 'none';
+  }
+}
+
+function newSoloQuestion(){
+  mode = 'solo';
+
+  document.getElementById('question').innerHTML = '';
+
+  const P = vec();
+
+  document.getElementById('question').innerHTML =
+    `Point: $P(${P[0]},${P[1]},${P[2]})$<br><br>Select the equation or description satisfied by the point.`;
+
+  const correct = soloGenerators[randInt(0,soloGenerators.length-1)](P);
+  const options = [correct];
+
+  while(options.length<4){
+    options.push(randomWrong(P));
+  }
+
+  shuffle(options);
+
+  renderOptions(options);
+}
+
+function newClassQuestion(){
+  mode = 'class';
+  classAttempts = 0;
+
+  const pupils = parseInt(document.getElementById('pupilCount').value);
+
+  const P = vec();
+
+  document.getElementById('question').innerHTML =
+    `Point: $P(${P[0]},${P[1]},${P[2]})$<br><br>Select ALL equations or descriptions satisfied by the point.`;
+
+  const options = [];
+
+  classCorrect = randInt(1,pupils-1);
+  classSelected = 0;
+
+  const usedWordForms = new Set();
+
+  for(let i=0;i<classCorrect;i++){
+    let option;
+    let generator;
+
+    do {
+      generator = classGenerators[randInt(0,classGenerators.length-1)];
+      option = generator(P);
+
+      const isWordForm = option.text.includes('\text');
+
+      if(!isWordForm || !usedWordForms.has(generator.name)){
+        if(isWordForm){
+          usedWordForms.add(generator.name);
+        }
+        break;
+      }
+
+    } while(true);
+
+    options.push(option);
+  }
+
+  while(options.length<pupils){
+    options.push(randomWrong(P));
+  }
+
+  shuffle(options);
+
+  renderOptions(options,true);
+}
+
+function setMode(m){
+  mode = m;
+
+  if(m==='solo'){
+    document.getElementById('classControls').classList.add('hidden');
+    newSoloQuestion();
+  }
+  else {
+    document.getElementById('classControls').classList.remove('hidden');
+  }
+}
+
+newSoloQuestion();
+
+</script>
+
+</body>
+</html>
