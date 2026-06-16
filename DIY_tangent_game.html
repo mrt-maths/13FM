@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tangent Tracing Game</title>
+<style>
+body { margin:0; background:#eee; font-family:sans-serif; }
+#ui { padding:10px; }
+canvas { display:block; margin:auto; background:#fff; }
+input { width:80px; }
+</style>
+</head>
+<body>
+
+<div id="ui"></div>
+<canvas id="c" width="900" height="450"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const ui = document.getElementById("ui");
+
+let params = new URLSearchParams(location.search);
+let playMode = params.has("f");
+
+// ---------- STATE ----------
+let f = (x,y)=>x-y;
+let xmin=-2, xmax=8, ymin=-5, ymax=5;
+let y0=0;
+
+let solution=[];
+let drawing=[];
+
+let draggingStart=false;
+let started=false;
+let finished=false;
+
+// ---------- SAFE PARSER ----------
+function parseFunc(str){
+  str = str
+    .replace(/\^/g, "**")
+    .replace(/sin/g, "Math.sin")
+    .replace(/cos/g, "Math.cos")
+    .replace(/tan/g, "Math.tan")
+    .replace(/exp/g, "Math.exp")
+    .replace(/log/g, "Math.log");
+
+  return new Function("x","y","return "+str);
+}
+
+// ---------- COORD ----------
+function xToScreen(x){ return (x-xmin)/(xmax-xmin)*canvas.width; }
+function yToScreen(y){ return canvas.height-(y-ymin)/(ymax-ymin)*canvas.height; }
+function screenToY(py){ return ymin+(canvas.height-py)/canvas.height*(ymax-ymin); }
+
+// ---------- RK4 SOLVER (FIXED + SAFE) ----------
+function computeSolution(){
+  solution=[];
+
+  let x=xmin;
+  let y=y0;
+
+  let steps=100;
+  let h=(xmax-xmin)/steps;
+
+  for(let i=0;i<=steps;i++){
+
+    if(!isFinite(y) || Math.abs(y) > 1e6) break;
+
+    solution.push({x,y});
+
+    let k1=f(x,y);
+    let k2=f(x+h/2,y+h*k1/2);
+    let k3=f(x+h/2,y+h*k2/2);
+    let k4=f(x+h,y+h*k3);
+
+    let dy = h*(k1+2*k2+2*k3+k4)/6;
+
+    if(!isFinite(dy)) break;
+
+    y+=dy;
+    x+=h;
+  }
+}
+
+// ---------- DRAW ----------
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawSlopeField();
+  if(!playMode || finished) drawSolution();
+  drawUser();
+  drawStart();
+}
+
+// ---------- SLOPE FIELD ----------
+function drawSlopeField(){
+  ctx.strokeStyle="black";
+
+  let sx=canvas.width/(xmax-xmin);
+  let sy=canvas.height/(ymax-ymin);
+
+  for(let x=0;x<canvas.width;x+=30){
+    for(let y=0;y<canvas.height;y+=30){
+
+      let wx=xmin+(x/canvas.width)*(xmax-xmin);
+      let wy=ymin+((canvas.height-y)/canvas.height)*(ymax-ymin);
+
+      let m=f(wx,wy);
+      if(!isFinite(m)) continue;
+
+      let m_screen=-m*(sy/sx);
+
+      let len=12;
+      let dx=len/Math.sqrt(1+m_screen*m_screen);
+      let dy=m_screen*dx;
+
+      ctx.beginPath();
+      ctx.moveTo(x-dx,y-dy);
+      ctx.lineTo(x+dx,y+dy);
+      ctx.stroke();
+    }
+  }
+}
+
+// ---------- SOLUTION ----------
+function drawSolution(){
+  if(solution.length<2) return;
+
+  ctx.strokeStyle="red";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+
+  solution.forEach((p,i)=>{
+    let sx=xToScreen(p.x);
+    let sy=yToScreen(p.y);
+    if(i===0) ctx.moveTo(sx,sy);
+    else ctx.lineTo(sx,sy);
+  });
+
+  ctx.stroke();
+}
+
+// ---------- USER ----------
+function drawUser(){
+  ctx.strokeStyle="blue";
+  ctx.beginPath();
+  drawing.forEach((p,i)=>{
+    if(i===0) ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  });
+  ctx.stroke();
+}
+
+// ---------- START ----------
+function drawStart(){
+  let sx=xToScreen(xmin);
+  let sy=yToScreen(y0);
+
+  ctx.fillStyle="blue";
+  ctx.beginPath();
+  ctx.arc(sx,sy,6,0,Math.PI*2);
+  ctx.fill();
+}
+
+// ---------- INPUT ----------
+canvas.onmousedown=e=>{
+  if(playMode){
+    if(finished) return;
+    started=true;
+    drawing=[{x:e.offsetX,y:e.offsetY}];
+    setTimeout(endAttempt,5000);
+    return;
+  }
+
+  let sx=xToScreen(xmin);
+  let sy=yToScreen(y0);
+
+  if(Math.hypot(e.offsetX-sx,e.offsetY-sy)<10){
+    draggingStart=true;
+  }
+};
+
+canvas.onmousemove=e=>{
+  if(draggingStart){
+    y0=screenToY(e.offsetY);
+    computeSolution();
+    return;
+  }
+
+  if(playMode && started && !finished){
+    drawing.push({x:e.offsetX,y:e.offsetY});
+  }
+};
+
+canvas.onmouseup=()=> draggingStart=false;
+
+// ---------- END ----------
+function endAttempt(){
+  finished=true;
+  score();
+}
+
+// ---------- SCORE ----------
+function score(){
+  let err=0,count=0;
+
+  drawing.forEach(p=>{
+    let wx=xmin+(p.x/canvas.width)*(xmax-xmin);
+
+    let closest=solution.reduce((a,b)=>{
+      return Math.abs(b.x-wx)<Math.abs(a.x-wx)?b:a;
+    });
+
+    let ty=yToScreen(closest.y);
+    err+=Math.abs(p.y-ty);
+    count++;
+  });
+
+  let avg=err/(count||1);
+  let score=Math.max(0,100-avg/3);
+
+  ui.innerHTML="<b>Score: "+score.toFixed(1)+"%</b>";
+}
+
+// ---------- BUILDER ----------
+function setupBuilder(){
+  ui.innerHTML=`
+  f(x,y)= <input id="func" value="x-y">
+  xmin <input id="xmin" value="-2">
+  xmax <input id="xmax" value="8">
+  ymin <input id="ymin" value="-5">
+  ymax <input id="ymax" value="5">
+  <br>(Drag blue point for y₀)
+  <button onclick="applySettings()">Apply</button>
+  <button onclick="share()">Share</button>
+  `;
+}
+
+function applySettings(){
+  f=parseFunc(document.getElementById("func").value);
+
+  xmin=parseFloat(document.getElementById("xmin").value);
+  xmax=parseFloat(document.getElementById("xmax").value);
+  ymin=parseFloat(document.getElementById("ymin").value);
+  ymax=parseFloat(document.getElementById("ymax").value);
+
+  computeSolution();
+}
+
+function share(){
+  let params=new URLSearchParams({
+    f:document.getElementById("func").value,
+    xmin,xmax,ymin,ymax,y0
+  });
+
+  let url=location.origin+location.pathname+"?"+params;
+  prompt("Share link:",url);
+}
+
+// ---------- PLAY ----------
+function setupPlay(){
+  f=parseFunc(params.get("f"));
+  xmin=parseFloat(params.get("xmin"));
+  xmax=parseFloat(params.get("xmax"));
+  ymin=parseFloat(params.get("ymin"));
+  ymax=parseFloat(params.get("ymax"));
+  y0=parseFloat(params.get("y0"));
+
+  ui.innerHTML="<b>Trace curve (5 seconds)</b>";
+}
+
+// ---------- INIT ----------
+if(playMode) setupPlay();
+else setupBuilder();
+
+computeSolution();
+
+function loop(){
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+</script>
+
+</body>
+</html>
