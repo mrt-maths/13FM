@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tangent Field Tracing</title>
+<style>
+    body { margin: 0; font-family: Arial; background: #f7f7f7; }
+    canvas { display: block; margin: auto; background: white; }
+    #info { text-align: center; padding: 10px; }
+    button { margin: 5px; padding: 8px 16px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="info">
+    Drag from the red point following the slope field.<br>
+    Score: <span id="score">0</span>%<br>
+    <button onclick="resetTrace()">Reset Attempt</button>
+    <button onclick="finishAttempt()">Finish Attempt</button>
+    <button onclick="newAttempt()">New Attempt</button>
+</div>
+
+<canvas id="canvas" width="900" height="500"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const W = canvas.width;
+const H = canvas.height;
+
+const xMin = -5, xMax = 5;
+const yMin = -3, yMax = 3;
+
+const xScale = W / (xMax - xMin);
+const yScale = H / (yMax - yMin);
+
+function toCanvas(x, y) {
+    return { x: (x - xMin)*xScale, y: H - (y - yMin)*yScale };
+}
+
+function fromCanvas(px, py) {
+    return { x: px/xScale + xMin, y: (H - py)/yScale + yMin };
+}
+
+// ----------------------
+// RANDOM DE WITH SIN TERM
+// ----------------------
+
+function randomDE() {
+
+    let baseOptions = [
+        (x,y) => (x+y)/10,
+        (x,y) => (x+1)*y/30,
+        (x,y) => (x*y)/25,
+        (x,y) => Math.tanh(Math.sin(x)+Math.cos(y))*2,
+        (x,y) => Math.tanh(Math.sin(x+y))*2,
+        (x,y) => Math.tanh(Math.cos(x)-y/2)*2
+    ];
+
+    let base = baseOptions[Math.floor(Math.random()*baseOptions.length)];
+
+    let k = Math.random(); // 0<k<1
+
+    let sinType = Math.floor(Math.random()*3);
+
+    let perturb;
+    if (sinType === 0) perturb = (x,y) => k*Math.sin(x);
+    else if (sinType === 1) perturb = (x,y) => k*Math.sin(y);
+    else perturb = (x,y) => k*Math.sin(x+y);
+
+    return (x,y) => base(x,y) + perturb(x,y);
+}
+
+// ----------------------
+// SOLVER
+// ----------------------
+
+function solveODE(func, x0, y0, step=0.05) {
+
+    let pts = [];
+    let x = x0, y = y0;
+
+    while (x <= xMax) {
+
+        if (y < yMin || y > yMax) break;
+
+        pts.push({x,y});
+
+        let k1 = func(x,y);
+        let k2 = func(x+step/2, y+k1*step/2);
+        let k3 = func(x+step/2, y+k2*step/2);
+        let k4 = func(x+step, y+k3*step);
+
+        y += (step/6)*(k1+2*k2+2*k3+k4);
+        x += step;
+    }
+
+    return pts;
+}
+
+// ----------------------
+// VALID SYSTEM
+// ----------------------
+
+function generateValidSystem() {
+
+    for (let attempt=0; attempt<20; attempt++) {
+
+        let baseF = randomDE();
+
+        let startCandidate = {
+            x: xMin + 0.5,
+            y: Math.random()*(yMax-yMin)+yMin
+        };
+
+        let scale = 1;
+
+        for (let i=0; i<5; i++) {
+
+            let fTest = (x,y) => baseF(x,y)/scale;
+            let sol = solveODE(fTest, startCandidate.x, startCandidate.y);
+
+            let valid = sol.length > 50 &&
+                        sol.every(p => p.y >= yMin && p.y <= yMax);
+
+            if (valid) {
+                return { f: fTest, start: startCandidate, solution: sol };
+            }
+
+            scale *= 1.5;
+        }
+    }
+
+    let safeF = (x,y) => (x+y)/15;
+    let safeStart = {x: xMin+0.5, y: 0};
+
+    return {
+        f: safeF,
+        start: safeStart,
+        solution: solveODE(safeF, safeStart.x, safeStart.y)
+    };
+}
+
+// ----------------------
+// STATE
+// ----------------------
+
+let f, start, solution;
+let userPath = [];
+let dragging = false;
+
+// ----------------------
+// DRAW
+// ----------------------
+
+function drawField() {
+
+    ctx.strokeStyle = "#bbb";
+
+    for (let x=xMin; x<=xMax; x+=0.5) {
+        for (let y=yMin; y<=yMax; y+=0.5) {
+
+            let slope = f(x,y);
+            slope = Math.max(-2, Math.min(2, slope));
+
+            let len = 0.3;
+            let dx = len / Math.sqrt(1+slope*slope);
+            let dy = slope * dx;
+
+            let p1 = toCanvas(x-dx, y-dy);
+            let p2 = toCanvas(x+dx, y+dy);
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x,p1.y);
+            ctx.lineTo(p2.x,p2.y);
+            ctx.stroke();
+        }
+    }
+}
+
+function draw() {
+
+    ctx.clearRect(0,0,W,H);
+
+    drawField();
+
+    // user path
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    userPath.forEach((p,i)=>{
+        let c = toCanvas(p.x,p.y);
+        if(i===0) ctx.moveTo(c.x,c.y);
+        else ctx.lineTo(c.x,c.y);
+    });
+    ctx.stroke();
+
+    // start point
+    let c = toCanvas(start.x,start.y);
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,6,0,2*Math.PI);
+    ctx.fill();
+}
+
+// ----------------------
+// IMPROVED SCORING
+// ----------------------
+
+function computeScore() {
+
+    if (userPath.length < 2) return 0;
+
+    // accuracy
+    let error = 0;
+
+    userPath.forEach(p => {
+        let closest = solution.reduce((a,b)=>
+            Math.abs(b.x - p.x) < Math.abs(a.x - p.x) ? b : a
+        );
+        error += Math.abs(p.y - closest.y);
+    });
+
+    let avgError = error / userPath.length;
+    let accuracy = Math.max(0, 1 - avgError);
+
+    // completion
+    let maxX = Math.max(...userPath.map(p => p.x));
+    let completion = (maxX - start.x) / (xMax - start.x);
+    completion = Math.max(0, Math.min(1, completion));
+
+    // optional minimum threshold
+    if (completion < 0.2) return 0;
+
+    return Math.round(100 * accuracy * completion);
+}
+
+// ----------------------
+// CONTROLS
+// ----------------------
+
+function finishAttempt() {
+
+    dragging = false;
+
+    ctx.strokeStyle = "green";
+    ctx.lineWidth = 3;
+
+    ctx.beginPath();
+    solution.forEach((p,i)=>{
+        let c = toCanvas(p.x,p.y);
+        if(i===0) ctx.moveTo(c.x,c.y);
+        else ctx.lineTo(c.x,c.y);
+    });
+    ctx.stroke();
+
+    document.getElementById("score").innerText = computeScore();
+}
+
+function resetTrace() {
+    userPath = [];
+    dragging = false;
+    document.getElementById("score").innerText = "0";
+    draw();
+}
+
+function newAttempt() {
+
+    let sys = generateValidSystem();
+
+    f = sys.f;
+    start = sys.start;
+    solution = sys.solution;
+
+    resetTrace();
+}
+
+// ----------------------
+// MOUSE
+// ----------------------
+
+canvas.addEventListener("mousedown", e => {
+    let rect = canvas.getBoundingClientRect();
+    let p = fromCanvas(e.clientX-rect.left, e.clientY-rect.top);
+
+    if (Math.hypot(p.x-start.x, p.y-start.y) < 0.5) {
+        dragging = true;
+        userPath = [start];
+    }
+});
+
+canvas.addEventListener("mousemove", e => {
+
+    if (!dragging) return;
+
+    let rect = canvas.getBoundingClientRect();
+    let p = fromCanvas(e.clientX-rect.left, e.clientY-rect.top);
+
+    p.x = Math.max(xMin, Math.min(xMax,p.x));
+    p.y = Math.max(yMin, Math.min(yMax,p.y));
+
+    userPath.push(p);
+
+    draw();
+});
+
+canvas.addEventListener("mouseup", () => dragging = false);
+
+// start
+newAttempt();
+
+</script>
+
+</body>
+</html>
