@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Teacher – Dashboard</title>
+  <style>
+    :root { --border:#ddd; --muted:#666; --bg:#fafafa; --blue:#e7f2ff; }
+    body { font-family: system-ui, Arial; margin: 0; }
+    header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: #fff; display:flex; gap: 12px; align-items:center; flex-wrap: wrap; }
+    header h1 { margin: 0; font-size: 18px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .wrap { display:grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 56px); }
+    aside { border-right: 1px solid var(--border); padding: 14px; background: #fff; }
+    main { padding: 14px; background: var(--bg); }
+    .card { border:1px solid var(--border); border-radius: 14px; padding: 14px; background:#fff; }
+    .pupil { padding: 8px 10px; border: 1px solid #eee; border-radius: 12px; margin: 8px 0; display:flex; justify-content: space-between; gap: 10px; align-items:center; }
+    .pupilLeft { display:flex; flex-direction: column; gap: 2px; }
+    .pupilName { font-weight: 750; display:flex; align-items:center; gap: 8px; }
+    .hand { font-size: 18px; cursor:pointer; user-select:none; }
+    .beh { font-size: 18px; opacity: .35; cursor: pointer; user-select:none; }
+    .beh.on { opacity: 1; }
+    .pillgrid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .pill { border:1px solid var(--border); border-radius: 16px; padding: 12px; background: #fff; }
+    .pill h3 { margin: 0 0 10px; font-size: 16px; display:flex; align-items:center; justify-content: space-between; gap: 10px; }
+    .tiny { font-size: 12px; color: var(--muted); }
+    button { padding: 9px 12px; font-size: 14px; border-radius: 12px; border:1px solid #bbb; cursor:pointer; background: #fff; }
+    button:hover { background: var(--bg); }
+    button.danger { border-color:#d99; }
+    .row { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
+    .spacer { flex:1; }
+    .editIcon { cursor:pointer; user-select:none; opacity: .7; }
+    .editIcon:hover { opacity: 1; }
+    .topEdit { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
+    .topField { display:flex; gap: 8px; align-items:center; border:1px solid #e7e7e7; border-radius: 999px; padding: 6px 10px; background: var(--blue); }
+    .topField b, .topField span { font-size: 13px; }
+
+    .modalBack { position: fixed; inset: 0; background: rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding: 18px; z-index: 100; }
+    .modal { width: min(980px, 95vw); max-height: 85vh; overflow: hidden; border-radius: 16px; background: #fff; border: 1px solid #ddd; display:flex; flex-direction: column; }
+    .modal header { border-bottom: 1px solid #eee; padding: 12px 14px; background:#fff; display:flex; align-items:center; gap: 10px; }
+    .modal header h2 { margin:0; font-size: 16px; }
+    .modal .content { padding: 12px 14px; overflow: auto; background: #fff; }
+    .respRow { border-top: 1px solid #f0f0f0; padding: 10px 0; display:flex; justify-content: space-between; gap: 10px; align-items:flex-start; }
+    .respRow:first-child { border-top: none; }
+    .name { font-weight: 750; }
+    .answer { margin-top: 4px; font-size: 18px; white-space: pre-wrap; }
+    .reactBtns { display:flex; gap: 8px; }
+    .reactBtn { font-size: 18px; padding: 6px 10px; border-radius: 999px; border: 1px solid #ddd; cursor:pointer; background:#fff; }
+    .reactBtn:hover { background: #f5f5f5; }
+
+    .imgGrid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .thumbWrap { border:1px solid #eee; border-radius: 14px; padding: 10px; background:#fff; }
+    .thumb { width: 100%; height: 170px; object-fit: cover; border-radius: 12px; border: 1px solid #eee; background: #fff; }
+    a { color: inherit; text-decoration: none; }
+    .errBox { border: 1px solid #f3b3b3; background:#fff4f4; border-radius: 12px; padding: 10px 12px; color:#8a2a2a; display:none; margin-top:10px; }
+    .infoBox { border: 1px solid #cfe4ff; background:#f3f9ff; border-radius: 12px; padding: 10px 12px; color:#204b73; display:none; margin-top:10px; }
+
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      aside { border-right:none; border-bottom: 1px solid var(--border); }
+      .pillgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .imgGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 560px) {
+      .pillgrid { grid-template-columns: 1fr; }
+      .imgGrid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Teacher view</h1>
+    <span class="muted">Session: <b id="sessionLabel">lesson-1</b></span>
+    <span class="muted" id="connStatus">Loading…</span>
+    <div class="spacer"></div>
+
+    <div class="topEdit">
+      <div class="topField" title="Click pencil to edit Topic">
+        <b>Topic:</b> <span id="topicText">—</span>
+        <span class="editIcon" id="editTopic" title="Edit Topic">✏️</span>
+      </div>
+      <div class="topField" title="Click pencil to edit Class">
+        <b>Class:</b> <span id="classText">13FM</span>
+</div>
+    </div>
+
+    <button id="viewImagesBtn">View images</button>
+    <button id="liveResponsesBtn">Live responses</button>
+    <button class="danger" id="endSessionBtn">End session (download + clear)</button>
+  </header>
+
+  <div class="wrap">
+    <aside>
+      <div class="card">
+        <h2 style="margin:0 0 10px;">Connected pupils</h2>
+        <div class="tiny" id="pupilCount">0 pupils</div>
+        <div class="infoBox" id="infoBox"></div>
+        <div class="errBox" id="errBox"></div>
+        <div id="pupilList" style="margin-top:10px;"></div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="pillgrid" id="pillGrid">
+        
+      <div class="pill">
+        <h3>
+          <span id="ql_q1">Question 1</span>
+          <span class="editIcon" title="Edit question" data-qid="q1">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q1">Display responses</button>
+          <span class="tiny" id="count_q1">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q2">Question 2</span>
+          <span class="editIcon" title="Edit question" data-qid="q2">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q2">Display responses</button>
+          <span class="tiny" id="count_q2">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q3">Question 3</span>
+          <span class="editIcon" title="Edit question" data-qid="q3">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q3">Display responses</button>
+          <span class="tiny" id="count_q3">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q4">Question 4</span>
+          <span class="editIcon" title="Edit question" data-qid="q4">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q4">Display responses</button>
+          <span class="tiny" id="count_q4">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q5">Question 5</span>
+          <span class="editIcon" title="Edit question" data-qid="q5">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q5">Display responses</button>
+          <span class="tiny" id="count_q5">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q6">Question 6</span>
+          <span class="editIcon" title="Edit question" data-qid="q6">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q6">Display responses</button>
+          <span class="tiny" id="count_q6">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q7">Question 7</span>
+          <span class="editIcon" title="Edit question" data-qid="q7">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q7">Display responses</button>
+          <span class="tiny" id="count_q7">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q8">Question 8</span>
+          <span class="editIcon" title="Edit question" data-qid="q8">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q8">Display responses</button>
+          <span class="tiny" id="count_q8">0 response(s)</span>
+        </div>
+      </div>
+    
+
+      <div class="pill">
+        <h3>
+          <span id="ql_q9">Question 9</span>
+          <span class="editIcon" title="Edit question" data-qid="q9">✏️</span>
+        </h3>
+        <div class="row">
+          <button id="view_q9">Display responses</button>
+          <span class="tiny" id="count_q9">0 response(s)</span>
+        </div>
+      </div>
+    
+      </div>
+    </main>
+  </div>
+
+  <div class="modalBack" id="modalBack">
+    <div class="modal">
+      <header>
+        <h2 id="modalTitle">Responses</h2>
+        <div class="spacer"></div>
+        <button id="closeModalBtn">Close</button>
+      </header>
+      <div class="content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const infoBox = document.getElementById("infoBox");
+      const connStatus = document.getElementById("connStatus");
+      if (location.protocol === "file:") {
+        infoBox.style.display = "block";
+        infoBox.innerHTML = "<b>Tip:</b> You opened this page using <code>file://</code>. Browsers often block Firebase ES-module imports in that mode. Use GitHub Pages (https://...) or run a local server (e.g. <code>python -m http.server</code>) and open <code>http://localhost:8000/teacher_v6.html</code>.";
+        connStatus.textContent = "Not connected (opened as file://)";
+      }
+      document.getElementById("pillGrid").addEventListener("click", (e) => {
+        const t = e.target;
+        if (t?.id?.startsWith("view_") || t?.dataset?.qid) {
+          if (!window.__TEACHER_APP_READY__) {
+            alert("This dashboard isn't connected yet. If you're opening via file://, use GitHub Pages or a local server (http://localhost) so Firebase can load.");
+          }
+        }
+      });
+      document.getElementById("viewImagesBtn").addEventListener("click", () => {
+        if (!window.__TEACHER_APP_READY__) alert("Not connected yet. Use GitHub Pages or a local server (not file://).");
+      });
+      document.getElementById("endSessionBtn").addEventListener("click", () => {
+        if (!window.__TEACHER_APP_READY__) alert("Not connected yet. Use GitHub Pages or a local server (not file://).");
+      });
+    })();
+  </script>
+
+  <script type="module">
+    const errBox = document.getElementById("errBox");
+    const infoBox = document.getElementById("infoBox");
+    function showErr(msg) { errBox.style.display = "block"; errBox.textContent = msg; }
+    function showInfo(msg) { infoBox.style.display = "block"; infoBox.textContent = msg; }
+    window.addEventListener("error", (e) => showErr("JS error: " + (e.message || e.type)));
+    window.addEventListener("unhandledrejection", (e) => showErr("Promise error: " + (e.reason?.message || String(e.reason))));
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, query, orderBy, getDocs, writeBatch, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    const firebaseConfig = {"apiKey": "AIzaSyCYOEkYrTfgXDuBz99sxAieeuXK5goBgpU", "authDomain": "mrt-class-6264c.firebaseapp.com", "projectId": "mrt-class-6264c", "storageBucket": "mrt-class-6264c.firebasestorage.app", "messagingSenderId": "542139103880", "appId": "1:542139103880:web:a8d6f9bdda79024aee3d3d", "measurementId": "G-YRLLTYWVDR"};
+    const SESSION_ID = "lesson-1";
+    const CLASS_ROSTER = ["Aqmer", "Danial", "Farhan", "Linda", "Petr", "Rayan", "Shahwaiz", "Yin", "Yousef"];
+    const QUESTIONS = Array.from({length: 9}, (_, i) => ({ id: `q${i+1}`, label: `Question ${i+1}` }));
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.__TEACHER_APP_READY__ = true;
+
+    const connStatus = document.getElementById("connStatus");
+    const pupilList = document.getElementById("pupilList");
+    const pupilCount = document.getElementById("pupilCount");
+    const endSessionBtn = document.getElementById("endSessionBtn");
+    const viewImagesBtn = document.getElementById("viewImagesBtn");
+    const topicText = document.getElementById("topicText");
+    const classText = document.getElementById("classText");
+    const editTopic = document.getElementById("editTopic");
+
+    const modalBack = document.getElementById("modalBack");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalContent = document.getElementById("modalContent");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+
+    let settings = { topic: "—", className: "13FM" };
+    let pupils = [];
+    let allResponses = [];
+    let imagesByPupil = [];
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[s]));
+    }
+    function slugForFilename(str) {
+      return (str || "").toString().trim().replace(/[^a-z0-9\-_ ]/gi, "").replace(/\s+/g, "-") || "x";
+    }
+    function yymmdd(d) {
+      const yy = String(d.getFullYear()).slice(2);
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const dd = String(d.getDate()).padStart(2,"0");
+      return yy + mm + dd;
+    }
+
+    document.querySelectorAll("[data-qid]").forEach(el => {
+      el.addEventListener("click", () => editQuestion(el.dataset.qid));
+    });
+    document.querySelectorAll("button[id^='view_']").forEach(btn => {
+      const qid = btn.id.replace("view_", "");
+      btn.addEventListener("click", () => openResponsesModal(qid));
+    });
+
+    async function ensureDefaults() {
+      const settingsRef = doc(db, "sessions", SESSION_ID, "meta", "settings");
+      await setDoc(settingsRef, { topic: settings.topic, className: "13FM" }, { merge: true });
+      for (const q of QUESTIONS) {
+        const qRef = doc(db, "sessions", SESSION_ID, "questions", q.id);
+        await setDoc(qRef, { id: q.id, text: q.label }, { merge: true });
+      }
+    }
+
+    function renderPupils() {
+      const byName = new Map(pupils.map(p => [p.pupilName, p]));
+      const rows = CLASS_ROSTER.map(name => {
+        const p = byName.get(name);
+        const isConnected = !!p && (p.connected === true);
+        const happyOn = (p?.behaviour === "😊");
+        const sadOn = (p?.behaviour === "😟");
+        const handUp = !!p?.handUp;
+
+        return `
+          <div class="pupil" style="${isConnected ? "" : "opacity:.55;"}">
+            <div class="pupilLeft">
+              <div class="pupilName">
+                <span class="hand" style="${handUp ? "" : "opacity:.15;"}" ${handUp ? `data-clearhand="${escapeHtml(p.pupilId)}" title="Hand up (click to clear)"` : ""}>✋</span>
+                <span>${escapeHtml(name)}</span>
+                <span title="${isConnected ? "Connected" : "Not connected"}" style="margin-left:6px;">${isConnected ? "✅" : "⬜"}</span>
+              </div>
+              <div class="tiny">${isConnected ? "connected" : "not connected"}</div>
+            </div>
+            <div class="row" style="gap:6px;">
+              <span class="beh ${happyOn ? "on":""}" title="Happy" data-bname="${escapeHtml(name)}" data-emoji="😊">😊</span>
+              <span class="beh ${sadOn ? "on":""}" title="Sad" data-bname="${escapeHtml(name)}" data-emoji="😟">😟</span>
+            </div>
+          </div>
+        `;
+      });
+
+      pupilCount.textContent = `${CLASS_ROSTER.length} pupil(s)`;
+      pupilList.innerHTML = rows.join("");
+
+      pupilList.querySelectorAll("[data-bname]").forEach(el => {
+        el.addEventListener("click", async () => {
+          const name = el.getAttribute("data-bname");
+          const emoji = el.getAttribute("data-emoji");
+          const p = pupils.find(x => x.pupilName === name);
+          if (!p?.pupilId) return;
+          const next = (p.behaviour === emoji) ? "" : emoji;
+          await setDoc(doc(db, "sessions", SESSION_ID, "pupils", p.pupilId), { behaviour: next }, { merge: true });
+        });
+      });
+
+      pupilList.querySelectorAll("[data-clearhand]").forEach(el => {
+        el.addEventListener("click", async () => {
+          const pid = el.getAttribute("data-clearhand");
+          await setDoc(doc(db, "sessions", SESSION_ID, "pupils", pid), { handUp: false }, { merge: true });
+        });
+      });
+    }
+
+    function updateCounts() {
+      for (const q of QUESTIONS) {
+        const set = new Set(allResponses.filter(r => r.questionId === q.id && (r.answer ?? "") !== "").map(r => r.pupilId));
+        const el = document.getElementById(`count_${q.id}`);
+        if (el) el.textContent = `${set.size} response(s)`;
+      }
+    }
+
+    function openResponsesModal(qid) {
+      const qText = document.getElementById(`ql_${qid}`)?.textContent || qid;
+      modalTitle.textContent = `Responses – ${qText}`;
+      const rows = allResponses
+        .filter(r => r.questionId === qid)
+        .sort((a,b) => ((b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0)));
+
+      modalContent.innerHTML = rows.length
+        ? rows.map(r => {
+            const current = r.reaction || "";
+            return `
+              <div class="respRow">
+                <div style="min-width: 180px;">
+                  <div class="name">${escapeHtml(r.pupilName || "Unknown")}</div>
+                  <div class="tiny">${escapeHtml(r.pupilId || "")}</div>
+                </div>
+                <div style="flex:1;">
+                  <div class="answer">${escapeHtml(r.answer ?? "")}</div>
+                </div>
+                <div class="reactBtns" data-rid="${escapeHtml(r.pupilId + "_" + qid)}">
+                  <div class="reactBtn" title="Correct" data-emoji="✅" style="${current==="✅" ? "border-color:#8ac" : ""}">✅</div>
+                  <div class="reactBtn" title="Try again" data-emoji="🔁" style="${current==="🔁" ? "border-color:#8ac" : ""}">🔁</div>
+                  <div class="reactBtn" title="Incorrect" data-emoji="❌" style="${current==="❌" ? "border-color:#8ac" : ""}">❌</div>
+                </div>
+              </div>
+            `;
+          }).join("")
+        : `<div class="tiny">No responses yet.</div>`;
+
+      modalBack.style.display = "flex";
+
+      modalContent.querySelectorAll(".reactBtn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const emoji = btn.getAttribute("data-emoji");
+          const wrap = btn.closest("[data-rid]");
+          const rid = wrap.getAttribute("data-rid");
+          await setDoc(doc(db, "sessions", SESSION_ID, "responses", rid), { reaction: emoji }, { merge: true });
+        });
+      });
+    }
+
+    function openImagesModal() {
+      modalTitle.textContent = `Images (${imagesByPupil.length})`;
+      if (!imagesByPupil.length) {
+        modalContent.innerHTML = `<div class="tiny">No images uploaded yet.</div>`;
+        modalBack.style.display = "flex";
+        return;
+      }
+      const rows = imagesByPupil.slice().sort((a,b) => ((b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0)));
+      modalContent.innerHTML = `
+        <div class="tiny" style="margin-bottom:10px;">One image per pupil. Each thumbnail shows pupil name and their title.</div>
+        <div class="imgGrid">
+          ${rows.map(img => {
+            const t = img.title ? escapeHtml(img.title) : "<span class='tiny'>(no title)</span>";
+            return `
+              <div class="thumbWrap">
+                <a href="${img.url}" target="_blank" rel="noopener" title="${escapeHtml(img.pupilName || "Unknown")}">
+                  <img class="thumb" src="${img.url}" alt="Image from ${escapeHtml(img.pupilName || "Unknown")}" />
+                </a>
+                <div class="tiny" style="margin-top:8px;"><b>${escapeHtml(img.pupilName || "Unknown")}</b></div>
+                <div class="tiny" style="margin-top:4px;"><b>Title:</b> ${t}</div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+      modalBack.style.display = "flex";
+    }
+
+    async function editQuestion(qid) {
+      const current = document.getElementById(`ql_${qid}`)?.textContent || qid;
+      const text = prompt(`Edit ${qid} text:`, current);
+      if (text === null) return;
+      const cleaned = text.trim();
+      if (!cleaned) return;
+      await setDoc(doc(db, "sessions", SESSION_ID, "questions", qid), { id: qid, text: cleaned }, { merge: true });
+    }
+
+    async function editTop(which) {
+      const key = which === "topic" ? "topic" : "className";
+      const label = which === "topic" ? "Topic" : "Class";
+      const current = settings[key] || "";
+      const text = prompt(`Edit ${label}:`, current);
+      if (text === null) return;
+      const cleaned = text.trim();
+      if (!cleaned) return;
+      await setDoc(doc(db, "sessions", SESSION_ID, "meta", "settings"), { [key]: cleaned }, { merge: true });
+    }
+
+    editTopic.addEventListener("click", () => editTop("topic"));
+
+    closeModalBtn.addEventListener("click", () => { modalBack.style.display = "none"; window.__liveModalRender = null; });
+    modalBack.addEventListener("click", (e) => { if (e.target === modalBack) { modalBack.style.display = "none"; window.__liveModalRender = null; } });
+
+    viewImagesBtn.addEventListener("click", openImagesModal);
+    const liveResponsesBtn = document.getElementById("liveResponsesBtn");
+
+    function openLiveResponsesModal() {
+      modalTitle.textContent = "Live poll counts (A/B/C/D/True/False)";
+      modalContent.innerHTML = `
+        <div class="tiny" style="margin-bottom:10px;">This poll is separate from Questions 1–9.</div>
+        <div id="lr_counts" class="card" style="padding:12px;"></div>
+        <div style="height:10px;"></div>
+        <div id="lr_missing" class="card" style="padding:12px;"></div>
+      `;
+
+      const countsBox = modalContent.querySelector("#lr_counts");
+      const missingBox = modalContent.querySelector("#lr_missing");
+
+      function render() {
+        const choices = ["A","B","C","D","True","False"];
+        const currentPupils = pupils.slice().filter(p => p.pupilId);
+        const counts = Object.fromEntries(choices.map(c => [c, 0]));
+        const missing = [];
+
+        for (const p of currentPupils) {
+          const c = (p.pollChoice || "").trim();
+          if (!c) missing.push(p.pupilName || p.pupilId);
+          else if (counts[c] !== undefined) counts[c]++;
+        }
+
+        countsBox.innerHTML = `
+          <div class="row" style="gap:14px;flex-wrap:wrap;">
+            ${choices.map(c => `<div class="topField" style="background:#fff;border-color:#eee;"><b>${c}:</b> <span>${counts[c]}</span></div>`).join("")}
+          </div>
+          <div class="tiny" style="margin-top:10px;">Total pupils: ${currentPupils.length}</div>
+        `;
+
+        missingBox.innerHTML = `
+          <b>Not selected yet</b>
+          <div class="tiny" style="margin-top:8px;">${missing.length ? escapeHtml(missing.join(", ")) : "Everyone has selected an option ✅"}</div>
+        `;
+      }
+
+      render();
+      window.__liveModalRender = () => { if (modalBack.style.display === "flex") render(); };
+      modalBack.style.display = "flex";
+    }
+
+    if (liveResponsesBtn) {
+      liveResponsesBtn.addEventListener("click", openLiveResponsesModal);
+    }
+
+    ("click", openLiveResponsesModal);
+
+
+    async function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function clearSessionData() {
+      const pupilsSnap = await getDocs(collection(db, "sessions", SESSION_ID, "pupils"));
+      const respSnap = await getDocs(collection(db, "sessions", SESSION_ID, "responses"));
+      const imgSnap = await getDocs(collection(db, "sessions", SESSION_ID, "images"));
+      const qSnap = await getDocs(collection(db, "sessions", SESSION_ID, "questions"));
+      const metaSnap = await getDocs(collection(db, "sessions", SESSION_ID, "meta"));
+      const refs = [...pupilsSnap.docs.map(d => d.ref), ...respSnap.docs.map(d => d.ref), ...imgSnap.docs.map(d => d.ref), ...qSnap.docs.map(d => d.ref), ...metaSnap.docs.map(d => d.ref)];
+      let i = 0;
+      while (i < refs.length) {
+        const batch = writeBatch(db);
+        const chunk = refs.slice(i, i + 450);
+        for (const r of chunk) batch.delete(r);
+        await batch.commit();
+        i += 450;
+      }
+    }
+
+    endSessionBtn.addEventListener("click", async () => {
+      const ok = confirm("End session? This downloads pupils + responses, then clears session data (including image links). Save any images you want first from the gallery.");
+      if (!ok) return;
+
+      endSessionBtn.disabled = true;
+      endSessionBtn.textContent = "Ending session…";
+      try {
+        const pupilsSnap = await getDocs(collection(db, "sessions", SESSION_ID, "pupils"));
+        const respSnap = await getDocs(collection(db, "sessions", SESSION_ID, "responses"));
+        const qSnap = await getDocs(collection(db, "sessions", SESSION_ID, "questions"));
+        const metaSnap = await getDocs(collection(db, "sessions", SESSION_ID, "meta"));
+
+        const pupilsData = pupilsSnap.docs.map(d => d.data());
+        const respData = respSnap.docs.map(d => d.data());
+        const qData = qSnap.docs.map(d => d.data());
+        const metaDocs = metaSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const settingsDoc = metaDocs.find(x => x.id === "settings") || {};
+        const topic = settingsDoc.topic || settings.topic || "Topic";
+        const cls = settingsDoc.className || settings.className || "Class";
+
+        const now = new Date();
+        const filename = `${yymmdd(now)}-${slugForFilename(cls)}-${slugForFilename(topic)}.txt`;
+
+        let out = "";
+        out += `Session: ${SESSION_ID}\n`;
+        out += `Exported: ${now.toISOString()}\n`;
+        out += `Class: ${cls}\n`;
+        out += `Topic: ${topic}\n\n`;
+
+        out += "PUPILS\n------\n";
+        pupilsData.sort((a,b) => (a.pupilName||"").localeCompare(b.pupilName||"")).forEach(p => {
+          out += `- ${p.pupilName} (id: ${p.pupilId}) behaviour: ${p.behaviour || ""} handUpCount: ${p.handUpCount || 0}\n`;
+        });
+
+        out += "\nQUESTIONS\n---------\n";
+        qData.sort((a,b) => (parseInt((a.id||"q0").slice(1)) - parseInt((b.id||"q0").slice(1)))).forEach(q => {
+          out += `${q.id}: ${q.text || ""}\n`;
+        });
+
+        out += "\nRESPONSES\n---------\n";
+        const qMap = new Map(qData.map(q => [q.id, q.text || q.id]));
+        for (const qid of QUESTIONS.map(x => x.id)) {
+          out += `${qMap.get(qid) || qid}\n`;
+          out += `${"-".repeat(10)}\n`;
+          respData
+            .filter(r => r.questionId === qid)
+            .sort((a,b) => (a.pupilName||"").localeCompare(b.pupilName||""))
+            .forEach(r => {
+              const ans = (r.answer ?? "").replace(/\n/g, " ").trim();
+              const rxn = r.reaction ? ` [${r.reaction}]` : "";
+              out += `${r.pupilName}: ${ans}${rxn}\n`;
+            });
+          out += "\n";
+        }
+
+        await downloadTextFile(filename, out);
+        await clearSessionData();
+        alert("Session ended. Export downloaded and session data cleared.");
+        location.reload();
+      } catch (e) {
+        console.error(e);
+        alert("Failed to end session: " + (e?.message || String(e)));
+      } finally {
+        endSessionBtn.disabled = false;
+        endSessionBtn.textContent = "End session (download + clear)";
+      }
+    });
+
+    // Defaults + listeners
+    ensureDefaults().catch((e) => { console.error(e); showErr("Could not write defaults (rules?): " + (e?.message || String(e))); });
+
+    onSnapshot(doc(db, "sessions", SESSION_ID, "meta", "settings"), (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      settings.topic = d.topic || "—";
+      settings.className = "13FM";
+      topicText.textContent = settings.topic;
+      classText.textContent = "13FM";
+      connStatus.textContent = "Connected";
+    }, (e) => showErr("Settings listener: " + (e?.message || String(e))));
+
+    onSnapshot(collection(db, "sessions", SESSION_ID, "questions"), (snap) => {
+      const list = snap.docs.map(d => d.data()).filter(Boolean);
+      list.forEach(q => {
+        const el = document.getElementById(`ql_${q.id}`);
+        if (el) el.textContent = q.text || q.label || q.id;
+      });
+    }, (e) => showErr("Questions listener: " + (e?.message || String(e))));
+
+    onSnapshot(query(collection(db, "sessions", SESSION_ID, "pupils"), orderBy("pupilName", "asc")), (snap) => {
+      pupils = snap.docs.map(d => d.data());
+      renderPupils();
+      if (window.__liveModalRender) window.__liveModalRender();
+    }, (e) => showErr("Pupils listener: " + (e?.message || String(e))));
+
+    onSnapshot(query(collection(db, "sessions", SESSION_ID, "responses"), orderBy("updatedAt", "desc")), (snap) => {
+      allResponses = snap.docs.map(d => d.data());
+      updateCounts();
+      if (window.__liveModalRender) window.__liveModalRender();
+    }, (e) => showErr("Responses listener: " + (e?.message || String(e))));
+
+    onSnapshot(query(collection(db, "sessions", SESSION_ID, "images"), orderBy("updatedAt", "desc")), (snap) => {
+      imagesByPupil = snap.docs.map(d => d.data());
+    }, (e) => showErr("Images listener: " + (e?.message || String(e))));
+</script>
+</body>
+</html>
