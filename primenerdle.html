@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prime Factor Nerdle</title>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    background:#121213;
+    color:white;
+    text-align:center;
+    margin:0;
+    padding:20px;
+}
+
+h1{
+    margin-bottom:10px;
+}
+
+#board{
+    margin:20px auto;
+}
+
+.row{
+    display:flex;
+    justify-content:center;
+    margin:4px 0;
+}
+
+.cell{
+    width:58px;
+    height:58px;
+    margin:2px;
+    border:2px solid #444;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+    font-weight:bold;
+    background:#121213;
+}
+
+.green{background:#538d4e;border-color:#538d4e;}
+.yellow{background:#b59f3b;border-color:#b59f3b;}
+.grey{background:#3a3a3c;border-color:#3a3a3c;}
+
+.keyboard{
+    max-width:900px;
+    margin:auto;
+}
+
+.keyrow{
+    display:flex;
+    justify-content:center;
+    flex-wrap:wrap;
+    margin:5px 0;
+}
+
+button{
+    min-width:55px;
+    padding:10px;
+    margin:3px;
+    border:none;
+    border-radius:4px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+.big{
+    min-width:100px;
+}
+
+#message{
+    min-height:30px;
+    font-size:20px;
+    margin:15px;
+}
+</style>
+</head>
+<body>
+
+<h1>Prime Factor Nerdle</h1>
+
+<p>Enter a valid statement such as 52 = 2² 13</p>
+
+<div id="board"></div>
+<div id="message"></div>
+
+<div class="keyboard">
+
+<div class="keyrow">
+<button onclick="addTile('0')">0</button>
+<button onclick="addTile('1')">1</button>
+<button onclick="addTile('2')">2</button>
+<button onclick="addTile('3')">3</button>
+<button onclick="addTile('4')">4</button>
+<button onclick="addTile('5')">5</button>
+<button onclick="addTile('6')">6</button>
+<button onclick="addTile('7')">7</button>
+<button onclick="addTile('8')">8</button>
+<button onclick="addTile('9')">9</button>
+<button onclick="addTile('=')">=</button>
+</div>
+
+<div class="keyrow">
+<button onclick="addTile('2')">2</button>
+<button onclick="addTile('3')">3</button>
+<button onclick="addTile('5')">5</button>
+<button onclick="addTile('7')">7</button>
+<button onclick="addTile('11')">11</button>
+<button onclick="addTile('13')">13</button>
+</div>
+
+<div class="keyrow">
+<button onclick="addTile('2²')">2²</button>
+<button onclick="addTile('2³')">2³</button>
+<button onclick="addTile('2⁴')">2⁴</button>
+<button onclick="addTile('2⁵')">2⁵</button>
+<button onclick="addTile('2⁶')">2⁶</button>
+
+<button onclick="addTile('3²')">3²</button>
+<button onclick="addTile('3³')">3³</button>
+<button onclick="addTile('3⁴')">3⁴</button>
+
+<button onclick="addTile('5²')">5²</button>
+<button onclick="addTile('7²')">7²</button>
+</div>
+
+<div class="keyrow">
+<button class="big" onclick="backspace()">⌫</button>
+<button class="big" onclick="submitGuess()">ENTER</button>
+</div>
+
+</div>
+
+<script>
+
+const superscriptMap = {
+  '²':[2,2],
+  '³':[2,3],
+  '⁴':[2,4],
+  '⁵':[2,5],
+  '⁶':[2,6]
+};
+
+function factorTiles(n){
+
+    const tiles=[];
+
+    const primes=[2,3,5,7,11,13];
+    let temp=n;
+
+    for(const p of primes){
+
+        let c=0;
+
+        while(temp%p===0){
+            c++;
+            temp/=p;
+        }
+
+        if(c>0){
+
+            if(c===1){
+                tiles.push(String(p));
+            }
+            else{
+
+                const exps={
+                    2:"²",
+                    3:"³",
+                    4:"⁴",
+                    5:"⁵",
+                    6:"⁶"
+                };
+
+                tiles.push(p + exps[c]);
+            }
+        }
+    }
+
+    return tiles;
+}
+
+const candidates=[];
+
+for(let n=10;n<=99;n++){
+
+    let test=n;
+    const primes=[2,3,5,7,11,13];
+
+    for(const p of primes){
+        while(test%p===0) test/=p;
+    }
+
+    if(test===1){
+        candidates.push(n);
+    }
+}
+
+const answerNumber =
+    candidates[Math.floor(Math.random()*candidates.length)];
+
+const answer =
+[
+ String(Math.floor(answerNumber/10)),
+ String(answerNumber%10),
+ "=",
+ ...factorTiles(answerNumber)
+];
+
+console.log(answerNumber, answer);
+
+const rows=6;
+let currentRow=0;
+let currentGuess=[];
+
+const board=document.getElementById("board");
+
+for(let r=0;r<rows;r++){
+
+    const row=document.createElement("div");
+    row.className="row";
+
+    for(let c=0;c<6;c++){
+
+        const cell=document.createElement("div");
+        cell.className="cell";
+
+        row.appendChild(cell);
+    }
+
+    board.appendChild(row);
+}
+
+function drawCurrent(){
+
+    const row=board.children[currentRow];
+
+    [...row.children].forEach(c=>{
+        c.textContent="";
+    });
+
+    currentGuess.forEach((t,i)=>{
+        row.children[i].textContent=t;
+    });
+}
+
+function addTile(tile){
+
+    if(currentGuess.length>=6) return;
+
+    currentGuess.push(tile);
+    drawCurrent();
+}
+
+function backspace(){
+
+    currentGuess.pop();
+    drawCurrent();
+}
+
+function tileBase(tile){
+
+    if(["2","2²","2³","2⁴","2⁵","2⁶"].includes(tile))
+        return "2";
+
+    if(["3","3²","3³","3⁴"].includes(tile))
+        return "3";
+
+    if(["5","5²"].includes(tile))
+        return "5";
+
+    if(["7","7²"].includes(tile))
+        return "7";
+
+    if(tile==="11") return "11";
+    if(tile==="13") return "13";
+
+    return null;
+}
+
+function evaluate(guess){
+
+    const colours=new Array(guess.length).fill("grey");
+    const used=new Array(answer.length).fill(false);
+
+    for(let i=0;i<guess.length;i++){
+
+        if(i<answer.length && guess[i]===answer[i]){
+
+            colours[i]="green";
+            used[i]=true;
+        }
+    }
+
+    for(let i=0;i<guess.length;i++){
+
+        if(colours[i]==="green") continue;
+
+        let found=false;
+
+        for(let j=0;j<answer.length;j++){
+
+            if(!used[j] && guess[i]===answer[j]){
+
+                colours[i]="yellow";
+                used[j]=true;
+                found=true;
+                break;
+            }
+        }
+
+        if(found) continue;
+
+        const gBase=tileBase(guess[i]);
+
+        if(gBase){
+
+            for(const a of answer){
+
+                if(tileBase(a)===gBase){
+
+                    colours[i]="yellow";
+                    break;
+                }
+            }
+        }
+    }
+
+    return colours;
+}
+
+function parseFactorTile(tile){
+
+    if(tile==="11") return 11;
+    if(tile==="13") return 13;
+
+    if(tile==="2") return 2;
+    if(tile==="3") return 3;
+    if(tile==="5") return 5;
+    if(tile==="7") return 7;
+
+    if(tile.startsWith("2")){
+        const e={"²":2,"³":3,"⁴":4,"⁵":5,"⁶":6}[tile[1]];
+        return 2**e;
+    }
+
+    if(tile.startsWith("3")){
+        const e={"²":2,"³":3,"⁴":4}[tile[1]];
+        return 3**e;
+    }
+
+    if(tile==="5²") return 25;
+    if(tile==="7²") return 49;
+
+    return null;
+}
+
+function validStatement(guess){
+
+    const eq=guess.indexOf("=");
+
+    if(eq!==2) return false;
+
+    const num=parseInt(guess[0]+guess[1]);
+
+    let product=1;
+
+    for(let i=3;i<guess.length;i++){
+
+        const value=parseFactorTile(guess[i]);
+
+        if(!value) return false;
+
+        product*=value;
+    }
+
+    return num===product;
+}
+
+function submitGuess(){
+
+    if(currentGuess.length<4){
+        return;
+    }
+
+    if(!validStatement(currentGuess)){
+        document.getElementById("message").textContent =
+        "Not a valid factorisation";
+        return;
+    }
+
+    const colours=evaluate(currentGuess);
+
+    const row=board.children[currentRow];
+
+    colours.forEach((c,i)=>{
+        row.children[i].classList.add(c);
+    });
+
+    const win =
+      currentGuess.length===answer.length &&
+      currentGuess.every((v,i)=>v===answer[i]);
+
+    if(win){
+
+        document.getElementById("message").innerHTML =
+        "🎉 Correct!";
+
+        return;
+    }
+
+    currentRow++;
+
+    if(currentRow>=rows){
+
+        document.getElementById("message").innerHTML =
+        "Game Over.<br>Answer: " +
+        answer.join(" ");
+
+        return;
+    }
+
+    currentGuess=[];
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Negative Number Nerdle</title>
+<style>
+:root{--bg:#f7f7f7;--ink:#202124;--tile:#fff;--border:#aaa;--green:#6aaa64;--yellow:#c9b458;--grey:#787c7e;--blue:#4b75a5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,sans-serif;display:flex;justify-content:center}
+.app{width:min(620px,100%);padding:20px 14px 28px;text-align:center}
+h1{margin:4px 0 4px;font-size:30px}
+.subtitle{margin:0 0 14px;color:#555}
+#message{min-height:28px;font-weight:bold;margin:8px}
+.board{display:flex;flex-direction:column;gap:6px;align-items:center;margin:12px auto 18px}.row{display:grid;grid-template-columns:repeat(5,56px);gap:6px}
+.cell{width:56px;height:56px;border:2px solid var(--border);background:white;display:flex;align-items:center;justify-content:center;font-size:25px;font-weight:bold}
+.cell.filled{border-color:#555}
+.cell.correct{background:var(--green);color:white;border-color:var(--green)}
+.cell.present{background:var(--yellow);color:white;border-color:var(--yellow)}
+.cell.absent{background:var(--grey);color:white;border-color:var(--grey)}
+.keyboard{display:flex;flex-direction:column;gap:7px;align-items:center}
+.keyrow{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}
+button{font:inherit;font-weight:bold;border:1px solid #aaa;background:var(--tile);border-radius:6px;cursor:pointer}
+.key{min-width:43px;height:43px;padding:4px 7px;font-size:18px}
+.key.op{background:#e7edf5}
+.key.eq{background:#e5e5e5}
+.controls{margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.control{padding:9px 14px;background:#eee}
+.stats{margin-top:15px;font-size:14px;color:#555}
+.instructions{background:white;border:1px solid #ddd;border-radius:8px;padding:12px;margin:14px auto;max-width:500px;text-align:left;font-size:14px;line-height:1.45}
+.instructions strong{color:#222}
+@media(max-width:430px){
+ .row{grid-template-columns:repeat(5,48px);gap:5px}
+ .cell{width:48px;height:48px;font-size:21px}
+ .key{min-width:38px;height:40px;font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>Negative Number Nerdle</h1>
+<p class="subtitle">Make a correct 5-tile equation.</p>
+<div id="message"></div>
+<div id="board" class="board"></div>
+
+<div class="keyboard" id="keyboard"></div>
+
+<div class="controls">
+<button class="control" onclick="backspace()">⌫ Delete</button>
+<button class="control" onclick="clearGuess()">Clear</button>
+<button class="control" onclick="checkGuess()">Enter</button>
+<button class="control" onclick="newPuzzle()">New puzzle</button>
+</div>
+
+<div class="stats" id="stats"></div>
+<div class="instructions">
+<strong>How to play:</strong> Choose tiles rather than typing. Numbers run from −9 to −1 and 1 to 9; zero is not available.
+The equation must have the form <strong>a operation b = c</strong>.
+A negative number uses only <strong>one square</strong>, so examples such as
+<strong>−2 × −4 = 8</strong>, <strong>−2 + 4 = 2</strong>,
+<strong>5 − −1 = 6</strong> and <strong>−8 ÷ 4 = −2</strong> fit the five-square format.
+</div>
+</div>
+
+<script>
+const nums=[-9,-8,-7,-6,-5,-4,-3,-2,-1,1,2,3,4,5,6,7,8,9];
+const ops=['+','−','×','÷'];
+let target, guess=[], rowSolved=false, attempts=0, wins=0, history=[];
+
+function rand(a){return a[Math.floor(Math.random()*a.length)]}
+function makePuzzle(){
+  const candidates=[];
+  for(const a of nums) for(const b of nums) for(const op of ops){
+    let c;
+    if(op==='+') c=a+b;
+    if(op==='−') c=a-b;
+    if(op==='×') c=a*b;
+    if(op==='÷'){
+      if(b===0 || a%b!==0) continue;
+      c=a/b;
+    }
+    if(c===0 || c<-9 || c>9 || !Number.isInteger(c)) continue;
+    // Exactly five tiles: a, op, b, =, c.
+    candidates.push([a,op,b,'=',c]);
+  }
+  return rand(candidates);
+}
+function tokenText(x){
+  if(x==='−'||x==='×'||x==='÷'||x==='=') return x;
+  return String(x).replace('-', '−');
+}
+function renderBoard(states=[], values=guess, current=true){
+  const b=document.getElementById('board');
+  if(current){
+    // Rebuild the current puzzle history and then add the active row.
+    b.innerHTML='';
+    for(const attempt of history) drawRow(b, attempt.values, attempt.states);
+    drawRow(b, values, states);
+  } else {
+    drawRow(b, values, states);
+  }
+}
+function drawRow(container, values, states=[]){
+  const row=document.createElement('div'); row.className='row';
+  for(let i=0;i<5;i++){
+    const d=document.createElement('div'); d.className='cell';
+    if(values[i]!==undefined){d.textContent=tokenText(values[i]);d.classList.add('filled')}
+    if(states[i]) d.classList.add(states[i]);
+    row.appendChild(d);
+  }
+  container.appendChild(row);
+}
+function add(x){
+  if(rowSolved || guess.length>=5) return;
+  // Operators/equals are tokens, and each number including a negative is one tile.
+  guess.push(x); renderBoard();
+}
+function backspace(){if(!rowSolved){guess.pop();renderBoard()}}
+function clearGuess(){if(!rowSolved){guess=[];renderBoard()}}
+function equivalent(a,b){return a===b}
+function checkGuess(){
+  if(rowSolved) return;
+  if(guess.length!==5){setMessage('Complete all five squares first.');return}
+  attempts++;
+  const submitted=guess.slice();
+  const states=Array(5).fill('absent');
+  const used=Array(5).fill(false);
+
+  for(let i=0;i<5;i++){
+    if(equivalent(submitted[i],target[i])){states[i]='correct';used[i]=true}
+  }
+  for(let i=0;i<5;i++){
+    if(states[i]==='correct') continue;
+    for(let j=0;j<5;j++){
+      if(!used[j] && equivalent(submitted[i],target[j])){
+        states[i]='present';used[j]=true;break;
+      }
+    }
+  }
+
+  history.push({values:submitted, states:states});
+  guess=[];
+  renderBoard();
+
+  if(states.every(s=>s==='correct')){
+    wins++; rowSolved=true;
+    setMessage('✓ Correct! '+target.map(tokenText).join(' '));
+  }else{
+    setMessage('Not quite — try again. Green = right tile, yellow = right tile in another place.');
+  }
+  updateStats();
+}
+function setMessage(t){document.getElementById('message').textContent=t}
+function updateStats(){document.getElementById('stats').textContent=`Solved: ${wins} / Attempts: ${attempts}`}
+function newPuzzle(){
+  target=makePuzzle();guess=[];rowSolved=false;history=[];setMessage('');
+  renderBoard();updateStats();
+}
+function buildKeyboard(){
+  const k=document.getElementById('keyboard');
+  const r1=document.createElement('div');r1.className='keyrow';
+  nums.slice(0,9).forEach(n=>{const b=key(tokenText(n));r1.appendChild(b)});
+  const r2=document.createElement('div');r2.className='keyrow';
+  nums.slice(9).forEach(n=>{const b=key(tokenText(n));r2.appendChild(b)});
+  const r3=document.createElement('div');r3.className='keyrow';
+  ops.forEach(o=>{const b=key(o,'op');r3.appendChild(b)});
+  const eq=key('=','eq');r3.appendChild(eq);
+  k.append(r1,r2,r3);
+}
+function key(label,cls=''){
+  const b=document.createElement('button');b.className='key '+cls;b.textContent=label;
+  let value=label;
+  if(label==='−') value='−';
+  if(label==='×') value='×';
+  if(label==='÷') value='÷';
+  if(!['+','−','×','÷','='].includes(label)) value=Number(label.replace('−','-'));
+  b.onclick=()=>add(value);return b;
+}
+buildKeyboard();newPuzzle();
+</script>
+</body>
+</html>

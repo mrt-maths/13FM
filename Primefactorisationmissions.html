@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prime Factorisation Challenge</title>
+
+<style>
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    font-family:Segoe UI,Arial,sans-serif;
+    background:#eef3f8;
+    color:#222;
+}
+
+.container{
+    max-width:1200px;
+    margin:auto;
+    padding:20px;
+}
+
+/* HEADER */
+
+.mission-panel{
+    background:linear-gradient(135deg,#1e3a8a,#2563eb);
+    color:white;
+    border-radius:22px;
+    padding:25px;
+    text-align:center;
+    box-shadow:0 10px 25px rgba(0,0,0,.12);
+}
+
+.level{
+    font-weight:700;
+    font-size:1rem;
+}
+
+.mission-title{
+    font-size:2.2rem;
+    font-weight:900;
+    margin-top:8px;
+}
+
+.mission-text{
+    font-size:1.45rem;
+    margin-top:10px;
+    font-weight:700;
+}
+
+.move-counter{
+    margin-top:12px;
+    font-size:1.1rem;
+}
+
+.progress{
+    height:14px;
+    background:#d6d6d6;
+    border-radius:10px;
+    overflow:hidden;
+    margin-top:15px;
+}
+
+.progress-fill{
+    height:100%;
+    background:#22c55e;
+    transition:0.3s;
+}
+
+/* GRID */
+
+.game-grid{
+    display:grid;
+    grid-template-columns:250px 1fr 250px;
+    gap:20px;
+    margin-top:25px;
+}
+
+.panel{
+    background:white;
+    border-radius:20px;
+    padding:20px;
+    box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+
+.panel-title{
+    text-align:center;
+    font-weight:800;
+    margin-bottom:15px;
+    font-size:1.2rem;
+}
+
+.middle{
+    min-height:320px;
+}
+
+/* BUTTONS */
+
+.action-btn{
+    width:100%;
+    border:none;
+    border-radius:12px;
+    padding:14px;
+    font-size:1.05rem;
+    font-weight:700;
+    margin-bottom:10px;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.action-btn:hover{
+    transform:translateY(-2px);
+}
+
+.divide{
+    background:#fee2e2;
+}
+
+.divide:hover{
+    background:#fecaca;
+}
+
+.multiply{
+    background:#dcfce7;
+}
+
+.multiply:hover{
+    background:#bbf7d0;
+}
+
+.disabled{
+    opacity:.35;
+    cursor:not-allowed;
+}
+
+/* FACTORS */
+
+.factor-container{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:15px;
+    margin-top:35px;
+}
+
+.tile{
+    min-width:80px;
+    text-align:center;
+    padding:18px;
+    border-radius:18px;
+    color:white;
+    font-weight:800;
+    font-size:2.3rem;
+    box-shadow:0 4px 12px rgba(0,0,0,.15);
+}
+
+.tile sup{
+    font-size:1.2rem;
+    top:-1em;
+    position:relative;
+}
+
+.p2{background:#2563eb;}
+.p3{background:#7c3aed;}
+.p5{background:#db2777;}
+.p7{background:#ea580c;}
+.p11{background:#16a34a;}
+.p13{background:#0891b2;}
+
+/* FOOTER */
+
+.submit-area{
+    text-align:center;
+    margin-top:25px;
+}
+
+.submit-btn{
+    border:none;
+    background:#2563eb;
+    color:white;
+    font-size:1.25rem;
+    font-weight:800;
+    padding:16px 60px;
+    border-radius:16px;
+    cursor:pointer;
+}
+
+.submit-btn:hover{
+    background:#1d4ed8;
+}
+
+.message{
+    text-align:center;
+    margin-top:15px;
+    font-size:1.15rem;
+    font-weight:700;
+}
+
+.success{
+    color:#15803d;
+}
+
+.error{
+    color:#dc2626;
+}
+
+.end-screen{
+    background:white;
+    padding:40px;
+    border-radius:20px;
+    margin-top:30px;
+    text-align:center;
+}
+
+@media(max-width:900px){
+
+    .game-grid{
+        grid-template-columns:1fr;
+    }
+
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div id="game"></div>
+</div>
+
+<script>
+
+const primes=[2,3,5,7,11,13];
+
+const levels=[
+
+{
+mission:"Create a multiple of 2",
+optimal:1,
+start:{2:0,3:1,5:0,7:1,11:0,13:0},
+check:f=>f[2]>=1
+},
+
+{
+mission:"Create a number NOT divisible by 21",
+optimal:1,
+start:{2:1,3:1,5:0,7:1,11:0,13:0},
+check:f=>!(f[3]>0 && f[7]>0)
+},
+
+{
+mission:"Create a number that is NOT a square number",
+optimal:1,
+start:{2:2,3:2,5:0,7:0,11:0,13:0},
+check:f=>Object.values(f).some(v=>v%2)
+},
+
+{
+mission:"Create a number with a factor of 8 OR 42",
+optimal:2,
+start:{2:1,3:1,5:0,7:0,11:0,13:0},
+check:f=>(f[2]>=3)||(f[2]>=1&&f[3]>=1&&f[7]>=1)
+},
+
+{
+mission:"Create a square number",
+optimal:2,
+start:{2:1,3:1,5:0,7:1,11:0,13:0},
+check:f=>Object.values(f).every(v=>v%2===0)
+},
+
+{
+mission:"Create a number ending in 0",
+optimal:1,
+start:{2:0,3:2,5:1,7:0,11:0,13:0},
+check:f=>f[2]>=1 && f[5]>=1
+},
+
+{
+mission:"Create a number ending in 00",
+optimal:3,
+start:{2:1,3:0,5:0,7:0,11:0,13:0},
+check:f=>f[2]>=2 && f[5]>=2
+},
+
+{
+mission:"Create a number with a factor of 17, 26 or 100",
+optimal:2,
+start:{2:0,3:0,5:0,7:0,11:0,13:0},
+check:f=>
+(f[2]>=1&&f[13]>=1) ||
+(f[2]>=2&&f[5]>=2)
+},
+
+{
+mission:"Create a number ending in 5",
+optimal:2,
+start:{2:1,3:1,5:0,7:0,11:0,13:0},
+check:f=>f[5]>=1 && f[2]===0
+},
+
+{
+mission:"Create a multiple of 10 and a square number",
+optimal:3,
+start:{2:0,3:1,5:1,7:0,11:1,13:0},
+check:f=>
+f[2]>=1 &&
+f[5]>=1 &&
+Object.values(f).every(v=>v%2===0)
+},
+
+{
+mission:"Create a number divisible by 100 but NOT by 21",
+optimal:3,
+start:{2:2,3:1,5:0,7:1,11:0,13:0},
+check:f=>
+f[2]>=2 &&
+f[5]>=2 &&
+!(f[3]>0&&f[7]>0)
+},
+
+{
+mission:"Create a square number ending in 0",
+optimal:2,
+start:{2:1,3:1,5:1,7:1,11:0,13:0},
+check:f=>
+f[2]>0 &&
+f[5]>0 &&
+Object.values(f).every(v=>v%2===0)
+},
+
+{
+mission:"Create a number divisible by 1,2,3,4,5,6,7,8,9,10,11,12 and 13",
+optimal:7,
+start:{2:1,3:1,5:0,7:0,11:0,13:0},
+check:f=>
+f[2]>=3 &&
+f[3]>=2 &&
+f[5]>=1 &&
+f[7]>=1 &&
+f[11]>=1 &&
+f[13]>=1
+}
+
+];
+
+let level=0;
+let factors=structuredClone(levels[0].start);
+let levelMoves=0;
+let totalMoves=0;
+let message="";
+let messageClass="";
+
+function loadLevel(n){
+    level=n;
+    factors=structuredClone(levels[n].start);
+    levelMoves=0;
+    message="";
+    render();
+}
+
+function multiply(p){
+    factors[p]++;
+    levelMoves++;
+    render();
+}
+
+function dividePrime(p){
+    if(factors[p]===0) return;
+    factors[p]--;
+    levelMoves++;
+    render();
+}
+
+function submitAnswer(){
+
+    if(levels[level].check(factors)){
+
+        totalMoves+=levelMoves;
+
+        if(level===levels.length-1){
+            showEnd();
+            return;
+        }
+
+        loadLevel(level+1);
+
+    }else{
+
+        levelMoves++;
+        message="Incorrect. Submission counts as a move.";
+        messageClass="error";
+        render();
+    }
+
+}
+
+function buildTiles(){
+
+    let html="";
+
+    primes.forEach(p=>{
+
+        const exp=factors[p];
+
+        if(exp>0){
+            html+=`
+            <div class="tile p${p}">
+                ${p}${exp>1?`<sup>${exp}</sup>`:""}
+            </div>`;
+        }
+
+    });
+
+    if(html===""){
+        html='<div class="tile p2">1</div>';
+    }
+
+    return html;
+}
+
+function render(){
+
+const progress=((level)/levels.length)*100;
+
+document.getElementById("game").innerHTML=`
+
+<div class="mission-panel">
+
+    <div class="level">
+        LEVEL ${level+1} OF ${levels.length}
+    </div>
+
+    <div class="mission-title">
+        MISSION ${level+1}
+    </div>
+
+    <div class="mission-text">
+        ${levels[level].mission}
+    </div>
+
+    <div class="move-counter">
+        Total Moves: ${totalMoves+levelMoves}
+    </div>
+
+    <div class="progress">
+        <div class="progress-fill" style="width:${progress}%"></div>
+    </div>
+
+</div>
+
+<div class="game-grid">
+
+    <div class="panel">
+        <div class="panel-title">DIVIDE</div>
+
+        ${primes.map(p=>`
+        <button
+        class="action-btn divide ${factors[p]===0?'disabled':''}"
+        onclick="dividePrime(${p})">
+        ÷ ${p}
+        </button>
+        `).join("")}
+
+    </div>
+
+    <div class="panel middle">
+
+        <div class="panel-title">
+            PRIME FACTORISATION
+        </div>
+
+        <div class="factor-container">
+            ${buildTiles()}
+        </div>
+
+    </div>
+
+    <div class="panel">
+        <div class="panel-title">MULTIPLY</div>
+
+        ${primes.map(p=>`
+        <button
+        class="action-btn multiply"
+        onclick="multiply(${p})">
+        × ${p}
+        </button>
+        `).join("")}
+
+    </div>
+
+</div>
+
+<div class="submit-area">
+    <button class="submit-btn"
+      onclick="submitAnswer()">
+      SUBMIT
+    </button>
+</div>
+
+<div class="message ${messageClass}">
+${message}
+</div>
+
+`;
+
+}
+
+function showEnd(){
+
+const optimal=levels.reduce((a,b)=>a+b.optimal,0);
+
+document.getElementById("game").innerHTML=`
+
+<div class="end-screen">
+
+<h1>🏆 Challenge Complete!</h1>
+
+<h2>Your Score: ${totalMoves}</h2>
+
+<h2>Optimal Score: ${optimal}</h2>
+
+${
+totalMoves===optimal
+?
+"<h2 style='color:green'>Congratulations! Perfect play achieved.</h2>"
+:
+"<h2 style='color:#ea580c'>You could have completed the challenge in fewer moves.</h2>"
+}
+
+<p>Can you return and find the minimum route through all 13 missions?</p>
+
+</div>
+
+`;
+
+}
+
+render();
+
+</script>
+
+</body>
+</html>

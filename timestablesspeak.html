@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Times Tables Voice Challenge</title>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background:#eef7ff;
+    text-align:center;
+    padding:40px;
+}
+
+.container{
+    max-width:700px;
+    margin:auto;
+}
+
+h1{
+    color:#1f4e79;
+}
+
+#question{
+    font-size:4rem;
+    font-weight:bold;
+    margin:30px 0;
+}
+
+#timer{
+    font-size:2rem;
+    color:#d62828;
+    margin:15px;
+}
+
+#score{
+    font-size:1.6rem;
+    margin:15px;
+}
+
+#result{
+    min-height:50px;
+    font-size:1.5rem;
+    margin:20px;
+}
+
+button{
+    padding:15px 30px;
+    font-size:1.2rem;
+    border:none;
+    border-radius:8px;
+    background:#0078d4;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#106ebe;
+}
+
+.game-over{
+    font-size:2rem;
+    color:#0f5132;
+    font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>🎤 Times Tables Voice Challenge</h1>
+
+<div id="timer">Time: 60</div>
+<div id="score">Score: 0</div>
+
+<div id="question">Press Start</div>
+
+<button id="startBtn">Start Game</button>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+
+let score = 0;
+let timeLeft = 60;
+let gameRunning = false;
+
+let num1;
+let num2;
+let answer;
+let timerInterval;
+
+const timerEl = document.getElementById("timer");
+const scoreEl = document.getElementById("score");
+const questionEl = document.getElementById("question");
+const resultEl = document.getElementById("result");
+const startBtn = document.getElementById("startBtn");
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+    alert("Speech recognition is not supported in this browser.");
+}
+
+const recognition = new SpeechRecognition();
+
+recognition.continuous = true;
+recognition.interimResults = false;
+recognition.lang = "en-GB";
+
+function newQuestion() {
+
+    num1 = Math.floor(Math.random() * 12) + 1;
+    num2 = Math.floor(Math.random() * 12) + 1;
+    answer = num1 * num2;
+
+    questionEl.textContent = `${num1} × ${num2}`;
+}
+
+recognition.onresult = function(event) {
+
+    if (!gameRunning) return;
+
+    const transcript =
+        event.results[event.results.length - 1][0].transcript
+        .toLowerCase()
+        .trim();
+
+    const spokenNumber = parseInt(transcript);
+
+    if (spokenNumber === answer) {
+
+        score++;
+        scoreEl.textContent = `Score: ${score}`;
+
+        resultEl.style.color = "green";
+        resultEl.textContent = `✅ Correct (${spokenNumber})`;
+
+        newQuestion();
+
+    } else if (!isNaN(spokenNumber)) {
+
+        resultEl.style.color = "red";
+        resultEl.textContent =
+            `❌ ${spokenNumber} is incorrect`;
+
+    }
+};
+
+recognition.onerror = function(event) {
+
+    console.log(event.error);
+
+    if (gameRunning && event.error !== "aborted") {
+        recognition.stop();
+        recognition.start();
+    }
+};
+
+function startTimer() {
+
+    timerInterval = setInterval(() => {
+
+        timeLeft--;
+
+        timerEl.textContent = `Time: ${timeLeft}`;
+
+        if (timeLeft <= 0) {
+
+            endGame();
+
+        }
+
+    }, 1000);
+}
+
+function endGame() {
+
+    gameRunning = false;
+
+    clearInterval(timerInterval);
+
+    recognition.stop();
+
+    questionEl.innerHTML =
+        `<div class="game-over">🏆 Game Over</div>`;
+
+    resultEl.innerHTML =
+        `Final Score: <strong>${score}</strong>`;
+
+    startBtn.disabled = false;
+    startBtn.textContent = "Play Again";
+}
+
+async function startGame() {
+
+    score = 0;
+    timeLeft = 60;
+
+    scoreEl.textContent = "Score: 0";
+    timerEl.textContent = "Time: 60";
+    resultEl.textContent = "";
+
+    startBtn.disabled = true;
+    gameRunning = true;
+
+    try {
+
+        await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+
+        recognition.start();
+
+        newQuestion();
+
+        startTimer();
+
+    } catch {
+
+        alert("Microphone permission denied.");
+        startBtn.disabled = false;
+    }
+}
+
+startBtn.addEventListener("click", startGame);
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sampling Correlations from an Uncorrelated Population</title>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    max-width:1200px;
+    margin:20px auto;
+    padding:20px;
+    background:#fafafa;
+}
+
+h1{
+    margin-bottom:8px;
+}
+
+.controls{
+    margin:15px 0;
+}
+
+button{
+    padding:10px 15px;
+    margin:4px;
+    cursor:pointer;
+    border:1px solid #bbb;
+    border-radius:6px;
+    background:white;
+}
+
+button:hover{
+    background:#f0f0f0;
+}
+
+#plot{
+    border:1px solid #999;
+    background:white;
+}
+
+.info-panel{
+    margin-top:12px;
+    padding:12px;
+    background:#fff8d6;
+    border:1px solid #d6c56b;
+    border-radius:6px;
+}
+
+.stats{
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-top:10px;
+}
+
+.stat-box{
+    padding:10px;
+    background:white;
+    border:1px solid #ddd;
+    border-radius:6px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+    background:white;
+}
+
+th,td{
+    border:1px solid #ccc;
+    padding:8px;
+    text-align:center;
+}
+
+#histogramContainer{
+    display:none;
+    margin-top:10px;
+}
+
+#histogram{
+    border:1px solid #aaa;
+    background:white;
+}
+
+.view-controls{
+    margin-top:20px;
+}
+
+.range-label{
+    font-size:12px;
+}
+
+.currentView{
+    font-weight:bold;
+    color:#003366;
+}
+</style>
+</head>
+<body>
+
+<h1>Sampling Correlations from an Uncorrelated Population</h1>
+
+<p>
+Population: 200 points generated from a bivariate normal distribution with population correlation 0.
+Select 5 points manually, or take a random sample of 5 points.
+</p>
+
+<div class="controls">
+    <button onclick="randomSample()">Random Sample of 5</button>
+    <button onclick="newScatter()">New Scatter Diagram</button>
+    <button onclick="clearFrequencies()">Clear Frequencies</button>
+</div>
+
+<svg id="plot" width="700" height="700"></svg>
+
+<div class="info-panel">
+    <div>
+        <strong>Selected Points:</strong>
+        <span id="selectedCount">0</span>/5
+    </div>
+
+    <div style="margin-top:8px;">
+        <strong>Current Sample Correlation:</strong>
+        <span id="correlationDisplay">Not yet sampled</span>
+    </div>
+
+    <div style="margin-top:8px;">
+        <strong>Total Samples Recorded:</strong>
+        <span id="sampleCount">0</span>
+    </div>
+</div>
+
+<div class="view-controls">
+    <button onclick="showTable()">Frequency Table</button>
+    <button onclick="showHistogram()">Histogram</button>
+
+    <span id="viewLabel" class="currentView">
+        Viewing: Frequency Table
+    </span>
+</div>
+
+<div id="tableContainer">
+    <table>
+        <thead>
+            <tr>
+                <th>Correlation Range</th>
+                <th>Frequency</th>
+            </tr>
+        </thead>
+        <tbody id="freqTable"></tbody>
+    </table>
+</div>
+
+<div id="histogramContainer">
+    <canvas id="histogram" width="900" height="450"></canvas>
+</div>
+
+<script>
+
+// -----------------------
+// SETTINGS
+// -----------------------
+
+const bins = [
+[-1,-0.8],
+[-0.8,-0.6],
+[-0.6,-0.4],
+[-0.4,-0.2],
+[-0.2,0],
+[0,0.2],
+[0.2,0.4],
+[0.4,0.6],
+[0.6,0.8],
+[0.8,1]
+];
+
+const svg = document.getElementById("plot");
+const width = 700;
+const height = 700;
+
+// -----------------------
+// STATE
+// -----------------------
+
+let points = [];
+let selected = [];
+let completedSample = [];
+
+let freqs = new Array(10).fill(0);
+let totalSamples = 0;
+
+// -----------------------
+// RANDOM NORMAL
+// -----------------------
+
+function randn() {
+
+    let u = 0;
+    let v = 0;
+
+    while(u === 0) u = Math.random();
+    while(v === 0) v = Math.random();
+
+    return Math.sqrt(-2*Math.log(u))
+        * Math.cos(2*Math.PI*v);
+}
+
+// -----------------------
+// GENERATE POPULATION
+// -----------------------
+
+function generatePoints(){
+
+    points = [];
+
+    for(let i=0;i<200;i++){
+
+        points.push({
+            id:i,
+            x:randn(),
+            y:randn()
+        });
+    }
+
+    selected = [];
+    completedSample = [];
+
+    drawScatter();
+
+    document.getElementById("selectedCount").textContent = "0";
+}
+
+// -----------------------
+// SCALES
+// -----------------------
+
+function xScale(x){
+    return ((x + 4) / 8) * width;
+}
+
+function yScale(y){
+    return height - ((y + 4) / 8) * height;
+}
+
+// -----------------------
+// DRAW SCATTER
+// -----------------------
+
+function drawScatter(){
+
+    svg.innerHTML = "";
+
+    const xAxis =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line"
+        );
+
+    xAxis.setAttribute("x1",0);
+    xAxis.setAttribute("y1",height/2);
+    xAxis.setAttribute("x2",width);
+    xAxis.setAttribute("y2",height/2);
+    xAxis.setAttribute("stroke","#cccccc");
+    svg.appendChild(xAxis);
+
+    const yAxis =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line"
+        );
+
+    yAxis.setAttribute("x1",width/2);
+    yAxis.setAttribute("y1",0);
+    yAxis.setAttribute("x2",width/2);
+    yAxis.setAttribute("y2",height);
+    yAxis.setAttribute("stroke","#cccccc");
+    svg.appendChild(yAxis);
+
+    points.forEach(p=>{
+
+        const circle =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "circle"
+            );
+
+        const isSelected =
+            selected.includes(p.id);
+
+        const isCompleted =
+            completedSample.includes(p.id);
+
+        circle.setAttribute("cx",xScale(p.x));
+        circle.setAttribute("cy",yScale(p.y));
+
+        if(isSelected || isCompleted){
+            circle.setAttribute("r",8);
+        } else {
+            circle.setAttribute("r",5);
+        }
+
+        if(isSelected){
+            circle.setAttribute("fill","#ff9800");
+        }
+        else if(isCompleted){
+            circle.setAttribute("fill","#d32f2f");
+            circle.setAttribute("stroke","#660000");
+            circle.setAttribute("stroke-width","2");
+        }
+        else{
+            circle.setAttribute("fill","#1976d2");
+        }
+
+        circle.style.cursor="pointer";
+
+        circle.addEventListener("click",()=>{
+            clickPoint(p.id);
+        });
+
+        svg.appendChild(circle);
+    });
+}
+
+// -----------------------
+// SELECTION
+// -----------------------
+
+function clickPoint(id){
+
+    if(selected.length === 0){
+        completedSample = [];
+    }
+
+    if(selected.includes(id)){
+
+        selected = selected.filter(
+            x => x !== id
+        );
+
+    } else {
+
+        if(selected.length >= 5){
+            return;
+        }
+
+        selected.push(id);
+    }
+
+    document.getElementById("selectedCount")
+        .textContent = selected.length;
+
+    drawScatter();
+
+    if(selected.length === 5){
+
+        const sample =
+            points.filter(
+                p => selected.includes(p.id)
+            );
+
+        recordSample(sample);
+    }
+}
+
+// -----------------------
+// CORRELATION
+// -----------------------
+
+function correlation(sample){
+
+    const n = sample.length;
+
+    let mx = 0;
+    let my = 0;
+
+    sample.forEach(p=>{
+        mx += p.x;
+        my += p.y;
+    });
+
+    mx /= n;
+    my /= n;
+
+    let sxy = 0;
+    let sxx = 0;
+    let syy = 0;
+
+    sample.forEach(p=>{
+
+        const dx = p.x - mx;
+        const dy = p.y - my;
+
+        sxy += dx * dy;
+        sxx += dx * dx;
+        syy += dy * dy;
+    });
+
+    return sxy / Math.sqrt(sxx * syy);
+}
+
+// -----------------------
+// RECORD SAMPLE
+// -----------------------
+
+function recordSample(sample){
+
+    const r = correlation(sample);
+
+    completedSample =
+        sample.map(p=>p.id);
+
+    selected = [];
+
+    let binIndex = bins.length - 1;
+
+    for(let i=0;i<bins.length;i++){
+
+        const low = bins[i][0];
+        const high = bins[i][1];
+
+        const inBin =
+            (i === bins.length - 1)
+            ? r >= low && r <= high
+            : r >= low && r < high;
+
+        if(inBin){
+            binIndex = i;
+            break;
+        }
+    }
+
+    freqs[binIndex]++;
+    totalSamples++;
+
+    document.getElementById("sampleCount")
+        .textContent = totalSamples;
+
+    document.getElementById("correlationDisplay")
+        .innerHTML =
+        "<strong>" + r.toFixed(3) + "</strong>";
+
+    updateFrequencyTable();
+    drawHistogram();
+    drawScatter();
+}
+
+// -----------------------
+// RANDOM SAMPLE
+// -----------------------
+
+function randomSample(){
+
+    completedSample = [];
+
+    const shuffled =
+        [...points]
+        .sort(()=>Math.random()-0.5)
+        .slice(0,5);
+
+    recordSample(shuffled);
+}
+
+// -----------------------
+// FREQUENCY TABLE
+// -----------------------
+
+function updateFrequencyTable(){
+
+    const tbody =
+        document.getElementById("freqTable");
+
+    tbody.innerHTML = "";
+
+    bins.forEach((b,i)=>{
+
+        const row =
+            document.createElement("tr");
+
+        row.innerHTML =
+        `
+        <td>${b[0]} &lt; r &lt; ${b[1]}</td>
+        <td>${freqs[i]}</td>
+        `;
+
+        tbody.appendChild(row);
+    });
+
+    const totalRow =
+        document.createElement("tr");
+
+    totalRow.innerHTML =
+    `
+    <td><strong>Total Samples</strong></td>
+    <td><strong>${totalSamples}</strong></td>
+    `;
+
+    tbody.appendChild(totalRow);
+}
+
+// -----------------------
+// HISTOGRAM
+// -----------------------
+
+function drawHistogram(){
+
+    const canvas =
+        document.getElementById("histogram");
+
+    const ctx =
+        canvas.getContext("2d");
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    const maxFreq =
+        Math.max(...freqs,1);
+
+    const margin = 50;
+
+    const plotWidth =
+        canvas.width - 2*margin;
+
+    const plotHeight =
+        canvas.height - 2*margin;
+
+    ctx.strokeStyle = "black";
+
+    ctx.beginPath();
+    ctx.moveTo(margin, margin);
+    ctx.lineTo(margin, canvas.height-margin);
+    ctx.lineTo(canvas.width-margin,
+               canvas.height-margin);
+    ctx.stroke();
+
+    const barWidth =
+        plotWidth/freqs.length;
+
+    freqs.forEach((f,i)=>{
+
+        const h =
+            (f/maxFreq) * plotHeight;
+
+        const x =
+            margin + i*barWidth + 5;
+
+        const y =
+            canvas.height - margin - h;
+
+        ctx.fillStyle = "#1976d2";
+
+        ctx.fillRect(
+            x,
+            y,
+            barWidth-10,
+            h
+        );
+
+        ctx.fillStyle = "black";
+        ctx.font = "10px Arial";
+
+        ctx.fillText(
+            i+1,
+            x + (barWidth/2)-5,
+            canvas.height - margin + 15
+        );
+    });
+
+    ctx.font = "14px Arial";
+
+    ctx.fillText(
+        "Histogram of Sample Correlations",
+        300,
+        20
+    );
+
+    ctx.fillText(
+        "Frequency",
+        10,
+        20
+    );
+}
+
+// -----------------------
+// VIEW SWITCHING
+// -----------------------
+
+function showTable(){
+
+    document.getElementById(
+        "tableContainer"
+    ).style.display = "block";
+
+    document.getElementById(
+        "histogramContainer"
+    ).style.display = "none";
+
+    document.getElementById(
+        "viewLabel"
+    ).textContent =
+    "Viewing: Frequency Table";
+}
+
+function showHistogram(){
+
+    document.getElementById(
+        "tableContainer"
+    ).style.display = "none";
+
+    document.getElementById(
+        "histogramContainer"
+    ).style.display = "block";
+
+    document.getElementById(
+        "viewLabel"
+    ).textContent =
+    "Viewing: Histogram";
+
+    drawHistogram();
+}
+
+// -----------------------
+// RESETS
+// -----------------------
+
+function clearFrequencies(){
+
+    freqs =
+        new Array(10).fill(0);
+
+    totalSamples = 0;
+
+    completedSample = [];
+    selected = [];
+
+    document.getElementById(
+        "sampleCount"
+    ).textContent = "0";
+
+    document.getElementById(
+        "selectedCount"
+    ).textContent = "0";
+
+    document.getElementById(
+        "correlationDisplay"
+    ).textContent =
+        "Not yet sampled";
+
+    updateFrequencyTable();
+    drawHistogram();
+    drawScatter();
+}
+
+function newScatter(){
+
+    generatePoints();
+
+    document.getElementById(
+        "correlationDisplay"
+    ).textContent =
+        "Not yet sampled";
+}
+
+// -----------------------
+// INITIALISE
+// -----------------------
+
+generatePoints();
+updateFrequencyTable();
+
+</script>
+
+</body>
+</html>
