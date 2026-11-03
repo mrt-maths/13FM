@@ -1,0 +1,709 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Statistics on your Casio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of question cards on a graph-paper ground; key presses drawn as keycaps. */
+:root {
+  --bg: #EDF1F4; --grid: #DAE2E8; --surface: #FFFFFF; --ink: #14212B; --muted: #4F606C;
+  --line: #C6D1D9; --accent: #0B6B75; --accent-ink: #FFFFFF; --accent-soft: #DDF0F2;
+  --good: #17703A; --good-soft: #DCF1E3; --bad: #AE2A22; --bad-soft: #FBE3E1;
+  --warn-soft: #FFF1CF; --warn-ink: #5A4200; --key: #E6ECF0; --key-edge: #9BA9B4;
+  --display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0E161C; --grid: #16222B; --surface: #152029; --ink: #E5EDF2; --muted: #9DADB8;
+  --line: #2B3B47; --accent: #4CC2CB; --accent-ink: #04262A; --accent-soft: #11343A;
+  --good: #62D08C; --good-soft: #123422; --bad: #FF9088; --bad-soft: #3D1B19;
+  --warn-soft: #3A2F12; --warn-ink: #F2D98E; --key: #22323D; --key-edge: #4D6171; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0E161C; --grid: #16222B; --surface: #152029; --ink: #E5EDF2; --muted: #9DADB8;
+  --line: #2B3B47; --accent: #4CC2CB; --accent-ink: #04262A; --accent-soft: #11343A;
+  --good: #62D08C; --good-soft: #123422; --bad: #FF9088; --bad-soft: #3D1B19;
+  --warn-soft: #3A2F12; --warn-ink: #F2D98E; --key: #22323D; --key-edge: #4D6171; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background-color: var(--bg); color: var(--ink); font: 16px/1.55 var(--body);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px; padding-block: 0 4rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 820px; margin: 0 auto; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+p { margin: 0; }
+
+/* top bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 10px 0 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 1.05rem; margin-right: auto; }
+.swap { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+.swap select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.prog { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.prog b { color: var(--ink); }
+.meter { flex-basis: 100%; height: 4px; background: var(--line); margin-top: 4px; }
+.meter i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+
+/* picker */
+.intro { padding-block: 40px 22px; display: grid; gap: 14px; }
+.intro h1 { font-size: clamp(2rem, 6vw, 3.2rem); font-weight: 700; letter-spacing: -.01em; }
+.lede { max-width: 58ch; color: var(--muted); font-size: 1.05rem; }
+.label { font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-family: var(--body); font-weight: 600; margin-bottom: 12px; }
+.models { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.model { text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--surface); border: 1px solid var(--line);
+  border-bottom-width: 4px; border-radius: 10px; padding: 16px; display: grid; gap: 4px; min-width: 0; }
+.model:hover { border-color: var(--accent); }
+.model:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.model-name { font-family: var(--mono); font-weight: 500; font-size: 1.15rem; }
+.model-line { color: var(--muted); font-size: .9rem; }
+.fine { margin-top: 14px; font-size: .85rem; color: var(--muted); max-width: 70ch; }
+.rules { margin-top: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+.rules ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+/* questions */
+.section { font-size: 1.35rem; margin: 40px 0 14px; font-weight: 700; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; display: grid; gap: 14px; min-width: 0; }
+.q-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.q-num { font-family: var(--mono); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 500; }
+.q-topic { font-family: var(--display); font-weight: 700; font-size: 1.15rem; }
+.q-state { margin-left: auto; font-size: .8rem; color: var(--muted); }
+.q-state[data-state="ok"] { color: var(--good); font-weight: 600; }
+.q-state[data-state="part"] { color: var(--warn-ink); font-weight: 600; }
+.q-body { max-width: 68ch; display: grid; gap: 12px; min-width: 0; }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips li { font-family: var(--mono); font-variant-numeric: tabular-nums; background: var(--accent-soft); border-radius: 6px; padding: 2px 9px; }
+.tscroll { overflow-x: auto; max-width: 100%; }
+.dt { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .95rem; }
+.dt th, .dt td { border: 1px solid var(--line); padding: 6px 12px; text-align: right; white-space: nowrap; }
+.dt th:first-child, .dt td:first-child { text-align: left; }
+.dt th { background: var(--accent-soft); font-weight: 600; }
+
+.parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 18px; }
+.part { display: grid; gap: 4px; min-width: 0; }
+.part label { font-size: .9rem; font-weight: 500; }
+.field { display: grid; gap: 4px; }
+.part input, .part select { font: inherit; font-family: var(--mono); color: var(--ink); background: var(--bg); border: 1px solid var(--key-edge);
+  border-radius: 6px; padding: 8px 10px; width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+.part select { font-family: var(--body); }
+.part[data-state="ok"] input, .part[data-state="ok"] select { border-color: var(--good); background: var(--good-soft); }
+.part[data-state="bad"] input, .part[data-state="bad"] select { border-color: var(--bad); background: var(--bad-soft); }
+.verdict { font-size: .82rem; min-height: 1.2em; color: var(--muted); }
+.part[data-state="ok"] .verdict { color: var(--good); font-weight: 600; }
+.part[data-state="bad"] .verdict { color: var(--bad); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font: inherit; font-weight: 500; cursor: pointer; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--key-edge); background: var(--surface); color: var(--ink); }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.quiet { border-color: transparent; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+
+/* help panel */
+.help, .reveal { border-radius: 10px; padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
+.help { background: var(--accent-soft); }
+.reveal { background: var(--bg); border: 1px dashed var(--key-edge); }
+.help[hidden], .reveal[hidden] { display: none; }
+.help-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: .85rem; color: var(--muted); }
+.help-model { font-family: var(--mono); font-weight: 500; color: var(--accent-ink); background: var(--accent); border-radius: 5px; padding: 1px 8px; }
+.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 10px; }
+.steps li { padding-left: 4px; }
+.steps li::marker { font-family: var(--mono); color: var(--accent); font-weight: 500; }
+kbd { font-family: var(--mono); font-size: .82em; background: var(--key); border: 1px solid var(--key-edge); border-bottom-width: 3px;
+  border-radius: 5px; padding: 0 .45em; white-space: nowrap; display: inline-block; line-height: 1.5; color: var(--ink); }
+.callout { background: var(--warn-soft); color: var(--warn-ink); border-radius: 8px; padding: 10px 14px; font-size: .93rem; }
+.callout kbd { color: var(--ink); }
+.aside { font-size: .9rem; color: var(--muted); }
+.reveal .dt td.num { text-align: right; font-family: var(--mono); }
+.trap { background: var(--warn-soft); color: var(--warn-ink); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; font-size: .93rem; }
+.trap-row { display: flex; justify-content: space-between; gap: 12px; }
+.trap-row .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bad-n { text-decoration: line-through; }
+
+.summary { background: var(--good-soft); border: 1px solid var(--good); border-radius: 12px; padding: 20px; margin-top: 24px; display: grid; gap: 6px; }
+.summary[hidden] { display: none; }
+
+@media (max-width: 520px) {
+  .q { padding: 16px; }
+  .brand { flex-basis: 100%; }
+  .actions .btn { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+</style>
+<div class="wrap">
+  <div class="bar" id="bar"></div>
+  <main id="app"></main>
+</div>
+<script>
+/* ---------- Maths helpers (answers are always computed, never typed in) ---------- */
+const sum = a => a.reduce((x, y) => x + y, 0);
+const mean = a => sum(a) / a.length;
+const popVar = a => { const m = mean(a); return sum(a.map(x => (x - m) ** 2)) / a.length; };
+const popSd = a => Math.sqrt(popVar(a));
+const sampSd = a => { const m = mean(a); return Math.sqrt(sum(a.map(x => (x - m) ** 2)) / (a.length - 1)); };
+const median = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+// Casio method: split into lower and upper halves (median left out when n is odd)
+const quart = a => { const s = [...a].sort((x, y) => x - y), n = s.length, h = Math.floor(n / 2); return { q1: median(s.slice(0, h)), q3: median(s.slice(n - h)) }; };
+const expand = (v, f) => { const o = []; v.forEach((x, i) => { for (let k = 0; k < f[i]; k++) o.push(x); }); return o; };
+const sig = (x, n) => Number(x.toPrecision(n));
+const fmt = (x, n = 6) => { const v = Number(x.toPrecision(n)); return Math.abs(v) < 1e-4 && v !== 0 ? v.toExponential(3) : String(v); };
+
+function linReg(xs, ys) {
+  const n = xs.length, mx = mean(xs), my = mean(ys);
+  const sxx = sum(xs.map(x => (x - mx) ** 2)), syy = sum(ys.map(y => (y - my) ** 2));
+  const sxy = sum(xs.map((x, i) => (x - mx) * (ys[i] - my)));
+  const b = sxy / sxx, a = my - b * mx, r = sxy / Math.sqrt(sxx * syy);
+  return { a, b, r };
+}
+function binPmf(k, n, p) {
+  if (k < 0 || k > n) return 0;
+  let c = 1; for (let i = 1; i <= k; i++) c = c * (n - k + i) / i;
+  return c * Math.pow(p, k) * Math.pow(1 - p, n - k);
+}
+const binCdf = (k, n, p) => { if (k < 0) return 0; let s = 0; for (let i = 0; i <= Math.min(k, n); i++) s += binPmf(i, n, p); return s; };
+function phi(z) {
+  if (z < -8) return 0; if (z > 8) return 1;
+  const az = Math.abs(z); let term = az, s = az;
+  for (let i = 1; i < 400; i++) { term *= az * az / (2 * i + 1); s += term; if (term < 1e-18 * s) break; }
+  const v = 0.5 + s * Math.exp(-az * az / 2) / Math.sqrt(2 * Math.PI);
+  return z >= 0 ? v : 1 - v;
+}
+const normCdf = (lo, hi, mu, sd) => phi((hi - mu) / sd) - phi((lo - mu) / sd);
+function invPhi(p) { let lo = -10, hi = 10; for (let i = 0; i < 200; i++) { const m = (lo + hi) / 2; if (phi(m) < p) lo = m; else hi = m; } return (lo + hi) / 2; }
+const invNorm = (p, mu, sd) => mu + sd * invPhi(p);
+
+/* ---------- Calculator models ---------- */
+const MODELS = {
+  cg50:  { name: 'fx-CG50',  line: 'Graphic calculator, F1 to F6 menu keys' },
+  cg100: { name: 'fx-CG100', line: 'ClassPad touchscreen' },
+  ex:    { name: 'fx-991EX', line: 'ClassWiz, natural display' },
+  cw:    { name: 'fx-991CW', line: 'Newer ClassWiz (also fx-570CW)' }
+};
+const K = (...a) => a.map(s => `<kbd>${s}</kbd>`).join(' ');
+const INF = { cg50: K('EXP'), cg100: 'EE', ex: K('×10ˣ'), cw: K('×10ˣ') };
+
+/* ---------- Help generators: one array of HTML steps per model ---------- */
+function oneVar(m, freq, note) {
+  const fq = freq ? 'List 2' : '1';
+  const t = {
+    cg50: [
+      `Press ${K('MENU')} and open <b>Statistics</b>.`,
+      freq ? `Clear any old data. Type the values into <b>List 1</b> and the frequencies into <b>List 2</b>, pressing ${K('EXE')} after each number.`
+           : `Clear any old data. Type the numbers into <b>List 1</b>, pressing ${K('EXE')} after each one.`,
+      `Press ${K('F2')} (CALC), then ${K('F6')} (SET). Set <b>1Var XList</b> to List 1 and <b>1Var Freq</b> to ${fq}. Press ${K('EXIT')}.`,
+      `Press ${K('F1')} (1-VAR) and scroll with ${K('▼')}. <b>x̄</b> is the mean, <b>σx</b> the population standard deviation, <b>sx</b> the sample standard deviation, followed by <b>minX</b>, <b>Q1</b>, <b>Med</b>, <b>Q3</b>, <b>maxX</b>. Check that <b>n</b> is what you expect.`
+    ],
+    cg100: [
+      `Tap the Menu icon and open the <b>Statistics</b> app.`,
+      freq ? `Type the values into the first list column and the frequencies into the second list column.` : `Type the numbers into the first list column, pressing ${K('EXE')} after each one.`,
+      `Tap <b>Calc</b>, then <b>One-Variable</b>. Set <b>XList</b> to the list holding your values and <b>Freq</b> to ${freq ? 'the frequency list' : '1'}. Tap <b>OK</b>.`,
+      `Scroll the results: <b>x̄</b> (mean), <b>σx</b> (population SD), <b>sx</b> (sample SD), <b>Q1</b>, <b>Med</b>, <b>Q3</b>. Check <b>n</b>.`
+    ],
+    ex: [
+      `Press ${K('MENU')}, choose <b>Statistics</b>, then <b>1-Variable</b>.` + (freq ? ` Before typing, press ${K('SHIFT')} ${K('MENU')} (SETUP), scroll to <b>Statistics</b> and turn <b>Frequency</b> on.` : ''),
+      freq ? `Type the values in the <b>x</b> column and the frequencies in the <b>FREQ</b> column, pressing ${K('=')} after each number.` : `Type the numbers in the <b>x</b> column, pressing ${K('=')} after each one.`,
+      `Press ${K('OPTN')} and choose <b>1-Variable Calc</b>. Scroll with ${K('▼')}: <b>x̄</b> is the mean, <b>σx</b> the population SD, <b>sx</b> the sample SD, <b>n</b>, then <b>minX</b>, <b>Q1</b>, <b>Med</b>, <b>Q3</b>, <b>maxX</b>.`,
+      `To use a result in a calculation, press ${K('AC')}, then ${K('SHIFT')} ${K('1')} (STAT) and choose <b>Var</b> or <b>MinMax</b>.`
+    ],
+    cw: [
+      `Press ${K('MENU')}, choose <b>Statistics</b>, then <b>1-Variable</b>.` + (freq ? ` If there is no frequency column, open SETUP (${K('SHIFT')} ${K('MENU')}) and turn <b>Frequency</b> on.` : ''),
+      freq ? `Type the values in the <b>x</b> column and the frequencies in the <b>Freq</b> column.` : `Type the numbers in the <b>x</b> column.`,
+      `Press ${K('OPTN')} and choose <b>1-Variable Calc</b> (or the Calc option shown on screen). Scroll to read <b>x̄</b> (mean), <b>σx</b> (population SD), <b>sx</b> (sample SD), <b>n</b>, <b>Q1</b>, <b>Med</b>, <b>Q3</b>.`,
+      `To use a result in a calculation, press ${K('AC')} then ${K('SHIFT')} ${K('1')} (STAT) and pick it from <b>Var</b> or <b>MinMax</b>.`
+    ]
+  }[m].slice();
+  if (note) t.push(note[m] || note.all);
+  return t;
+}
+function twoVar(m) {
+  return {
+    cg50: [
+      `Press ${K('MENU')} and open <b>Statistics</b>. Clear old data. Type the <b>x</b> values into <b>List 1</b> and the <b>y</b> values into <b>List 2</b>.`,
+      `Press ${K('F2')} (CALC), then ${K('F6')} (SET). Set <b>2Var XList</b> to List 1, <b>2Var YList</b> to List 2 and <b>2Var Freq</b> to 1. Press ${K('EXIT')}.`,
+      `Press ${K('F3')} (REG), then ${K('F1')} (X) for linear regression in the form <b>y = ax + b</b>.`,
+      `Read <b>a</b> (the gradient), <b>b</b> (the intercept) and <b>r</b> (the PMCC). Careful: on this screen a is the gradient, which is the other way round from y = a + bx in your notes.`
+    ],
+    cg100: [
+      `Tap the Menu icon and open the <b>Statistics</b> app. Type the <b>x</b> values into the first list and the <b>y</b> values into the second.`,
+      `Tap <b>Calc</b>, then <b>Linear Reg</b>. Set <b>XList</b> and <b>YList</b> to your two lists and <b>Freq</b> to 1. Tap <b>OK</b>.`,
+      `Read <b>a</b>, <b>b</b> and <b>r</b>. If the equation shown is y = ax + b, then a is the gradient and b the intercept.`
+    ],
+    ex: [
+      `Press ${K('MENU')}, choose <b>Statistics</b>, then <b>y = a + bx</b>.`,
+      `Type the <b>x</b> values in the X column and the <b>y</b> values in the Y column, pressing ${K('=')} after each number.`,
+      `Press ${K('OPTN')} and choose <b>Regression Calc</b>. Read <b>A</b> (the intercept), <b>B</b> (the gradient) and <b>r</b> (the PMCC). Here the equation is y = A + Bx.`
+    ],
+    cw: [
+      `Press ${K('MENU')}, choose <b>Statistics</b>, then <b>y = a + bx</b>.`,
+      `Type the <b>x</b> values in the X column and the <b>y</b> values in the Y column.`,
+      `Press ${K('OPTN')} and choose <b>Regression Calc</b>. Read <b>A</b> (the intercept), <b>B</b> (the gradient) and <b>r</b> (the PMCC). The equation is y = A + Bx.`
+    ]
+  }[m];
+}
+function predict(m, x1, x2) {
+  return {
+    cg50: [
+      `Do the regression as in the previous question (${K('F2')} CALC, ${K('F3')} REG, ${K('F1')} X) so that a and b are stored.`,
+      `Go to <b>Run-Matrix</b> from ${K('MENU')}. Press ${K('VARS')}, then <b>STAT</b>, then <b>GRPH</b>, and insert <b>a</b> and <b>b</b> from there. Calculate <b>a × ${x1} + b</b>. Never type in rounded copies of a and b.`,
+      `Repeat for ${x2}. If your menus differ, ask your teacher to show you where the stored regression values live.`
+    ],
+    cg100: [
+      `Run the linear regression first so that a and b are stored.`,
+      `In the calculation screen, insert the stored <b>a</b> and <b>b</b> from the regression results or variable list, then calculate <b>a × ${x1} + b</b>. Never type in rounded copies.`,
+      `Repeat for ${x2}.`
+    ],
+    ex: [
+      `Do the regression first (MENU, Statistics, y = a + bx, enter data).`,
+      `Press ${K('AC')}, type <b>${x1}</b>, then press ${K('SHIFT')} ${K('1')} (STAT), choose <b>Reg</b>, then <b>ŷ</b>, and press ${K('=')}. The calculator uses its own unrounded A and B.`,
+      `Repeat for <b>${x2}</b>. Alternatively, insert <b>A</b> and <b>B</b> from ${K('SHIFT')} ${K('1')} → <b>Reg</b> and calculate A + B × ${x1}.`
+    ],
+    cw: [
+      `Do the regression first (MENU, Statistics, y = a + bx, enter data).`,
+      `Press ${K('AC')}, type <b>${x1}</b>, then press ${K('SHIFT')} ${K('1')} (STAT), choose <b>Reg</b>, then <b>ŷ</b>, and press ${K('=')}. This uses the unrounded A and B.`,
+      `Repeat for <b>${x2}</b>. Alternatively, insert <b>A</b> and <b>B</b> from the Reg menu and calculate A + B × ${x1}.`
+    ]
+  }[m];
+}
+function binSteps(m, n, p, kind) {
+  const open = {
+    cg50: `Press ${K('MENU')}, open <b>Statistics</b>, press ${K('F5')} (DIST), then ${K('F5')} (BINM).`,
+    cg100: `Open the <b>Statistics</b> app, then <b>Calc</b> → <b>Distribution</b>.`,
+    ex: `Press ${K('MENU')} and choose <b>Distribution</b>.`,
+    cw: `Press ${K('MENU')} and choose <b>Distribution</b>.`
+  }[m];
+  const pd = {
+    cg50: `Choose ${K('F1')} (<b>Bpd</b>). Set <b>Data</b> to Variable, <b>x</b> to the value, <b>Numtrial</b> to ${n} and <b>p</b> to ${p}. Press ${K('F1')} (CALC) or ${K('EXE')}. The result is P(X = x).`,
+    cg100: `Choose <b>Binomial PDf</b>. Enter <b>x</b>, <b>Numtrial</b> = ${n} and <b>pos</b> (the probability) = ${p}. The result is P(X = x).`,
+    ex: `Choose <b>Binomial PD</b>. Set <b>Data</b> to Variable, then enter <b>x</b>, <b>N</b> = ${n} and <b>p</b> = ${p}. Press ${K('=')}. The result is P(X = x).`,
+    cw: `Choose <b>Binomial PD</b>. Enter <b>x</b>, <b>N</b> = ${n} and <b>p</b> = ${p}, then press ${K('=')}. The result is P(X = x).`
+  }[m];
+  const cd = {
+    cg50: `Choose ${K('F2')} (<b>Bcd</b>). Enter <b>x</b>, <b>Numtrial</b> = ${n} and <b>p</b> = ${p}. The result is P(X ≤ x).`,
+    cg100: `Choose <b>Binomial CDf</b>. Enter <b>x</b>, <b>Numtrial</b> = ${n} and <b>pos</b> = ${p}. The result is P(X ≤ x).`,
+    ex: `Choose <b>Binomial CD</b>. Enter <b>x</b>, <b>N</b> = ${n} and <b>p</b> = ${p}. The result is P(X ≤ x).`,
+    cw: `Choose <b>Binomial CD</b>. Enter <b>x</b>, <b>N</b> = ${n} and <b>p</b> = ${p}. The result is P(X ≤ x).`
+  }[m];
+  return kind === 'pd' ? [open, pd] : kind === 'cd' ? [open, cd] : [open, pd, cd];
+}
+const CONVERT = `Binomial CD always gives P(X ≤ x), so convert first. For whole numbers: P(X &lt; 5) = P(X ≤ 4), P(X ≥ 8) = 1 − P(X ≤ 7), and P(a ≤ X ≤ b) = P(X ≤ b) − P(X ≤ a − 1).`;
+function normSteps(m, mu, sd2, sd) {
+  const open = {
+    cg50: `Press ${K('MENU')}, open <b>Statistics</b>, press ${K('F5')} (DIST), then ${K('F1')} (NORM).`,
+    cg100: `Open the <b>Statistics</b> app, then <b>Calc</b> → <b>Distribution</b>.`,
+    ex: `Press ${K('MENU')} and choose <b>Distribution</b>.`,
+    cw: `Press ${K('MENU')} and choose <b>Distribution</b>.`
+  }[m];
+  const cd = {
+    cg50: `Choose ${K('F2')} (<b>Ncd</b>). Set <b>Data</b> to Variable. Enter <b>Lower</b>, <b>Upper</b>, <b>σ</b> and <b>μ</b>, then press ${K('EXE')} or ${K('F1')} (CALC).`,
+    cg100: `Choose <b>Normal CDf</b>. Enter <b>Lower</b>, <b>Upper</b>, <b>σ</b> and <b>μ</b>.`,
+    ex: `Choose <b>Normal CD</b>. Enter <b>Lower</b>, <b>Upper</b>, <b>σ</b> and <b>μ</b> (in that order), pressing ${K('=')} after each.`,
+    cw: `Choose <b>Normal CD</b>. Enter <b>Lower</b>, <b>Upper</b>, <b>σ</b> and <b>μ</b>, pressing ${K('=')} after each.`
+  }[m];
+  return [open, cd, `The calculator wants <b>σ</b>, the standard deviation, not the variance. ${sd2 ? `X ~ N(${mu}, ${sd}²) means σ = ${sd}.` : ''}`,
+    `For a tail with no limit, use a very large number: ${m === 'cg100' ? 'type' : 'use'} <b>1E99</b> (${INF[m]}) for infinity or <b>−1E99</b> for minus infinity. For example, P(X &gt; a) has Lower = a and Upper = 1E99.`];
+}
+const ansTip = `<b>Rounding rule.</b> Keep full calculator values all the way through a multi-step calculation. Only round the final answer. Use the <kbd>Ans</kbd> key (or stored variables) to carry a result forward instead of retyping a rounded copy.`;
+
+/* ---------- Data and questions ---------- */
+const times = [14.2, 15.8, 11.9, 17.1, 13.9, 16.4, 15.0, 18.3, 14.7, 13.1, 16.9, 15.5];
+const goalsX = [0, 1, 2, 3, 4, 5], goalsF = [6, 11, 9, 7, 4, 3];
+const ages = [23, 31, 27, 35, 29, 41, 33, 26, 38, 30, 44, 28];
+const wGroups = ['0 ≤ w < 5', '5 ≤ w < 10', '10 ≤ w < 15', '15 ≤ w < 20', '20 ≤ w < 30'];
+const wMid = [2.5, 7.5, 12.5, 17.5, 25], wF = [4, 9, 14, 8, 5];
+const hts = [152, 158, 163, 167, 172, 176, 181, 188], mass = [49, 55, 58, 63, 67, 70, 76, 83];
+
+const tAll = times, tm = mean(tAll), ts = popSd(tAll);
+const gl = expand(goalsX, goalsF);
+const aq = quart(ages);
+const wAll = expand(wMid, wF), wm = mean(wAll), wsd = popSd(wAll);
+const reg = linReg(hts, mass);
+const pred = x => reg.a + reg.b * x;
+const predR = x => sig(reg.a, 3) + sig(reg.b, 3) * x;
+
+const bn = 20, bp = 0.3;
+let invA = 0; while (binCdf(invA + 1, 40, 0.35) < 0.9) invA++;       // largest a with P(Y<=a) < 0.9
+let invB = 0; while (binCdf(invB, 40, 0.35) <= 0.95) invB++;          // smallest b with P(Y<=b) > 0.95
+const pFault = normCdf(51.5, Infinity, 50, 1.2);
+const pF3 = sig(pFault, 3);
+
+const table = (head, rows) => `<div class="tscroll"><table class="dt"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+const chips = a => `<ul class="chips">${a.map(x => `<li>${x}</li>`).join('')}</ul>`;
+const rowT = (head, vals) => table(head, [vals]);
+
+const QUESTIONS = [
+  {
+    section: 'Statistics mode: lists of data', topic: 'Mean, median, standard deviation, variance',
+    text: `Twelve pupils timed how long they took to finish a puzzle. The times, in seconds, are below. Use your calculator's statistics mode to find the following. Give each answer to 3 significant figures.` + chips(times),
+    parts: [
+      { label: 'Mean (s)', ans: tm },
+      { label: 'Median (s)', ans: median(tAll) },
+      { label: 'Standard deviation, σ (population)', ans: ts },
+      { label: 'Variance, σ²', ans: ts * ts }
+    ],
+    help: m => oneVar(m, false, { all: `<b>Variance:</b> the calculator shows σx but not the variance, so square it. Do not retype the rounded σ. ${m === 'ex' || m === 'cw' ? `Press ${K('AC')}, then ${K('SHIFT')} ${K('1')} → <b>Var</b> → <b>σx</b>, then ${K('x²')} and ${K('=')}.` : m === 'cg50' ? `Go to <b>Run-Matrix</b>, press ${K('VARS')} → <b>STAT</b> → <b>VAR</b> and insert <b>σx</b>, then press ${K('x²')} and ${K('EXE')}.` : `Insert the stored <b>σx</b> into a calculation and square it.`}` }),
+    tip: ansTip,
+    trap: { title: 'Variance rounding check', exact: ts * ts, rounded: sig(ts, 3) ** 2, text: `Squaring σ after rounding it to 3 s.f.` },
+    note: `σ (σx on the calculator) divides by n and is used for a whole population or when a question says "standard deviation" of the data given. sx divides by n − 1 and is used for estimating from a sample.`
+  },
+  {
+    section: 'Statistics mode: lists of data', topic: 'Frequency table (ungrouped)',
+    text: `The number of goals scored in each of 40 matches is recorded. Enter the values and their frequencies, then find the statistics. Give each answer to 3 significant figures.` + table(['Goals', ...goalsX], [['Frequency', ...goalsF]]),
+    parts: [
+      { label: 'Mean number of goals', ans: mean(gl) },
+      { label: 'Median', ans: median(gl) },
+      { label: 'Standard deviation, σ (population)', ans: popSd(gl) }
+    ],
+    help: m => oneVar(m, true, { all: `After the results appear, check that <b>n = 40</b>. If it is not, a frequency has been entered in the wrong place.` }),
+    note: `With a frequency list, the calculator treats each value as if it were repeated that many times.`
+  },
+  {
+    section: 'Statistics mode: lists of data', topic: 'Quartiles and sample standard deviation',
+    text: `The ages of twelve people at a club are: ` + chips(ages) + `Find the following. Give each answer to 3 significant figures where needed.`,
+    parts: [
+      { label: 'Lower quartile, Q₁', ans: aq.q1 },
+      { label: 'Upper quartile, Q₃', ans: aq.q3 },
+      { label: 'Interquartile range', ans: aq.q3 - aq.q1 },
+      { label: 'Sample standard deviation, s', ans: sampSd(ages) }
+    ],
+    help: m => oneVar(m, false, { all: `The question asks for the <b>sample</b> standard deviation, so read <b>sx</b>, not σx. For the interquartile range, subtract <b>Q1</b> from <b>Q3</b>. Here n is even, so the calculator's quartiles agree with the usual n ÷ 4 method. With an odd n the calculator leaves out the median when it splits the data, so check what your exam board expects.` }),
+    note: `Q₁ and Q₃ here are exact values from the calculator. The IQR is Q₃ − Q₁.`
+  },
+  {
+    section: 'Grouped data', topic: 'Mean, standard deviation, variance from a grouped table',
+    text: `The waiting times, w minutes, of 40 customers are summarised below. Estimate the statistics by using the class mid-points. Give each answer to 3 significant figures.` + table(['Waiting time (w minutes)', 'Frequency'], wGroups.map((g, i) => [g, wF[i]])),
+    parts: [
+      { label: 'Estimate of the mean (minutes)', ans: wm },
+      { label: 'Estimate of the standard deviation, σ', ans: wsd },
+      { label: 'Estimate of the variance, σ²', ans: wsd * wsd },
+      { label: 'Standardised value z = (22 − mean) ÷ σ', ans: (22 - wm) / wsd }
+    ],
+    help: m => oneVar(m, true, { all: `<b>Grouped data:</b> enter the <b>mid-points</b> (2.5, 7.5, 12.5, 17.5, 25) as the values, and the frequencies as the frequency list. Check that <b>n = 40</b>.` }).concat([
+      `<b>Last part:</b> do not type the mean and σ into the calculation. ${m === 'ex' || m === 'cw' ? `Press ${K('AC')}, then type <b>(22 − </b> ${K('SHIFT')} ${K('1')} → <b>Var</b> → <b>x̄</b> <b>) ÷ </b> ${K('SHIFT')} ${K('1')} → <b>Var</b> → <b>σx</b> ${K('=')}.` : m === 'cg50' ? `In <b>Run-Matrix</b> use ${K('VARS')} → <b>STAT</b> → <b>VAR</b> to insert <b>x̄</b> and <b>σx</b> into (22 − x̄) ÷ σx.` : `Insert the stored <b>x̄</b> and <b>σx</b> into (22 − x̄) ÷ σx.`}`
+    ]),
+    tip: ansTip,
+    trap: { title: 'z-value rounding check', exact: (22 - wm) / wsd, rounded: (22 - sig(wm, 3)) / sig(wsd, 3), text: `Using the mean and σ rounded to 3 s.f.` },
+    note: `These are estimates because the real values inside each group are not known.`
+  },
+  {
+    section: 'Grouped data', topic: 'Which group contains a quartile?',
+    text: `Use the same table of 40 waiting times as the previous question. State which group contains each of the following.` + table(['Waiting time (w minutes)', 'Frequency'], wGroups.map((g, i) => [g, wF[i]])),
+    parts: [
+      { label: 'Lower quartile (Q₁)', type: 'select', options: wGroups, ans: 1 },
+      { label: 'Median', type: 'select', options: wGroups, ans: 2 },
+      { label: 'Upper quartile (Q₃)', type: 'select', options: wGroups, ans: 3 }
+    ],
+    help: m => oneVar(m, true, { all: `Enter the <b>mid-points</b> with the frequencies. When the results show <b>Q1</b>, <b>Med</b> and <b>Q3</b>, each one will equal one of the mid-points. The group with that mid-point is the group containing the quartile. Check by hand: the lower quartile is the 10th value (40 ÷ 4), and the cumulative frequencies are 4, 13, 27, 35, 40.` }),
+    note: `Cumulative frequencies 4, 13, 27, 35, 40 show that the 10th value lies in 5 ≤ w < 10, the 20th in 10 ≤ w < 15 and the 30th in 15 ≤ w < 20.`
+  },
+  {
+    section: 'Correlation and regression', topic: 'PMCC and line of best fit',
+    text: `The height, h cm, and mass, m kg, of eight athletes are recorded. Find the equation of the regression line of m on h in the form m = a + bh, and the product moment correlation coefficient.` + table(['h (cm)', ...hts], [['m (kg)', ...mass]]),
+    parts: [
+      { label: 'Gradient, b (3 s.f.)', ans: reg.b },
+      { label: 'Intercept, a (3 s.f.)', ans: reg.a },
+      { label: 'PMCC, r (3 s.f.)', ans: reg.r }
+    ],
+    help: m => twoVar(m),
+    note: `r is close to 1, so the correlation is very strong and positive.`
+  },
+  {
+    section: 'Correlation and regression', topic: 'Using the regression line without rounding',
+    text: `Use the regression line for the data in the previous question to estimate the mass of an athlete of each height. Give your answers to 3 significant figures, and use the unrounded values of a and b from the calculator.` + table(['h (cm)', ...hts], [['m (kg)', ...mass]]),
+    parts: [
+      { label: 'Estimated mass at h = 170 (kg)', ans: pred(170) },
+      { label: 'Estimated mass at h = 185 (kg)', ans: pred(185) }
+    ],
+    help: m => predict(m, 170, 185),
+    tip: ansTip,
+    trap: { title: 'Rounding check at h = 185', exact: pred(185), rounded: predR(185), text: `Using a and b rounded to 3 s.f.` },
+    note: `Both heights are inside the range of the data, so these are interpolations and reasonably reliable.`
+  },
+  {
+    section: 'Binomial distribution', topic: 'BinomialPD and BinomialCD',
+    text: `X ~ B(${bn}, ${bp}). Find each probability, giving your answers to 3 significant figures.`,
+    parts: [
+      { label: 'P(X = 5)', ans: binPmf(5, bn, bp) },
+      { label: 'P(X ≤ 7)', ans: binCdf(7, bn, bp) },
+      { label: 'P(X ≥ 8)', ans: 1 - binCdf(7, bn, bp) },
+      { label: 'P(4 ≤ X < 10)', ans: binCdf(9, bn, bp) - binCdf(3, bn, bp) }
+    ],
+    help: m => binSteps(m, bn, bp, 'both').concat([CONVERT]),
+    note: `P(X ≥ 8) = 1 − P(X ≤ 7) and P(4 ≤ X &lt; 10) = P(X ≤ 9) − P(X ≤ 3).`
+  },
+  {
+    section: 'Binomial distribution', topic: 'Inverse binomial',
+    text: `Y ~ B(40, 0.35). Find the following.`,
+    parts: [
+      { label: 'The largest value of a such that P(Y ≤ a) < 0.9', ans: invA },
+      { label: 'The smallest value of b such that P(Y ≤ b) > 0.95', ans: invB }
+    ],
+    help: m => ({
+      cg50: [`Press ${K('MENU')}, open <b>Statistics</b>, press ${K('F5')} (DIST), ${K('F5')} (BINM), then ${K('F3')} (<b>Inv</b>).`,
+        `Enter <b>Area</b> = 0.9, <b>Numtrial</b> = 40 and <b>p</b> = 0.35. The calculator returns the <b>smallest</b> x with P(Y ≤ x) ≥ 0.9.`,
+        `For part (a) you want the largest a with P(Y ≤ a) &lt; 0.9, so take the calculator's value and <b>subtract 1</b>. Check using <b>Bcd</b> at both values.`,
+        `For part (b), enter <b>Area</b> = 0.95. Confirm that P(Y ≤ b) really is above 0.95 with <b>Bcd</b>.`],
+      cg100: [`Open the <b>Statistics</b> app, then <b>Calc</b> → <b>Distribution</b> → <b>Inverse Binomial CDf</b> (if it is not listed, use the table method below).`,
+        `Enter the area 0.9, <b>Numtrial</b> = 40 and <b>pos</b> = 0.35. The value returned is the <b>smallest</b> x with P(Y ≤ x) ≥ 0.9. For the largest a with P(Y ≤ a) &lt; 0.9, subtract 1.`,
+        `Table method: use <b>Binomial CDf</b> with a list of x values and look for where the probability crosses 0.9, then 0.95.`],
+      ex: [`The fx-991EX has no inverse binomial, so use a list. Press ${K('MENU')}, choose <b>Distribution</b>, then <b>Binomial CD</b>.`,
+        `Set <b>Data</b> to <b>List</b>, press ${K('=')} and type the x values 10, 11, 12, … up to about 20 into the list, pressing ${K('=')} each time. Then enter <b>N</b> = 40 and <b>p</b> = 0.35.`,
+        `The table gives P(Y ≤ x) for each x. For (a) find the last x with a probability below 0.9. For (b) find the first x with a probability above 0.95.`],
+      cw: [`Press ${K('MENU')}, choose <b>Distribution</b>. If you see <b>Inverse Binomial</b>, use it with area 0.9, then 0.95, N = 40, p = 0.35 and remember it returns the smallest x with P(Y ≤ x) ≥ the area.`,
+        `The method that works on every model: choose <b>Binomial CD</b>, set <b>Data</b> to <b>List</b>, type x values 10, 11, 12, … up to about 20, then enter <b>N</b> = 40 and <b>p</b> = 0.35.`,
+        `Read down the table of P(Y ≤ x). For (a) find the last x with a probability below 0.9. For (b) find the first x with a probability above 0.95.`]
+    }[m]),
+    note: `Phrases like "largest a such that P(Y ≤ a) &lt; 0.9" and "smallest b such that P(Y ≤ b) &gt; 0.95" are why you should check neighbouring values with Binomial CD.`,
+    reveal: () => `P(Y ≤ ${invA}) = ${fmt(binCdf(invA, 40, .35), 5)} and P(Y ≤ ${invA + 1}) = ${fmt(binCdf(invA + 1, 40, .35), 5)}; P(Y ≤ ${invB - 1}) = ${fmt(binCdf(invB - 1, 40, .35), 5)} and P(Y ≤ ${invB}) = ${fmt(binCdf(invB, 40, .35), 5)}.`
+  },
+  {
+    section: 'Normal distribution', topic: 'NormalCD',
+    text: `X ~ N(50, 8²). Find each probability, giving your answers to 3 significant figures.`,
+    parts: [
+      { label: 'P(45 < X < 60)', ans: normCdf(45, 60, 50, 8) },
+      { label: 'P(X > 58)', ans: normCdf(58, Infinity, 50, 8) },
+      { label: 'P(X < 42)', ans: normCdf(-Infinity, 42, 50, 8) }
+    ],
+    help: m => normSteps(m, 50, true, 8),
+    note: `For a continuous distribution, P(45 &lt; X &lt; 60) and P(45 ≤ X ≤ 60) are the same.`
+  },
+  {
+    section: 'Normal distribution', topic: 'Inverse normal',
+    text: `X ~ N(120, 15²). Find the following, giving your answers to 3 significant figures.`,
+    parts: [
+      { label: 'The value a such that P(X > a) = 0.8', ans: invNorm(0.2, 120, 15) },
+      { label: 'The value b such that P(X < b) = 0.95', ans: invNorm(0.95, 120, 15) },
+      { label: 'The value c such that P(120 − c < X < 120 + c) = 0.9', ans: 15 * invPhi(0.95) }
+    ],
+    help: m => ({
+      cg50: [`Press ${K('MENU')}, open <b>Statistics</b>, press ${K('F5')} (DIST), ${K('F1')} (NORM), then ${K('F3')} (<b>InvN</b>).`,
+        `Set <b>Tail</b> to <b>Right</b> for part (a), <b>Left</b> for part (b), and <b>Central</b> for part (c). Enter <b>Area</b> (0.8, 0.95, 0.9), <b>σ</b> = 15 and <b>μ</b> = 120.`,
+        `For <b>Central</b> the calculator gives two values symmetric about 120. Subtract 120 from the upper one to get c.`],
+      cg100: [`Open the <b>Statistics</b> app, then <b>Calc</b> → <b>Distribution</b> → <b>Inverse Normal CDf</b>.`,
+        `Choose the tail (<b>Right</b> for (a), <b>Left</b> for (b), <b>Central</b> for (c)), enter the area, <b>σ</b> = 15 and <b>μ</b> = 120.`,
+        `For the central case you get two values; c is the distance from 120 to the upper one.`],
+      ex: [`Press ${K('MENU')}, choose <b>Distribution</b>, then <b>Inverse Normal</b>. It only works with the <b>left-hand area</b>.`,
+        `(a) P(X &gt; a) = 0.8 means the area to the left is 1 − 0.8 = <b>0.2</b>. Enter <b>Area</b> = 0.2, <b>σ</b> = 15, <b>μ</b> = 120.`,
+        `(b) Area = 0.95, with the same σ and μ.`,
+        `(c) The remaining 0.1 is split into two tails of 0.05, so the left area up to 120 + c is 0.95. Use Area = 0.95, then subtract 120 from the answer.`],
+      cw: [`Press ${K('MENU')}, choose <b>Distribution</b>, then <b>Inverse Normal</b>. If there is a <b>Tail</b> option, choose Right, Left or Central. If not, work with the left-hand area only.`,
+        `(a) Right tail 0.8, or left area 1 − 0.8 = <b>0.2</b>. Enter <b>σ</b> = 15, <b>μ</b> = 120.`,
+        `(b) Left area 0.95.`,
+        `(c) Two tails of 0.05 each, so the left area up to 120 + c is 0.95. Enter Area = 0.95, then subtract 120 from the answer.`]
+    }[m]),
+    note: `a = 120 + 15 × (−0.8416), b = 120 + 15 × 1.6449 and c = 15 × 1.6449.`
+  },
+  {
+    section: 'Normal distribution', topic: 'Normal then binomial with Ans',
+    text: `The length, L mm, of a bolt is modelled by L ~ N(50, 1.2²). A bolt is faulty if its length is greater than 51.5 mm. A box holds 25 bolts, independently. Let F be the number of faulty bolts in a box, so F ~ B(25, p), where p is the probability that one bolt is faulty. Give each answer to 3 significant figures.`,
+    parts: [
+      { label: 'p = P(L > 51.5)', ans: pFault },
+      { label: 'P(F = 2)', ans: binPmf(2, 25, pFault) },
+      { label: 'P(F ≥ 1)', ans: 1 - binCdf(0, 25, pFault) }
+    ],
+    help: m => normSteps(m, 50, true, 1.2).slice(0, 3).concat([
+      `For P(L &gt; 51.5): <b>Lower</b> = 51.5, <b>Upper</b> = 1E99 (${INF[m]}), <b>σ</b> = 1.2, <b>μ</b> = 50.`,
+      `<b>Use Ans.</b> Open the binomial distribution (${m === 'cg50' ? 'DIST then BINM' : 'Distribution'}), choose <b>${m === 'cg50' ? 'Bpd' : 'Binomial PD'}</b>, and when it asks for <b>p</b> press ${K('Ans')} (${m === 'cg50' ? `${K('SHIFT')} ${K('(−)')}` : m === 'cg100' ? 'ans on the keyboard' : `the ${K('Ans')} key`}). Set <b>x</b> = 2 and ${m === 'cg50' ? '<b>Numtrial</b>' : '<b>N</b>'} = 25.`,
+      `If the box will not accept Ans, store the NormalCD result in a variable (${K('STO')} then a letter, e.g. A) and use that letter instead. Do not type 0.106.`,
+      `For P(F ≥ 1) use P(F ≥ 1) = 1 − P(F = 0), or 1 − P(F ≤ 0) with ${m === 'cg50' ? 'Bcd' : 'Binomial CD'}, again with the unrounded p.`
+    ]),
+    tip: ansTip,
+    trap: { title: 'Rounding check for P(F = 2)', exact: binPmf(2, 25, pFault), rounded: binPmf(2, 25, pF3), text: `Using p rounded to 3 s.f. (${fmt(pF3, 3)})` },
+    note: `p is about 0.106, and even a change in the fourth significant figure of p can move the binomial probability.`
+  }
+];
+if (typeof module !== 'undefined') module.exports = { QUESTIONS, fmt, sig };
+
+/* ---------- Interface ---------- */
+(function () {
+  const app = document.getElementById('app');
+  const bar = document.getElementById('bar');
+  const state = { model: null, done: {}, revealed: {} };
+  try { const m = localStorage.getItem('stats-quiz-model'); if (m && MODELS[m]) state.model = m; } catch (e) {}
+
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const tolerance = c => 0.5 * Math.pow(10, Math.floor(Math.log10(Math.abs(c) || 1)) - 2) * 1.0001;
+
+  function pickerHTML() {
+    return `
+    <section class="intro">
+      <h1>Statistics on your Casio</h1>
+      <p class="lede">Twelve A-level statistics questions to answer with your calculator. Every question has a <b>Help</b> button that gives the key presses for your model.</p>
+    </section>
+    <section aria-labelledby="pick-h">
+      <h2 id="pick-h" class="label">Which calculator are you using?</h2>
+      <div class="models" role="radiogroup" aria-labelledby="pick-h">
+        ${Object.keys(MODELS).map(k => `
+          <button class="model" role="radio" aria-checked="false" data-act="pick" data-model="${k}">
+            <span class="model-name">${MODELS[k].name}</span>
+            <span class="model-line">${MODELS[k].line}</span>
+          </button>`).join('')}
+      </div>
+      <p class="fine">Key sequences follow Casio's standard menus. Menu wording can differ a little between calculator software versions, so if a screen looks different from the instructions, look for the closest option or ask your teacher.</p>
+    </section>
+    <section class="rules">
+      <h2 class="label">Before you start</h2>
+      <ul>
+        <li>Give answers to <b>3 significant figures</b> unless the question says otherwise.</li>
+        <li>Do not round part-way through a calculation. Carry full values forward with <kbd>Ans</kbd> or stored variables.</li>
+        <li>You can change calculator at any time from the bar at the top.</li>
+      </ul>
+    </section>`;
+  }
+
+  function partHTML(qi, pi, p) {
+    const id = `q${qi}p${pi}`;
+    if (p.type === 'select') {
+      return `<div class="part" data-part="${pi}">
+        <label for="${id}">${p.label}</label>
+        <div class="field"><select id="${id}"><option value="">Choose a group</option>${p.options.map((o, i) => `<option value="${i}">${o}</option>`).join('')}</select>
+        <span class="verdict" aria-live="polite"></span></div></div>`;
+    }
+    return `<div class="part" data-part="${pi}">
+      <label for="${id}">${p.label}</label>
+      <div class="field"><input id="${id}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="Answer">
+      <span class="verdict" aria-live="polite"></span></div></div>`;
+  }
+
+  function questionHTML(q, qi, newSection) {
+    return `${newSection ? `<h2 class="section">${q.section}</h2>` : ''}
+    <article class="q" id="q${qi}" data-q="${qi}">
+      <header class="q-head">
+        <span class="q-num">Question ${qi + 1}</span>
+        <span class="q-topic">${q.topic}</span>
+        <span class="q-state" data-state="open">Not yet answered</span>
+      </header>
+      <div class="q-body">${q.text}</div>
+      <div class="parts">${q.parts.map((p, pi) => partHTML(qi, pi, p)).join('')}</div>
+      <div class="actions">
+        <button class="btn primary" data-act="check" data-q="${qi}">Check answers</button>
+        <button class="btn" data-act="help" data-q="${qi}" aria-expanded="false" aria-controls="h${qi}">Help with my calculator</button>
+        <button class="btn quiet" data-act="reveal" data-q="${qi}" aria-expanded="false" aria-controls="r${qi}">Show answers</button>
+      </div>
+      <div class="help" id="h${qi}" hidden></div>
+      <div class="reveal" id="r${qi}" hidden></div>
+    </article>`;
+  }
+
+  function helpHTML(q) {
+    const m = state.model;
+    const steps = q.help(m).map(s => `<li>${s}</li>`).join('');
+    return `<div class="help-head"><span class="help-model">${MODELS[m].name}</span><span>Step by step</span></div>
+      <ol class="steps">${steps}</ol>
+      ${q.tip ? `<p class="callout">${q.tip}</p>` : ''}
+      ${q.note ? `<p class="aside">${q.note}</p>` : ''}`;
+  }
+
+  function revealHTML(q) {
+    const rows = q.parts.map(p => `<tr><td>${p.label}</td><td class="num">${p.type ? esc(p.options[p.ans]) : fmt(p.ans, 6)}</td></tr>`).join('');
+    let extra = '';
+    if (q.reveal) extra += `<p class="aside">${q.reveal()}</p>`;
+    if (q.trap) {
+      const same = sig(q.trap.exact, 3) === sig(q.trap.rounded, 3);
+      extra += `<div class="trap"><b>${q.trap.title}</b>
+        <div class="trap-row"><span>Full calculator values</span><span class="num">${fmt(q.trap.exact, 5)}</span></div>
+        <div class="trap-row"><span>${q.trap.text}</span><span class="num bad-n">${fmt(q.trap.rounded, 5)}</span></div>
+        <p>${same ? 'These agree to 3 s.f. here, but this will not always be true.' : `To 3 s.f. these are ${fmt(q.trap.exact, 3)} and ${fmt(q.trap.rounded, 3)}. Rounding early gives a wrong final answer.`}</p></div>`;
+    }
+    return `<table class="dt"><thead><tr><th>Part</th><th>Answer (6 s.f.)</th></tr></thead><tbody>${rows}</tbody></table>${extra}`;
+  }
+
+  function buildQuiz() {
+    let prev = '';
+    app.innerHTML = QUESTIONS.map((q, i) => { const ns = q.section !== prev; prev = q.section; return questionHTML(q, i, ns); }).join('') +
+      `<section class="summary" id="summary" hidden><h2>All done</h2><p id="summary-text"></p></section>`;
+    QUESTIONS.forEach((q, i) => { document.getElementById('h' + i).innerHTML = helpHTML(q); });
+  }
+
+  function bar_() {
+    if (!state.model) { bar.innerHTML = `<span class="brand">Statistics on your Casio</span>`; return; }
+    const n = Object.keys(state.done).length;
+    bar.innerHTML = `<span class="brand">Statistics on your Casio</span>
+      <label class="swap"><span>Calculator</span>
+        <select id="swap-model" aria-label="Change calculator model">${Object.keys(MODELS).map(k => `<option value="${k}"${k === state.model ? ' selected' : ''}>${MODELS[k].name}</option>`).join('')}</select></label>
+      <span class="prog" role="status"><b>${n}</b> of ${QUESTIONS.length} correct</span>
+      <span class="meter" aria-hidden="true"><i style="width:${(n / QUESTIONS.length) * 100}%"></i></span>`;
+  }
+
+  function show() {
+    bar_();
+    if (!state.model) { app.innerHTML = pickerHTML(); }
+    else { buildQuiz(); }
+  }
+
+  function check(qi) {
+    const q = QUESTIONS[qi], card = document.getElementById('q' + qi);
+    let ok = 0;
+    q.parts.forEach((p, pi) => {
+      const el = document.getElementById(`q${qi}p${pi}`), box = card.querySelector(`[data-part="${pi}"]`), v = box.querySelector('.verdict');
+      let good = false, msg = '';
+      const raw = el.value.trim().replace(/−/g, '-').replace(/,/g, '');
+      if (!raw) { box.dataset.state = ''; v.textContent = 'Enter an answer'; return; }
+      if (p.type === 'select') { good = Number(raw) === p.ans; msg = good ? 'Correct' : 'Not quite. Check the cumulative frequencies.'; }
+      else {
+        const u = Number(raw);
+        if (!isFinite(u)) { box.dataset.state = 'bad'; v.textContent = 'Type a number'; return; }
+        good = Math.abs(u - p.ans) <= tolerance(p.ans);
+        if (good) msg = 'Correct';
+        else if (Math.abs(u - p.ans) / (Math.abs(p.ans) || 1) < 0.02) msg = 'Very close. Check for early rounding or the wrong standard deviation.';
+        else msg = 'Not quite. Open Help and check each step.';
+      }
+      box.dataset.state = good ? 'ok' : 'bad'; v.textContent = msg; if (good) ok++;
+    });
+    const st = card.querySelector('.q-state');
+    if (ok === q.parts.length) {
+      state.done[qi] = true; st.dataset.state = 'ok'; st.textContent = 'Correct';
+    } else {
+      delete state.done[qi]; st.dataset.state = 'part'; st.textContent = `${ok} of ${q.parts.length} parts correct`;
+    }
+    bar_(); summary();
+  }
+
+  function summary() {
+    const n = Object.keys(state.done).length, s = document.getElementById('summary');
+    if (!s) return;
+    if (n === QUESTIONS.length) {
+      s.hidden = false;
+      document.getElementById('summary-text').textContent = 'You answered every question correctly. Remember: keep full calculator values until the final answer.';
+    } else s.hidden = true;
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const act = b.dataset.act;
+    if (act === 'pick') {
+      state.model = b.dataset.model;
+      try { localStorage.setItem('stats-quiz-model', state.model); } catch (er) {}
+      show(); window.scrollTo(0, 0); return;
+    }
+    const qi = Number(b.dataset.q);
+    if (act === 'check') check(qi);
+    if (act === 'help') {
+      const h = document.getElementById('h' + qi), open = h.hidden;
+      h.hidden = !open; b.setAttribute('aria-expanded', String(open));
+      b.textContent = open ? 'Hide help' : 'Help with my calculator';
+    }
+    if (act === 'reveal') {
+      const r = document.getElementById('r' + qi), open = r.hidden;
+      if (open && !r.innerHTML) r.innerHTML = revealHTML(QUESTIONS[qi]);
+      r.hidden = !open; b.setAttribute('aria-expanded', String(open));
+      b.textContent = open ? 'Hide answers' : 'Show answers';
+    }
+  });
+  document.addEventListener('change', e => {
+    if (e.target.id === 'swap-model') {
+      state.model = e.target.value;
+      try { localStorage.setItem('stats-quiz-model', state.model); } catch (er) {}
+      QUESTIONS.forEach((q, i) => { const h = document.getElementById('h' + i); if (h) h.innerHTML = helpHTML(q); });
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('.part input')) { const qi = e.target.closest('.q').dataset.q; check(Number(qi)); }
+  });
+  show();
+})();
+
+</script>
+
+</body></html>
