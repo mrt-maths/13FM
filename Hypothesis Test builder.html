@@ -1,0 +1,505 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Hypothesis Test Builder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: sticky problem panel on the left, staged multiple-choice steps on the right; stacks on phones. */
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --ink:#18212f; --muted:#5a6678; --line:#d3dae4;
+  --accent:#1d4ed8; --accent-ink:#ffffff; --accent-soft:#e3ebff;
+  --good:#0f7a4d; --good-soft:#dff3e8; --bad:#b4232c; --bad-soft:#fbe4e5; --warn:#8a5a00; --warn-soft:#fdf0d0;
+  --grid:rgba(29,78,216,.06);
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1520; --panel:#172131; --ink:#e7ecf4; --muted:#9aa7bb; --line:#2b3a52;
+  --accent:#7aa2ff; --accent-ink:#0b1220; --accent-soft:#1b2c52;
+  --good:#5fd69c; --good-soft:#12362a; --bad:#ff8a90; --bad-soft:#3d1a1e; --warn:#f0c15c; --warn-soft:#3a2c0c;
+  --grid:rgba(122,162,255,.07); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1520; --panel:#172131; --ink:#e7ecf4; --muted:#9aa7bb; --line:#2b3a52;
+  --accent:#7aa2ff; --accent-ink:#0b1220; --accent-soft:#1b2c52;
+  --good:#5fd69c; --good-soft:#12362a; --bad:#ff8a90; --bad-soft:#3d1a1e; --warn:#f0c15c; --warn-soft:#3a2c0c;
+  --grid:rgba(122,162,255,.07); color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+h1{font:600 24px/1.2 var(--serif);margin:0}
+.sub{color:var(--muted);font-size:13px;margin-top:2px}
+.modes{display:flex;gap:6px;flex-wrap:wrap}
+.modes button,.btn{font:500 14px var(--sans);border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;border-radius:8px;cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:6px 10px;font-size:13px}
+button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+aside.panel{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;display:flex;flex-direction:column;gap:12px}
+@media (max-width:860px){aside.panel{position:static;max-height:none}}
+.label{font:500 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.problem{font:400 17px/1.55 var(--serif)}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.dataset{overflow-x:auto}
+table.ds{border-collapse:collapse;font:13px var(--mono);font-variant-numeric:tabular-nums}
+table.ds th,table.ds td{border:1px solid var(--line);padding:4px 9px;text-align:right}
+table.ds th{background:var(--accent-soft);font-weight:500}
+.stats{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+.steps{display:flex;flex-direction:column;gap:10px;min-width:0}
+.sec{font:600 13px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-top:10px;padding-bottom:4px;border-bottom:2px solid var(--accent-soft)}
+.sec:first-child{margin-top:0}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.step.done{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr);gap:4px 14px;background:var(--good-soft);border-color:transparent}
+@media (max-width:560px){.step.done{grid-template-columns:minmax(0,1fr)}}
+.step.done .t{font-weight:600;color:var(--good);font-size:13px}
+.step.done .a{font-family:var(--serif);font-size:16px;overflow-wrap:anywhere}
+.step.cur{border:2px solid var(--accent)}
+.step h3{margin:0 0 2px;font:600 16px var(--sans)}
+.step .q{color:var(--muted);font-size:13.5px;margin-bottom:10px}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{text-align:left;font:400 16px/1.45 var(--serif);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;overflow-wrap:anywhere}
+.opt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.opt:disabled{cursor:not-allowed;opacity:.55}
+.opt.wrong{opacity:1;background:var(--bad-soft);border-color:var(--bad);text-decoration:line-through;text-decoration-color:var(--bad)}
+.freeze{margin-top:10px;background:var(--warn-soft);color:var(--ink);border:1px solid var(--warn);border-radius:8px;padding:10px 12px;font-size:14px}
+.freeze b{color:var(--warn)}
+.bar{height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--warn);width:100%;transition:width 1s linear}
+.hint{margin-top:6px;color:var(--muted)}
+.final{text-align:left}
+.final h2{font:600 22px var(--serif);margin:0 0 8px}
+.final table{border-collapse:collapse;margin:8px 0 14px;font-size:14px}
+.final td,.final th{padding:5px 14px 5px 0;text-align:left;border-bottom:1px solid var(--line)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;width:min(640px,calc(100vw - 24px));max-height:88vh}
+dialog::backdrop{background:rgba(5,10,20,.55)}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+.dhead h2{margin:0;font:600 16px var(--sans)}
+.dbody{padding:12px 16px 16px;overflow:auto;max-height:calc(88vh - 56px)}
+.dbody p{margin:0 0 10px;font-size:13.5px;color:var(--muted)}
+table.crit{border-collapse:collapse;width:100%;font:13px var(--mono);font-variant-numeric:tabular-nums}
+table.crit th,table.crit td{border:1px solid var(--line);padding:4px 8px;text-align:center}
+table.crit th{background:var(--accent-soft);position:sticky;top:0}
+table.crit td.n{font-weight:600;background:var(--bg)}
+/* maths */
+i{font-style:italic}.m{font-family:var(--serif);white-space:nowrap}
+.ob{text-decoration:overline}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 2px;line-height:1.2}
+.fr>span:first-child{border-bottom:1px solid currentColor;padding:0 3px}
+.fr>span:last-child{padding:0 3px}
+.sq{white-space:nowrap}.sq>span{border-top:1px solid currentColor;padding:0 2px}
+.nw{white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+<div class="wrap">
+  <header class="top">
+    <div><h1>Hypothesis Test Builder</h1><div class="sub">Edexcel A-level Mathematics · Statistics · build the full solution one step at a time</div></div>
+    <div class="modes" id="modes" role="group" aria-label="Choose a test">
+      <button data-mode="binomial" aria-pressed="false">Binomial</button>
+      <button data-mode="normal" aria-pressed="false">Normal mean</button>
+      <button data-mode="correlation" aria-pressed="false">Correlation (PMCC)</button>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="panel" id="side"></aside>
+    <main class="steps" id="steps" aria-live="polite"></main>
+  </div>
+</div>
+<dialog id="dlg"><div class="dhead"><h2 id="dtitle"></h2><button class="btn small" id="dclose">Close</button></div><div class="dbody" id="dbody"></div></dialog>
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const rint=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const MINUS="−";
+const num=(x,dp)=>{let s=(+x).toFixed(dp);if(+s===0)s=(0).toFixed(dp);return s.replace("-",MINUS)};
+const sf=(x,n=3)=>{if(x===0)return"0";let s=Number(x).toPrecision(n);if(/e/.test(s))s=String(Number(s));return s.replace("-",MINUS)};
+const pct=a=>+(a*100).toPrecision(6)+"%";
+const mathy=s=>`<span class="m">${s}</span>`;
+const I=s=>`<i>${s}</i>`;
+const bar=s=>`<span class="ob">${I(s)}</span>`;
+const sub=(a,b)=>`${a}<sub>${b}</sub>`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const sqrt=x=>`<span class="sq">√<span>${x}</span></span>`;
+const H0s=sub("H","0"),H1s=sub("H","1");
+const Xb=bar("X");
+/* ---------- statistics ---------- */
+function erfc(x){const z=Math.abs(x),t=1/(1+.5*z);
+  const r=t*Math.exp(-z*z-1.26551223+t*(1.00002368+t*(.37409196+t*(.09678418+t*(-.18628806+t*(.27886807+t*(-1.13520398+t*(1.48851587+t*(-.82215223+t*.17087277)))))))));
+  return x>=0?r:2-r}
+const Phi=z=>0.5*erfc(-z/Math.SQRT2);
+function invPhi(p){let lo=-10,hi=10;for(let i=0;i<200;i++){const m=(lo+hi)/2;(Phi(m)<p)?lo=m:hi=m}return(lo+hi)/2}
+function binPmf(n,p){const a=[Math.pow(1-p,n)];for(let k=1;k<=n;k++)a[k]=a[k-1]*(n-k+1)/k*p/(1-p);return a}
+function binCdfs(n,p){const pm=binPmf(n,p);const le=[],ge=[];let s=0;for(let k=0;k<=n;k++){s+=pm[k];le[k]=s}
+  s=0;for(let k=n;k>=0;k--){s+=pm[k];ge[k]=s}return{le,ge}}
+function pmcc(pts){const n=pts.length,mx=pts.reduce((s,p)=>s+p[0],0)/n,my=pts.reduce((s,p)=>s+p[1],0)/n;
+  let a=0,b=0,c=0;pts.forEach(([x,y])=>{a+=(x-mx)**2;b+=(y-my)**2;c+=(x-mx)*(y-my)});return c/Math.sqrt(a*b)}
+/* ---------- tables (from the Edexcel formula book / writing frames) ---------- */
+const ZT=[[0.5,0],[0.4,0.2533],[0.3,0.5244],[0.2,0.8416],[0.15,1.0364],[0.1,1.2816],[0.05,1.6449],[0.025,1.9600],[0.01,2.3263],[0.005,2.5758],[0.001,3.0902],[0.0005,3.2905]];
+const zLookup=p=>ZT.find(r=>Math.abs(r[0]-p)<1e-9)[1];
+const PM={4:[.8,.9,.95,.98,.99],5:[.687,.8054,.8783,.9343,.9587],6:[.6084,.7293,.8114,.8822,.9172],7:[.5509,.6694,.7545,.8329,.8745],8:[.5067,.6215,.7067,.7887,.8343],9:[.4716,.5822,.6664,.7498,.7977],10:[.4428,.5494,.6319,.7155,.7646],11:[.4187,.5214,.6021,.6851,.7348],12:[.3981,.4973,.576,.6581,.7079],13:[.3802,.4762,.5529,.6339,.6835],14:[.3646,.4575,.5324,.612,.6614],15:[.3507,.4409,.514,.5923,.6411],16:[.3383,.4259,.4973,.5742,.6226],17:[.3271,.4124,.4821,.5577,.6055],18:[.317,.4,.4683,.5425,.5897],19:[.3077,.3887,.4555,.5285,.5751],20:[.2992,.3783,.4438,.5155,.5614],21:[.2914,.3687,.4329,.5034,.5487],22:[.2841,.3598,.4227,.4921,.5368],23:[.2774,.3515,.4133,.4815,.5256],24:[.2711,.3438,.4044,.4716,.5151],25:[.2653,.3365,.3961,.4622,.5052],26:[.2598,.3297,.3882,.4534,.4958],27:[.2546,.3233,.3809,.4451,.4869],28:[.2497,.3172,.3739,.4372,.4785],29:[.2451,.3115,.3673,.4297,.4705],30:[.2407,.3061,.361,.4226,.4629],40:[.207,.2638,.312,.3665,.4026],50:[.1843,.2353,.2787,.3281,.361],60:[.1678,.2144,.2542,.2997,.3301],70:[.155,.1982,.2352,.2776,.306],80:[.1448,.1852,.2199,.2597,.2864],90:[.1364,.1745,.2072,.2449,.2702],100:[.1292,.1654,.1966,.2324,.2565]};
+const PCOL=[0.10,0.05,0.025,0.01,0.005];
+const pmLookup=(n,p)=>PM[n][PCOL.findIndex(c=>Math.abs(c-p)<1e-9)];
+function showTable(kind){
+  const d=document.getElementById("dlg"),b=document.getElementById("dbody"),t=document.getElementById("dtitle");
+  if(kind==="z"){t.textContent="Percentage points of the normal distribution";
+    let h='<p>The values <i>z</i> are those which <i>Z</i> ~ N(0, 1) exceeds with probability <i>p</i>, that is P(<i>Z</i> &gt; <i>z</i>) = 1 − Φ(<i>z</i>) = <i>p</i>.</p><table class="crit"><thead><tr><th><i>p</i></th><th><i>z</i></th><th><i>p</i></th><th><i>z</i></th></tr></thead><tbody>';
+    for(let i=0;i<6;i++)h+=`<tr><td>${ZT[i][0].toFixed(4)}</td><td>${ZT[i][1].toFixed(4)}</td><td>${ZT[i+6][0].toFixed(4)}</td><td>${ZT[i+6][1].toFixed(4)}</td></tr>`;
+    b.innerHTML=h+"</tbody></table>"}
+  else{t.textContent="Critical values for correlation coefficients";
+    let h='<p>Product moment coefficient. These are the minimum values the sample correlation coefficient must reach to be significant at the level shown, on a <b>one-tailed</b> test.</p><table class="crit"><thead><tr><th>0.10</th><th>0.05</th><th>0.025</th><th>0.01</th><th>0.005</th><th>Sample size, <i>n</i></th></tr></thead><tbody>';
+    Object.keys(PM).forEach(n=>{h+="<tr>"+PM[n].map(v=>`<td>${v.toFixed(4)}</td>`).join("")+`<td class="n">${n}</td></tr>`});
+    b.innerHTML=h+"</tbody></table>"}
+  d.showModal()}
+/* ---------- stage builders ---------- */
+function st(title,q,good,bad,hint){
+  const seen=new Set([good]),w=[];
+  for(const b of bad){if(b!=null&&!seen.has(b)){seen.add(b);w.push(b)}}
+  const o=shuffle([good,...w.slice(0,4)]);
+  return{title,q,opts:o,ok:o.indexOf(good),good,hint};
+}
+const REJ=`reject ${H0s}`,ACC=`accept ${H0s}`;
+/* comparison + decision options: lhs sym rhs, so decision */
+function cmpStage(title,q,lhs,rhs,trueSym,rej,hint,extra){
+  const other=trueSym===">"?"<":">",dec=rej?REJ:ACC,odec=rej?ACC:REJ;
+  const mk=(s,r,d)=>`${lhs} ${s} ${r}, so ${d}`;
+  return st(title,q,mk(trueSym,rhs,dec),[mk(other,rhs,dec),mk(trueSym,rhs,odec),mk(other,rhs,odec),...(extra||[])],hint);
+}
+function regionStage(title,q,x,inCR,hint){
+  const mk=(l,d)=>`${x} ${l?"lies in":"does not lie in"} the critical region, so ${d}`;
+  return st(title,q,mk(inCR,inCR?REJ:ACC),[mk(!inCR,inCR?REJ:ACC),mk(inCR,inCR?ACC:REJ),mk(!inCR,inCR?ACC:REJ)],hint);
+}
+function conclusion(rej,alpha,claims,tail){
+  const a=pct(alpha),ev=r=>r?"There is evidence":"There is insufficient evidence";
+  const g=`${ev(rej)}, at the ${a} significance level, that ${claims[tail]}.`;
+  const bad=[`${ev(!rej)}, at the ${a} significance level, that ${claims[tail]}.`,
+    `There is proof, at the ${a} significance level, that ${claims[tail]}.`,
+    `${ev(rej)}, at the ${pct(1-alpha)} significance level, that ${claims[tail]}.`];
+  ["up","down","two"].filter(t=>t!==tail).forEach(t=>bad.push(`${ev(rej)}, at the ${a} significance level, that ${claims[t]}.`));
+  return st("Conclusion in context","Write the conclusion using the wording of the question.",g,bad,"Use the wording of the question to give a conclusion in context. If you reject H₀ there is evidence; if you accept H₀ there is insufficient evidence.");
+}
+const tailName=t=>t==="two"?"two-tailed":"one-tailed";
+function h1Stage(sym,t,mkH1,hint){
+  const up=mkH1(">"),dn=mkH1("<"),ne=mkH1("≠");
+  const g=t==="up"?up:t==="down"?dn:ne;
+  return {g,all:[up,dn,ne]};
+}
+/* ---------- BINOMIAL ---------- */
+const BT=[
+ {noun:"tiles",sing:"tile",ev:"is cracked",evp:"are cracked",who:"A ceramics firm"},
+ {noun:"seeds",sing:"seed",ev:"germinates",evp:"germinate",who:"A garden centre"},
+ {noun:"customers",sing:"customer",ev:"buys a second item",evp:"buy a second item",who:"A shop"},
+ {noun:"bulbs",sing:"bulb",ev:"is faulty",evp:"are faulty",who:"A lighting manufacturer"},
+ {noun:"students",sing:"student",ev:"walks to school",evp:"walk to school",who:"A school"},
+ {noun:"patients",sing:"patient",ev:"recovers within a week",evp:"recover within a week",who:"A clinic"}];
+function genBinomial(){
+  for(let tries=0;tries<500;tries++){
+    const T=rnd(BT),kind=rnd(["probability","proportion"]),tail=rnd(["up","down","two"]);
+    const p0=rnd([0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.5,0.6]),n=rint(12,40);
+    const alpha=tail==="two"?rnd([0.1,0.05,0.01]):rnd([0.1,0.05,0.025,0.01]),L=tail==="two"?alpha/2:alpha;
+    const {le,ge}=binCdfs(n,p0);
+    let b=-1,a=-1;for(let k=0;k<=n;k++){if(ge[k]<L){b=k;break}}
+    for(let k=n;k>=0;k--){if(le[k]<L){a=k;break}}
+    const needUp=tail!=="down",needDown=tail!=="up";
+    if(needUp&&(b<1||b>n-1))continue;if(needDown&&(a<0||a>n-2))continue;
+    if(tail==="two"&&a>=b-1)continue;
+    let side=tail==="up"?"u":tail==="down"?"l":rnd(["u","l"]);
+    const c=side==="u"?[b-2,b-1,b,b+1]:[a-1,a,a+1,a+2];
+    const x=rnd(c);if(x<0||x>n)continue;
+    let pside=tail==="up"?"u":tail==="down"?"l":(le[x]<ge[x]?"l":"u");
+    const pv=pside==="u"?ge[x]:le[x];
+    if(pv<1e-5||pv>.9)continue;
+    const inCR=(needUp&&x>=b)||(needDown&&x<=a);
+    return buildBinomial({T,kind,tail,p0,n,alpha,L,le,ge,a,b,x,pside,pv,inCR});
+  }
+}
+function buildBinomial(g){
+  const {T,kind,tail,p0,n,alpha,L,le,ge,a,b,x,pside,pv,inCR}=g;
+  const prm=kind==="probability"?`the probability that a randomly selected ${T.sing} ${T.ev}`:`the proportion of ${T.noun} that ${T.evp}`;
+  const dirw={up:"increased",down:"decreased",two:"changed"}[tail];
+  const problem=`${T.who} states that ${prm} is ${p0}. After a change in the process, it is thought that this ${kind} has ${dirw}. A random sample of ${n} ${T.noun} is taken and ${x} of them ${T.evp}.<br><br>Test, at the ${pct(alpha)} significance level, whether the ${kind} has ${dirw}.`;
+  const X=I("X"),p=I("p"),P=s=>`P(${X} ${s})`;
+  const rej=pv<L,sp=x/n;
+  /* setup */
+  const S=[];
+  S.push(st("Assumption","State the assumption for a binomial test.","Assume the conditions for a binomial distribution are satisfied (the trials are independent and the probability is constant).",
+   ["Assume the sample is taken from a normal population.","Assume the variables follow a bivariate normal distribution.","Assume the number of trials is not fixed."],"Assumption that the conditions for binomial (independence) are satisfied."));
+  S.push(st("Null hypothesis","Select the null hypothesis.",`${H0s}: ${p} = ${p0}`,[`${H0s}: ${p} = ${sf(sp)}`,`${H0s}: ${X} = ${x}`,`${H0s}: ${p} ≠ ${p0}`,`${H0s}: ${p} > ${p0}`],"H₀ is p = p₀ every time, where p₀ is the probability/proportion in the question."));
+  const mk=s=>`${H1s}: ${p} ${s} ${p0}`;
+  const h=h1Stage(null,tail,mk);
+  S.push(st("Alternative hypothesis","Select the alternative hypothesis, using what is being investigated.",h.g,[...h.all,`${H1s}: ${p} > ${sf(sp)}`],"> for a higher probability/proportion, < for a lower one, ≠ for a different one (two-tailed)."));
+  const dg=kind==="probability"?`where ${p} is the probability that a randomly selected ${T.sing} ${T.ev}.`:`where ${p} is the proportion of ${T.noun} that ${T.evp}.`;
+  S.push(st("Define the parameter","Define p in context, mirroring the question.",dg,
+   [`where ${p} is the number of ${T.noun} that ${T.evp} in the sample.`,`where ${p} is the proportion of the ${n} ${T.noun} in the sample that ${T.evp}.`,`where ${p} is the mean number of ${T.noun} that ${T.evp} in a sample of ${n}.`],"p is the population probability/proportion, in context."));
+  S.push(st("Distribution if H₀ is true",`If ${H0s} is true, what is the distribution of X?`,`${X} ~ B(${n}, ${p0})`,[`${X} ~ B(${p0}, ${n})`,`${X} ~ B(${n}, ${sf(sp)})`,`${X} ~ B(${x}, ${p0})`,`${X} ~ N(${sf(n*p0)}, ${sf(n*p0*(1-p0))})`],"X ~ B(n, p) with n the number of trials and p = p₀."));
+  S.push(st("Observed value","Select the observed value of the test statistic.",`Observed that ${X} = ${x}`,[`Observed that ${X} = ${n}`,`Observed that ${p} = ${sf(sp)}`,`Observed that ${X} = ${sf(n*p0)}`,`Observed that ${X} = ${n-x}`],"The test statistic X is the number of successes in the sample."));
+  const sections=[{name:"Setting up the test",stages:S}];
+  /* p-value */
+  const P1=[];
+  const cmpS={u:"≥",l:"≤"},strict={u:">",l:"<"};
+  const val=(s,k)=>s==="u"?ge[k]:le[k];
+  const pe=(s,k,sy)=>`${P(sy)} `.replace(X+" "+sy,"");
+  const pexpr=(s,k,strictly)=>`P(${X} ${strictly?strict[s]:cmpS[s]} ${k})`;
+  const opp=pside==="u"?"l":"u",kk=pside==="u"?x+1:x-1;
+  const opts1=[`${pexpr(opp,x)} = ${sf(val(opp,x))}`,`${pexpr(pside,x,true)} = ${sf(val(pside,kk<0||kk>n?x:kk))}`,`${pexpr(pside,x)} = ${sf(val(pside,x)*2<1?val(pside,x)*2:val(pside,x))}`];
+  const pq=tail==="two"?"Use binomial cumulative to find the probability for the tail the observed value is in (the smaller tail).":"Use binomial cumulative to find the probability of a result at least as extreme as the one observed.";
+  P1.push(st("Probability calculation",pq,`${pexpr(pside,x)} = ${sf(pv)}`,opts1,tail==="two"?"≥ for the upper tail, ≤ for the lower tail: use the smaller of the two probabilities.":"≥ if testing for a higher probability, ≤ if testing for a lower one."));
+  const lhs=`${pexpr(pside,x)} = ${sf(pv)}`;
+  const ex=tail==="two"?(()=>{const s=pv<alpha?"<":">";return[`${lhs} ${s} ${sf(alpha)}, so ${pv<alpha?REJ:ACC}`]})():[];
+  P1.push(cmpStage("Compare and decide",`Compare with the significance level${tail==="two"?" for one tail":""} and decide.`,lhs,sf(L),pv<L?"<":">",rej,tail==="two"?"Two-tailed test: each tail has α/2, so compare with α/2.":"Compare the probability with the significance level.",ex));
+  P1.push(conclusion(rej,alpha,{up:`the ${kind} has increased`,down:`the ${kind} has decreased`,two:`the ${kind} has changed`},tail));
+  sections.push({name:"Method 1 · p-value",stages:P1});
+  /* critical region */
+  const C=[];
+  const bnd=(s,k,lv)=>{lv=lv||L;const k2=s==="u"?k-1:k+1;
+    return`${pexpr(s,k)} = ${sf(val(s,k))} ${val(s,k)<lv?"<":">"} ${sf(lv)} and ${pexpr(s,k2)} = ${sf(val(s,k2))} ${val(s,k2)<lv?"<":">"} ${sf(lv)}`};
+  const calcStage=(s,k,title)=>{
+    const bad=[];const k1=s==="u"?k+1:k-1,k2=s==="u"?k-1:k+1,k3=s==="u"?k+2:k-2;
+    bad.push(bnd(s,k,tail==="two"?alpha:L/2));
+    [k1,k2,k3].forEach(kx=>{const ka=s==="u"?kx-1:kx+1;if(kx>=0&&kx<=n&&ka>=0&&ka<=n)bad.push(bnd(s,kx))});
+    const o=s==="u"?"l":"u";if(k>=1&&k<=n-1)bad.push(bnd(o,k));
+    return st(title,`Show probability calculations (binomial cumulative) that locate the boundary of the critical region, using ${pct(L)} in each tail.`,bnd(s,k),bad,s==="u"?"Find the smallest b such that P(X ≥ b) < significance level.":"Find the largest a such that P(X ≤ a) < significance level.")};
+  if(tail!=="down")C.push(calcStage("u",b,tail==="two"?"Upper tail":"Probability calculations"));
+  if(tail!=="up")C.push(calcStage("l",a,tail==="two"?"Lower tail":"Probability calculations"));
+  let crG,crB;
+  if(tail==="up"){crG=`${X} ≥ ${b}`;crB=[`${X} > ${b}`,`${X} ≥ ${b-1}`,`${X} ≥ ${b+1}`,`${X} ≤ ${b}`]}
+  else if(tail==="down"){crG=`${X} ≤ ${a}`;crB=[`${X} < ${a}`,`${X} ≤ ${a+1}`,`${X} ≤ ${a-1}`,`${X} ≥ ${a}`]}
+  else{crG=`${X} ≤ ${a} or ${X} ≥ ${b}`;crB=[`${X} < ${a} or ${X} > ${b}`,`${X} ≤ ${a+1} or ${X} ≥ ${b-1}`,`${X} ≥ ${a} or ${X} ≤ ${b}`,`${X} ≤ ${a} or ${X} ≥ ${b+1}`]}
+  C.push(st("Critical region","Select the critical region.",crG,crB,"Critical region is X ≤ a (lower), X ≥ b (upper) or both for a two-tailed test."));
+  C.push(regionStage("Compare and decide","Is the observed value in the critical region?",`${X} = ${x}`,inCR,"X lies in the critical region so reject H₀; otherwise accept H₀."));
+  C.push(conclusion(rej,alpha,{up:`the ${kind} has increased`,down:`the ${kind} has decreased`,two:`the ${kind} has changed`},tail));
+  sections.push({name:"Method 2 · critical region",stages:C});
+  return{problem,tables:[],dataset:null,sections,mode:"binomial"};
+}
+/* ---------- NORMAL ---------- */
+const NT=[
+ {meas:"lifetime",of:"of a battery",things:"batteries",unit:"hours",alt:"minutes",mu:[12,15,18,20,24],sd:[1.5,2,2.5],who:"A manufacturer"},
+ {meas:"waiting time",of:"of a patient at a clinic",things:"patients",unit:"minutes",alt:"seconds",mu:[18,20,25,30,35],sd:[4,5,6],who:"A clinic manager"},
+ {meas:"mass",of:"of a loaf of bread",things:"loaves",unit:"grams",alt:"kilograms",mu:[400,450,500,800],sd:[8,10,12,15],who:"A baker"},
+ {meas:"height",of:"of a sunflower",things:"sunflowers",unit:"cm",alt:"metres",mu:[120,150,180,200],sd:[10,12,15],who:"A gardener"},
+ {meas:"fuel use",of:"of a delivery van per day",things:"vans",unit:"litres",alt:"millilitres",mu:[40,45,50,60],sd:[4,5,6],who:"A courier firm"},
+ {meas:"loading time",of:"of a web page",things:"web pages",unit:"seconds",alt:"milliseconds",mu:[2.4,3,3.5,4],sd:[0.3,0.4,0.5],who:"A web designer"},
+ {meas:"length",of:"of a bolt",things:"bolts",unit:"mm",alt:"cm",mu:[50,60,75,80],sd:[0.5,1,1.2],who:"A factory"}];
+function genNormal(){
+  for(let tries=0;tries<500;tries++){
+    const T=rnd(NT),tail=rnd(["up","down","two"]),mu=rnd(T.mu),sd=rnd(T.sd),n=rnd([9,10,12,15,16,20,25,30,36,40,50]);
+    const alpha=rnd([0.1,0.05,0.01,0.001]),p=tail==="two"?alpha/2:alpha,zc=zLookup(p);
+    const se=sd/Math.sqrt(n),dp=se<0.15?3:2;
+    const off=rnd([-1,-.6,-.3,.3,.6,1])*rnd([1,1.3]);
+    let zt=zc+off;if(tail==="two"&&Math.random()<.5)zt=-zt;
+    if(tail==="down")zt=-zt;
+    if(tail!=="two"&&Math.random()<.15)zt=-zt;
+    if(tail==="two"&&Math.abs(zt)<.2)continue;
+    const xbar=+(mu+zt*se).toFixed(dp),z=(xbar-mu)/se;
+    const dist=tail==="up"?z-zc:tail==="down"?-zc-z:Math.abs(z)-zc;
+    if(Math.abs(dist)<.2||Math.abs(z)>6)continue;
+    return buildNormal({T,tail,mu,sd,n,alpha,p,zc,se,xbar,z,giveVar:Math.random()<.4,dp});
+  }
+}
+function buildNormal(g){
+  const {T,tail,mu,sd,n,alpha,p,zc,se,xbar,z,giveVar,dp}=g;
+  const dirw={up:"increased",down:"decreased",two:"changed"}[tail];
+  const vr=+(sd*sd).toFixed(4);
+  const sdText=giveVar?`The population variance is ${vr}.`:`The population standard deviation is ${sd} ${T.unit}.`;
+  const problem=`${T.who} claims that the mean ${T.meas} ${T.of} is ${mu} ${T.unit}. The ${T.meas} is known to be normally distributed. ${sdText}<br><br>A random sample of ${n} ${T.things} has a mean ${T.meas} of ${xbar} ${T.unit}.<br><br>Test, at the ${pct(alpha)} significance level, whether the mean ${T.meas} ${T.of} has ${dirw}.`;
+  const M=I("μ"),z_=I("z"),sdD=num(sd,sd%1?1:0),xs=num(xbar,dp);
+  const rej=tail==="up"?z>zc:tail==="down"?z<-zc:Math.abs(z)>zc;
+  const claims={up:`the mean ${T.meas} ${T.of} has increased`,down:`the mean ${T.meas} ${T.of} has decreased`,two:`the mean ${T.meas} ${T.of} has changed`};
+  const S=[];
+  S.push(st("Assumption","State the assumption for this test.","Assume the sample is a random sample from a normal population.",["Assume the sample is a random sample from a binomial population.","Assume the population standard deviation is estimated from the sample.","Assume the variables follow a bivariate normal distribution."],"Assumption: random sample from a normal population."));
+  S.push(st("Null hypothesis","Select the null hypothesis.",`${H0s}: ${M} = ${mu}`,[`${H0s}: ${M} = ${xs}`,`${H0s}: ${bar("X")} = ${mu}`,`${H0s}: ${M} ≠ ${mu}`,`${H0s}: ${M} > ${mu}`],"H₀ is μ = μ₀ every time, where μ₀ is the population mean in the question."));
+  const h=h1Stage(null,tail,s=>`${H1s}: ${M} ${s} ${mu}`);
+  S.push(st("Alternative hypothesis","Select the alternative hypothesis, using what is being investigated.",h.g,[...h.all,`${H1s}: ${bar("X")} ≠ ${mu}`],"> for a higher mean, < for a lower mean, ≠ for a different mean (two-tailed)."));
+  const alt=NT.filter(t=>t!==T)[rint(0,NT.length-2)];
+  S.push(st("Define the parameter","Define μ in context, with the correct units.",`where ${M} is the population mean ${T.meas} ${T.of}, in ${T.unit}.`,
+   [`where ${M} is the population mean ${T.meas} ${T.of}, in ${T.alt}.`,`where ${M} is the sample mean ${T.meas} ${T.of}, in ${T.unit}.`,`where ${M} is the sample mean ${T.meas} ${T.of}, in ${T.alt}.`,`where ${M} is the population mean ${alt.meas} ${alt.of}, in ${alt.unit}.`],"μ is the population mean, in context, with the units used in the question."));
+  const top=giveVar?num(vr,vr<1?2:vr%1?2:0):`${sdD}<sup>2</sup>`,topW=giveVar?String(sd):sdD;
+  const D=(m,v)=>`${Xb} ~ N(${m}, ${v})`;
+  S.push(st("Distribution if H₀ is true",`If ${H0s} is true, what is the distribution of ${Xb}?`,D(mu,frac(top,n)),
+   [D(mu,frac(topW,n)),D(mu,frac(topW,sqrt(n))),D(xs,frac(top,n)),D(mu,top)],"X̄ ~ N(μ₀, σ²/n) where σ is the population standard deviation and n is the sample size."));
+  S.push(st("Observed value","Select the observed value of the test statistic.",`Observed that ${Xb} = ${xs}`,[`Observed that ${M} = ${xs}`,`Observed that ${Xb} = ${mu}`,`Observed that ${Xb} = ${n}`,`Observed that ${I("z")} = ${xs}`],"The test statistic is the sample mean X̄."));
+  const sections=[{name:"Setting up the test",stages:S}];
+  /* z-value */
+  const Z=[];
+  const zx=(a,b,den)=>`${z_} = ${frac(`${a} ${MINUS} ${b}`,den)}`;
+  const den=`${sdD}/${sqrt(n)}`;
+  const zv=(num_,d_)=>num_/d_;
+  const ZE=(a,b,d,val)=>`${zx(a,b,d)} = ${sf(val)}`;
+  const sq=Math.sqrt(n);
+  Z.push(st("Calculate z","Calculate the test statistic z = (x̄ − μ₀) ÷ (σ/√n), to 3 significant figures.",ZE(xs,mu,den,z),
+   [ZE(xs,mu,sdD,(xbar-mu)/sd),ZE(xs,mu,`${sdD}/${n}`,(xbar-mu)/(sd/n)),ZE(xs,mu,`${num(vr,vr%1?2:0)}/${sqrt(n)}`,(xbar-mu)/(vr/sq)),ZE(mu,xs,den,-z)],"z = (x̄ − μ₀)/(σ/√n). If you are given the variance, take the square root to get σ."));
+  const cvq=tail==="two"?`Two-tailed at ${pct(alpha)}: use p = α/2 = ${pct(p)} in the table.`:`One-tailed at ${pct(alpha)}: use p = α = ${pct(p)} in the table.`;
+  const near=ZT.map(r=>r[1]).filter(v=>v>0.9&&Math.abs(v-zc)>1e-9);
+  const zo=tail==="two"?zLookup(alpha):zLookup(alpha/2>=0.0005?alpha/2:alpha);
+  Z.push(st("Critical value",`Find the critical value from the table. ${cvq}`,`Critical value is ${zc.toFixed(4)}`,[`Critical value is ${zo.toFixed(4)}`,...shuffle(near).slice(0,3).map(v=>`Critical value is ${v.toFixed(4)}`)],"Use the printed table, based on α (or α/2 for a two-tailed test)."));
+  const zs=num(z,2),zS=`${z_} = ${sf(z)}`;
+  const cv=zc.toFixed(4);
+  if(tail==="up")Z.push(cmpStage("Compare and decide","Compare z with the critical value and decide.",zS,cv,z>zc?">":"<",rej,"Upper tail: reject H₀ if z is greater than the critical value."));
+  else if(tail==="down")Z.push(cmpStage("Compare and decide","Compare z with the critical value and decide.",zS,MINUS+cv,z<-zc?"<":">",rej,"Lower tail: reject H₀ if z is less than the negative of the critical value."));
+  else Z.push(cmpStage("Compare and decide","Compare |z| with the critical value and decide.",`|${z_}| = ${sf(Math.abs(z))}`,cv,Math.abs(z)>zc?">":"<",rej,"|z| > critical value so reject H₀; |z| < critical value so accept H₀."));
+  Z.push(conclusion(rej,alpha,claims,tail));
+  sections.push({name:"Method 1 · z-value",stages:Z});
+  /* p-value */
+  const P1=[],cdfUp=zz=>1-Phi(zz),cdfLo=zz=>Phi(zz);
+  const side=tail==="up"?"u":tail==="down"?"l":(z>0?"u":"l");
+  const tp=(zz,s)=>s==="u"?cdfUp(zz):cdfLo(zz);
+  const pe=(s,zz)=>`P(${Xb} ${s==="u"?"≥":"≤"} ${xs}) = ${sf(tp(zz,s))}`;
+  const pv=tp(z,side),opp=side==="u"?"l":"u";
+  P1.push(st("Probability calculation","Use normal cumulative with the distribution under H₀ to find the probability.",pe(side,z),
+   [pe(opp,z),pe(side,(xbar-mu)/sd),pe(side,(xbar-mu)/(vr/sq)),pe(opp,(xbar-mu)/sd),`P(${Xb} ${side==="u"?"\u2265":"\u2264"} ${xs}) = ${sf(Math.min(.99,pv*2))}`,`P(${Xb} ${side==="u"?"\u2265":"\u2264"} ${xs}) = ${sf(pv/2)}`],tail==="two"?"≥ for the upper tail, ≤ for the lower tail: use the smaller of the two.":"≥ if testing for a higher mean, ≤ if testing for a lower mean."));
+  const L=p,lhs=pe(side,z),ex=tail==="two"?[`${lhs} ${pv<alpha?"<":">"} ${sf(alpha)}, so ${pv<alpha?REJ:ACC}`]:[];
+  P1.push(cmpStage("Compare and decide",`Compare with the significance level${tail==="two"?" for one tail":""} and decide.`,lhs,sf(L),pv<L?"<":">",pv<L,tail==="two"?"If testing for a different mean, use α/2.":"Compare the probability with the significance level.",ex));
+  P1.push(conclusion(rej,alpha,claims,tail));
+  sections.push({name:"Method 2 · p-value",stages:P1});
+  /* critical region */
+  const C=[],A=pct(alpha),H=pct(alpha/2),pr=(d,v)=>`P(${Xb} ${d} ${v})`;
+  let eqG,eqB;
+  if(tail==="up"){eqG=`${pr("≥","a")} = ${A}`;eqB=[`${pr("≤","a")} = ${A}`,`${pr("≥","a")} = ${pct(1-alpha)}`,`${pr("≥","a")} = ${H}`]}
+  else if(tail==="down"){eqG=`${pr("≤","a")} = ${A}`;eqB=[`${pr("≥","a")} = ${A}`,`${pr("≤","a")} = ${pct(1-alpha)}`,`${pr("≤","a")} = ${H}`]}
+  else{eqG=`${pr("≤","a")} = ${H} and ${pr("≥","b")} = ${H}`;eqB=[`${pr("≤","a")} = ${A} and ${pr("≥","b")} = ${A}`,`${pr("≥","a")} = ${H} and ${pr("≥","b")} = ${H}`,`${pr("≤","a")} = ${H} and ${pr("≤","b")} = ${H}`,`${pr("≤","a")} = ${H} and ${pr("≥","b")} = ${A}`]}
+  C.push(st("Set up the critical value(s)","Write the probability statement(s) used with inverse normal to find the critical value(s).",eqG,eqB,"One-tailed: P(X̄ ? a) = α%. Two-tailed: P(X̄ ≤ a) = α/2% and P(X̄ ≥ b) = α/2%."));
+  const zE=invPhi(1-p),zW=tail==="two"?invPhi(1-alpha):invPhi(1-alpha/2);
+  const lo=mu-zE*se,hi=mu+zE*se,lw=mu-zW*se,hw=mu+zW*se,loS=mu-zE*sd,hiS=mu+zE*sd;
+  const B=v=>sf(v,4);let cG,cB;
+  if(tail==="up"){cG=`${Xb} > ${B(hi)}`;cB=[`${Xb} > ${B(lo)}`,`${Xb} < ${B(hi)}`,`${Xb} > ${B(hiS)}`,`${Xb} > ${B(hw)}`]}
+  else if(tail==="down"){cG=`${Xb} < ${B(lo)}`;cB=[`${Xb} < ${B(hi)}`,`${Xb} > ${B(lo)}`,`${Xb} < ${B(loS)}`,`${Xb} < ${B(lw)}`]}
+  else{cG=`${Xb} < ${B(lo)} or ${Xb} > ${B(hi)}`;cB=[`${Xb} > ${B(lo)} or ${Xb} < ${B(hi)}`,`${Xb} < ${B(lw)} or ${Xb} > ${B(hw)}`,`${Xb} < ${B(loS)} or ${Xb} > ${B(hiS)}`,`${Xb} > ${B(hi)}`]}
+  C.push(st("Critical region","Select the critical region (use inverse normal with the distribution under H₀).",cG,cB,"Use inverse normal with mean μ₀ and standard deviation σ/√n (not σ)."));
+  C.push(regionStage("Compare and decide","Is the observed sample mean in the critical region?",`${Xb} = ${xs}`,rej,"X̄ lies in the critical region so reject H₀; otherwise accept H₀."));
+  C.push(conclusion(rej,alpha,claims,tail));
+  sections.push({name:"Method 3 · critical region",stages:C});
+  return{problem,tables:["z"],dataset:null,sections,mode:"normal"};
+}
+/* ---------- CORRELATION ---------- */
+const CT=[
+ {who:"A kiosk owner",A:"the daily maximum temperature (°C)",B:"the number of ice creams sold",xr:[14,2],yr:[40,160,0]},
+ {who:"A used-car dealer",A:"the age of a used car (years)",B:"its selling price (£ thousands)",xr:[2,1],yr:[3,16,1]},
+ {who:"A teacher",A:"the time spent revising (hours)",B:"the test score (marks)",xr:[1,1],yr:[35,95,0]},
+ {who:"A park manager",A:"the daily rainfall (mm)",B:"the number of visitors to the park",xr:[0,2],yr:[120,900,0]},
+ {who:"A botanist",A:"the height of a plant (cm)",B:"the mass of the plant (g)",xr:[20,4],yr:[15,90,0]},
+ {who:"A motoring journalist",A:"the engine size of a car (litres)",B:"its fuel consumption (miles per gallon)",xr:[1,.2],yr:[25,60,0]}];
+const gauss=()=>{let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+function genCorrelation(){
+  for(let tries=0;tries<2000;tries++){
+    const T=rnd(CT),tail=rnd(["up","down","two"]),useData=Math.random()<.4;
+    const alpha=tail==="two"?rnd([0.1,0.05,0.02,0.01]):rnd([0.1,0.05,0.025,0.01]),p=tail==="two"?alpha/2:alpha;
+    const n=useData?rint(6,10):rnd([6,8,10,12,15,18,20,25,30,40,50,60,80,100]),cv=pmLookup(n,p);
+    const sg=(tail==="up"?1:tail==="down"?-1:rnd([1,-1]))*(Math.random()<.85||tail==="two"?1:-1);
+    let r,data=null;
+    if(!useData){r=+(sg*Math.min(.97,cv*rnd([.45,.6,.8,1.2,1.4,1.7]))).toFixed(2);if(Math.abs(Math.abs(r)-cv)<.03||Math.abs(r)<.05)continue}
+    else{const ks=shuffle([...Array(14).keys()]).slice(0,n).sort((a,b)=>a-b),xs=ks.map(k=>+(T.xr[0]+k*T.xr[1]).toFixed(2));
+      const [y0,y1,d]=T.yr,s=rnd([.4,.6,.8,.95]),nz=rnd([.06,.12,.2,.3]);
+      data=xs.map((x,i)=>{const t=ks[i]/13;const y=y0+(y1-y0)*(.5+sg*(t-.5)*s+gauss()*nz*.5);return[x,+Math.max(y0*.8,y).toFixed(d)]});
+      if(new Set(data.map(d=>d[1])).size<n-1)continue;
+      r=pmcc(data);r=+r.toFixed(3);if(Math.abs(Math.abs(r)-cv)<.04)continue}
+    return buildCorr({T,tail,alpha,p,n,cv,r,data});
+  }
+}
+function buildCorr(g){
+  const {T,tail,alpha,p,n,cv,r,data}=g;
+  const R=I("r"),rho=I("ρ"),a=pct(alpha);
+  const cw={up:"a positive correlation",down:"a negative correlation",two:"a correlation"}[tail];
+  const rej=tail==="up"?r>cv:tail==="down"?r<-cv:Math.abs(r)>cv;
+  const dig=data?3:2,rs=num(r,dig);
+  let problem=`${T.who} investigates whether there is ${cw} between ${T.A} and ${T.B}. `;
+  problem+=data?`The data from a random sample of ${n} observations are shown in the table. The sample correlation coefficient is to be calculated.`:`A random sample of ${n} observations gives a sample correlation coefficient of ${R} = ${rs}.`;
+  problem+=`<br><br>Test, at the ${a} significance level, whether there is evidence of ${cw} between ${T.A} and ${T.B}.`;
+  const claims={up:`there is a positive correlation between ${T.A} and ${T.B}`,down:`there is a negative correlation between ${T.A} and ${T.B}`,two:`there is a correlation between ${T.A} and ${T.B}`};
+  const S=[];
+  S.push(st("Assumption","State the assumption for the PMCC test.","Assume the variables follow independent normal distributions (a bivariate normal distribution).",["Assume the variables are binomially distributed.","Assume one variable is controlled and the other is random.","Assume the sample is a random sample from a binomial population."],"Assumption is that the variables follow independent normal distributions (bivariate normal)."));
+  S.push(st("Null hypothesis","Select the null hypothesis.",`${H0s}: ${rho} = 0`,[`${H0s}: ${R} = 0`,`${H0s}: ${rho} = ${rs}`,`${H0s}: ${rho} ≠ 0`,`${H0s}: ${rho} = 1`],"H₀: ρ = 0 every time."));
+  const h=h1Stage(null,tail,s=>`${H1s}: ${rho} ${s} 0`);
+  S.push(st("Alternative hypothesis","Select the alternative hypothesis, using what is being investigated.",h.g,[...h.all,`${H1s}: ${R} ≠ 0`],"> for a positive correlation, < for a negative correlation, ≠ for any correlation (two-tailed)."));
+  S.push(st("Define the parameter","Define ρ in context.",`where ${rho} is the population correlation between ${T.A} and ${T.B}.`,
+   [`where ${rho} is the sample correlation between ${T.A} and ${T.B}.`,`where ${rho} is the population correlation between ${CT.find(t=>t!==T).A} and ${CT.find(t=>t!==T).B}.`,`where ${rho} is the population mean of ${T.A} and ${T.B}.`],"ρ is the population correlation, in the context of the question, with the variables named as in the question."));
+  const rb=s=>`${R} = ${s}`;
+  if(data)S.push(st("Calculate r","Use your calculator to find the sample correlation coefficient (3 d.p.).",rb(num(r,3)),[rb(num(-r,3)),rb(num(r*r,3)),rb(num(Math.sign(r)*Math.max(.02,Math.abs(r)-.12),3)),rb(num(Math.sign(r)*Math.min(.99,Math.abs(r)+.1),3))],"r is found from the collected data using the calculator's statistics mode."));
+  else S.push(st("Observed value","Select the observed value of the test statistic.",`Observed that ${rb(rs)}`,[`Observed that ${rho} = ${rs}`,`Observed that ${R} = ${num(-r,2)}`,`Observed that ${R} = ${n}`,`Observed that ${R} = 0`],"r is given in the question."));
+  const sections=[{name:"Setting up the test",stages:S}];
+  const K=Object.keys(PM).map(Number),ix=K.indexOf(n),col=PCOL.indexOf(p);
+  const wr=[ix>0?PM[K[ix-1]][col]:null,ix<K.length-1?PM[K[ix+1]][col]:null,PM[n][tail==="two"?Math.max(0,col-1):Math.min(4,col+1)],PM[n][tail==="two"?Math.min(4,col+1):Math.max(0,col-1)]];
+  const C=[];
+  C.push(st("Critical value",`Find the critical value for n = ${n}. ${tail==="two"?`Two-tailed at ${a}: use the column α/2 = ${pct(p)}.`:`One-tailed at ${a}: use the column α = ${pct(p)}.`}`,`Critical value is ${cv.toFixed(4)}`,wr.filter(v=>v!=null&&v!==cv).map(v=>`Critical value is ${v.toFixed(4)}`),"Use the table of critical values for PMCC, based on n and α (or α/2 for two-tailed)."));
+  const cvs=cv.toFixed(4);
+  if(tail==="up")C.push(cmpStage("Compare and decide","Compare r with the critical value and decide.",`${R} = ${rs}`,cvs,r>cv?">":"<",rej,"Positive correlation: reject H₀ if r is greater than the critical value."));
+  else if(tail==="down")C.push(cmpStage("Compare and decide","Compare r with the critical value and decide.",`${R} = ${rs}`,MINUS+cvs,r<-cv?"<":">",rej,"Negative correlation: reject H₀ if r is less than the negative of the critical value."));
+  else C.push(cmpStage("Compare and decide","Compare |r| with the critical value and decide.",`|${R}| = ${num(Math.abs(r),dig)}`,cvs,Math.abs(r)>cv?">":"<",rej,"|r| is the strength of the correlation: |r| > critical value so reject H₀."));
+  C.push(conclusion(rej,alpha,claims,tail));
+  sections.push({name:"PMCC critical value method",stages:C});
+  return{problem,tables:["pm"],dataset:data,dsHead:[T.A,T.B],sections,mode:"correlation"};
+}
+/* ---------- engine ---------- */
+const FREEZE=30000;
+const GEN={binomial:genBinomial,normal:genNormal,correlation:genCorrelation};
+const INFO={
+ binomial:["Binomial test","p-value method, then critical region method, on the same problem."],
+ normal:["Normal mean test","z-value method, p-value method, then critical region method, on the same problem."],
+ correlation:["Correlation (PMCC)","Critical value method using the table in the formula book."]};
+let S=null,timer=null;
+const $=id=>document.getElementById(id);
+function start(mode){
+  let prob=null;for(let i=0;i<20&&!prob;i++)prob=GEN[mode]();
+  const flat=[];prob.sections.forEach((s,si)=>s.stages.forEach(t=>flat.push({si,t})));
+  S={mode,prob,flat,idx:0,done:[],clicks:0,mistakes:[],wrongNow:new Set(),lockUntil:0,t0:Date.now(),t1:0};
+  document.querySelectorAll("#modes button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===mode)));
+  render();window.scrollTo(0,0);
+}
+function pick(i){
+  if(!S||S.idx>=S.flat.length||Date.now()<S.lockUntil||S.wrongNow.has(i))return;
+  const {t}=S.flat[S.idx];S.clicks++;
+  if(i===t.ok){S.done[S.idx]=t.good;S.idx++;S.wrongNow=new Set();if(S.idx>=S.flat.length)S.t1=Date.now();render()}
+  else{S.wrongNow.add(i);S.mistakes.push(t.title);S.lockUntil=Date.now()+FREEZE;render()}
+}
+function tick(){
+  clearInterval(timer);timer=null;
+  const left=S.lockUntil-Date.now();
+  if(left<=0){render();return}
+  const f=$("fz"),b=$("fzb");if(f)f.textContent=Math.ceil(left/1000);if(b)b.style.width=(left/FREEZE*100)+"%";
+  timer=setTimeout(tick,250);
+}
+function render(){
+  const side=$("side"),steps=$("steps");
+  if(!S){
+    side.innerHTML=`<div class="label">How it works</div><p style="margin:0">Pick a test. You get one problem and build the whole solution step by step, choosing from options that include common mistakes.</p><p style="margin:0">A wrong choice freezes the question for 30 seconds, so read each option before you click.</p>`;
+    steps.innerHTML=`<div class="panel"><div class="label">Choose a test</div><div style="display:grid;gap:10px;margin-top:10px">${Object.keys(INFO).map(k=>`<button class="btn" style="text-align:left;padding:14px" data-start="${k}"><b>${INFO[k][0]}</b><br><span style="color:var(--muted)">${INFO[k][1]}</span></button>`).join("")}</div></div>`;
+    return}
+  const P=S.prob,fin=S.idx>=S.flat.length,att=S.clicks,acc=att?Math.round(100*S.flat.length/att):0;
+  let h=`<div class="label">Problem</div><div class="problem">${P.problem}</div>`;
+  if(P.dataset){h+=`<div class="dataset"><table class="ds"><tr><th>x</th>${P.dataset.map(d=>`<td>${d[0]}</td>`).join("")}</tr><tr><th>y</th>${P.dataset.map(d=>`<td>${d[1]}</td>`).join("")}</tr></table></div><div class="sub"><i>x</i> = ${P.dsHead[0]}<br><i>y</i> = ${P.dsHead[1]}</div>`}
+  h+=`<div class="tools">${P.tables.map(t=>`<button class="btn small" data-table="${t}">${t==="z"?"View z table":"View PMCC table"}</button>`).join("")}<button class="btn small" data-start="${S.mode}">New problem</button></div>`;
+  h+=`<div class="stats"><span>Step <b>${Math.min(S.idx+1,S.flat.length)}</b> of <b>${S.flat.length}</b></span><span>Clicks <b>${att}</b></span><span>Mistakes <b>${S.mistakes.length}</b></span></div>`;
+  side.innerHTML=h;
+  let o="",last=-1;
+  for(let i=0;i<=Math.min(S.idx,S.flat.length-1);i++){
+    const {si,t}=S.flat[i];
+    if(si!==last){o+=`<div class="sec">${P.sections[si].name}</div>`;last=si}
+    if(i<S.idx)o+=`<div class="step done"><div class="t">✓ ${t.title}</div><div class="a">${t.good}</div></div>`;
+    else{
+      const lock=Date.now()<S.lockUntil;
+      o+=`<div class="step cur"><h3>${t.title}</h3><div class="q">${t.q}</div><div class="opts">${t.opts.map((x,j)=>`<button class="opt${S.wrongNow.has(j)?" wrong":""}" data-opt="${j}" ${lock||S.wrongNow.has(j)?"disabled":""}>${x}</button>`).join("")}</div>`;
+      if(lock)o+=`<div class="freeze" role="status"><b>Not quite.</b> Frozen for <b id="fz">${Math.ceil((S.lockUntil-Date.now())/1000)}</b> seconds.<div class="hint">${t.hint||""}</div><div class="bar"><i id="fzb" style="width:${(S.lockUntil-Date.now())/FREEZE*100}%"></i></div></div>`;
+      o+=`</div>`}
+  }
+  if(fin){const secs=Math.round((S.t1-S.t0)/1000),m={};S.mistakes.forEach(k=>m[k]=(m[k]||0)+1);
+    o+=`<div class="panel final"><h2>Solution complete</h2><table><tr><th>Accuracy</th><td>${acc}% (${S.flat.length} steps, ${att} clicks)</td></tr><tr><th>Time</th><td>${Math.floor(secs/60)}m ${secs%60}s</td></tr><tr><th>Mistakes</th><td>${S.mistakes.length?Object.keys(m).map(k=>`${k} (${m[k]})`).join(", "):"None"}</td></tr></table><button class="btn primary" data-start="${S.mode}">Next problem</button></div>`}
+  steps.innerHTML=o;
+  if(Date.now()<S.lockUntil&&!timer)timer=setTimeout(tick,250);
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.start)start(b.dataset.start);
+  else if(b.dataset.mode)start(b.dataset.mode);
+  else if(b.dataset.table)showTable(b.dataset.table);
+  else if(b.dataset.opt!=null)pick(+b.dataset.opt);
+  else if(b.id==="dclose")$("dlg").close();
+});
+$("dlg").addEventListener("click",e=>{if(e.target===$("dlg"))$("dlg").close()});
+render();
+</script>
+</body></html>
