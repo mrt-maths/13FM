@@ -1,0 +1,413 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Inequality Regions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: controls + inequality + graph on the left, 24 region choices on the right. */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --fg:#1a1f2b; --muted:#5a6475; --line:#d8dce5;
+  --red:#c4262e; --blue:#1d5fd0; --ok:#16743f; --okbg:#e2f4ea; --bad:#b42318; --badbg:#fde8e6;
+  --warn:#8a5a00; --warnbg:#fff1cc; --btn:#1a1f2b; --btntext:#ffffff; --sel:#e8eefc; --band:rgba(22,116,63,.16);
+  --ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --math:"STIX Two Text","Cambria Math","Times New Roman",serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151b; --panel:#1b2029; --fg:#e8ebf1; --muted:#9aa4b5; --line:#2f3745;
+  --red:#ff7b72; --blue:#6aa9ff; --ok:#56d391; --okbg:#12301f; --bad:#ff8b80; --badbg:#3a1714;
+  --warn:#e3b341; --warnbg:#33280d; --btn:#e8ebf1; --btntext:#12151b; --sel:#23304d; --band:rgba(86,211,145,.18); color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#12151b; --panel:#1b2029; --fg:#e8ebf1; --muted:#9aa4b5; --line:#2f3745;
+  --red:#ff7b72; --blue:#6aa9ff; --ok:#56d391; --okbg:#12301f; --bad:#ff8b80; --badbg:#3a1714;
+  --warn:#e3b341; --warnbg:#33280d; --btn:#e8ebf1; --btntext:#12151b; --sel:#23304d; --band:rgba(86,211,145,.18); color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--ui);
+  padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font-size:1.5rem;margin:0 0 2px;font-weight:600;text-wrap:balance}
+.sub{margin:0 0 16px;color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+.left{display:grid;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.row+.row{margin-top:12px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:500}
+select{font:inherit;font-size:.95rem;text-transform:none;letter-spacing:0;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 8px;min-width:140px}
+.lhsf select{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
+.rhsf select{border-color:var(--blue);box-shadow:inset 3px 0 0 var(--blue)}
+.lhsf{color:var(--red)} .rhsf{color:var(--blue)}
+fieldset.ops{border:0;margin:0;padding:0;display:flex;gap:4px}
+.ops label{position:relative}
+.ops input{position:absolute;opacity:0;inset:0;cursor:pointer}
+.diff{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dl{font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-right:2px}
+.ops span{display:grid;place-items:center;width:42px;height:38px;border:1px solid var(--line);border-radius:6px;font:1.25rem var(--math);color:var(--fg);background:var(--panel)}
+.ops input:checked+span{background:var(--btn);color:var(--btntext);border-color:var(--btn)}
+.ops input:focus-visible+span,button:focus-visible,select:focus-visible,.opt input:focus-visible+.txt{outline:2px solid var(--blue);outline-offset:2px}
+button{font:inherit;font-weight:500;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:8px 14px;cursor:pointer}
+button.primary{background:var(--btn);color:var(--btntext);border-color:var(--btn)}
+.ineq{font:2rem/1.3 var(--math);text-align:center;padding:6px 0 2px;overflow-wrap:anywhere}
+.ineq .l{color:var(--red)} .ineq .r{color:var(--blue)} .ineq .o{padding:0 .35em;color:var(--fg)}
+.note{margin:0 0 6px;text-align:center;color:var(--muted);font-size:.9rem;min-height:1.3em}
+svg#graph{width:100%;height:auto;display:block;touch-action:manipulation}
+.key{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:.85rem;color:var(--muted);margin-top:6px}
+.kl{color:var(--red)}.kr{color:var(--blue)}.key b{font:500 1rem var(--math)}
+.key i{display:inline-block;width:22px;height:3px;vertical-align:middle;margin-right:6px;border-radius:2px}
+h2{font-size:1.05rem;margin:0 0 4px;font-weight:600}
+.hint{margin:0 0 12px;color:var(--muted);font-size:.9rem}
+.options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.opt{position:relative;display:block}
+.opt input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.opt .txt{display:flex;align-items:center;gap:8px;min-height:50px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:1.02rem/1.3 var(--math);overflow-wrap:anywhere;background:var(--panel)}
+.opt .txt::before{content:"";flex:none;width:16px;height:16px;border:1.5px solid var(--muted);border-radius:4px}
+.opt input:checked+.txt{background:var(--sel);border-color:var(--blue)}
+.opt input:checked+.txt::before{background:var(--blue);border-color:var(--blue);box-shadow:inset 0 0 0 3px var(--sel)}
+.opt.right .txt{border-color:var(--ok);background:var(--okbg)}
+.opt.wrong .txt{border-color:var(--bad);background:var(--badbg)}
+.opt.missed .txt{border-color:var(--warn);background:var(--warnbg);border-style:dashed}
+.tag{margin-left:auto;font:600 .7rem var(--ui);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.opt.right .tag{color:var(--ok)} .opt.wrong .tag{color:var(--bad)} .opt.missed .tag{color:var(--warn)}
+.actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+#result{margin-top:12px;min-height:1.4em;font-weight:500}
+#result.good{color:var(--ok)} #result.bad{color:var(--bad)}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:480px){.options{grid-template-columns:minmax(0,1fr)}.ineq{font-size:1.5rem}}
+</style>
+<main class="wrap">
+  <h1>Inequality Regions</h1>
+  <p class="sub">Choose the two sides, read the graphs, then select every region of x where the inequality is true.</p>
+  <div class="layout">
+    <section class="left">
+      <div class="card">
+        <div class="row">
+          <label class="field lhsf" for="lhsType">Left side (red)<select id="lhsType"></select></label>
+          <label class="field rhsf" for="rhsType">Right side (blue)<select id="rhsType"></select></label>
+        </div>
+        <div class="row">
+          <label class="field" for="notation">Answer notation
+            <select id="notation">
+              <option value="text">Text: x is more than 2</option>
+              <option value="inequality" selected>Inequality: x &gt; 2</option>
+              <option value="interval">Interval: x ∈ (2, ∞)</option>
+              <option value="set">Set notation: {x : x &gt; 2}</option>
+            </select></label>
+          <div class="diff" role="group" aria-label="Random inequality"><span class="dl">Random inequality</span><button id="dEasy" type="button">Easy</button><button id="dMed" type="button">Medium</button><button id="dHard" type="button">Hard</button></div>
+          <button id="newBtn" type="button">New graphs, same types</button>
+        </div>
+      </div>
+      <div class="card">
+        <div id="ineq" class="ineq" aria-live="polite"></div>
+        <p id="domainNote" class="note"></p>
+        <svg id="graph" viewBox="0 0 600 460" role="img" aria-label="Graphs of the left and right sides"></svg>
+        <div class="key"><span class="kl"><i style="background:var(--red)"></i>y = <b id="keyL"></b></span><span class="kr"><i style="background:var(--blue)"></i>y = <b id="keyR"></b></span></div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Where is the inequality true?</h2>
+      <p class="hint">Each option is one region. If the answer has separate regions, select each of them. Some options are traps, so check the symbol and the x-values, not the y-values.</p>
+      <div id="options" class="options"></div>
+      <div class="actions">
+        <button id="checkBtn" class="primary" type="button">Check</button>
+        <button id="clearBtn" type="button">Clear</button>
+      </div>
+      <div id="result" role="status"></div>
+    </section>
+  </div>
+</main>
+<script>
+/* ---------- helpers ---------- */
+const MINUS='−';
+const TYPES=['constant','linear','quadratic','cubic','quartic','root','reciprocal','trig','inverse trig','reciprocal trig','exponential','logarithmic'];
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+function num(v){const r=Math.round(v*10)/10;if(r===0)return'0';return r.toFixed(1).replace(/\.0$/,'').replace('-',MINUS)}
+const coef=a=>a===1?'':a===-1?MINUS:(a<0?MINUS+(-a):String(a));
+const plusK=(s,k)=>k===0?s:s+(k>0?' + '+k:' '+MINUS+' '+(-k));
+const xh=h=>h===0?'x':h>0?'(x '+MINUS+' '+h+')':'(x + '+(-h)+')';
+const xhRaw=h=>h===0?'x':h>0?'x '+MINUS+' '+h:'x + '+(-h);
+const nz=()=>pick([-3,-2,-1,1,2,3]);
+
+/* ---------- polynomials ---------- */
+function polyMul(p,q){const r=Array(p.length+q.length-1).fill(0);p.forEach((a,i)=>q.forEach((b,j)=>r[i+j]+=a*b));return r}
+function polyHtml(c){let s='';const d=c.length-1;
+  c.forEach((a,i)=>{const p=d-i;if(a===0)return;const abs=Math.abs(a);
+    let t=(p===0||abs!==1)?String(abs):'';if(p>=1)t+='x'+(p>1?'<sup>'+p+'</sup>':'');
+    if(!s)s=(a<0?MINUS:'')+t;else s+=(a<0?' '+MINUS+' ':' + ')+t;});
+  return s||'0'}
+function poly(c){return{html:polyHtml(c),f:x=>c.reduce((s,a)=>s*x+a,0),breaks:()=>[],windowed:false}}
+function rootsPoly(a,rs,k){let c=[a];rs.forEach(r=>{c=polyMul(c,[1,-r])});c[c.length-1]+=k;return poly(c)}
+
+/* ---------- function families ---------- */
+function makeFn(type){
+  switch(type){
+  case 'constant':{const c=ri(-5,5);return{html:c<0?MINUS+(-c):String(c),f:()=>c,breaks:()=>[],windowed:false}}
+  case 'linear':{const a=nz(),r=ri(-4,4),k=ri(-3,3);return poly([a,-a*r+k])}
+  case 'quadratic':return rootsPoly(pick([-2,-1,1,1,2]),[ri(-3,3),ri(-3,3)],ri(-3,3));
+  case 'cubic':return rootsPoly(pick([-1,1]),[ri(-3,3),ri(-3,3),ri(-3,3)],ri(-3,3));
+  case 'quartic':return rootsPoly(pick([-1,1]),[ri(-2,2),ri(-2,2),ri(-2,2),ri(-2,2)],ri(-4,4));
+  case 'root':{const a=nz(),h=ri(-2,2),k=ri(-3,3);
+    if(Math.random()<.5)return{html:plusK(coef(a)+'√'+xh(h),k),f:x=>x<h?NaN:a*Math.sqrt(x-h)+k,breaks:()=>[{x:h,inDom:true}],windowed:false};
+    return{html:plusK(coef(a)+'∛'+xh(h),k),f:x=>a*Math.cbrt(x-h)+k,breaks:()=>[],windowed:false}}
+  case 'reciprocal':{const n=pick([1,2]),a=pick([-6,-4,-3,-2,-1,1,2,3,4,6]),h=ri(-2,2),k=ri(-2,2);
+    const den=xh(h)+(n===2?'<sup>2</sup>':'');
+    return{html:plusK((a<0?MINUS:'')+Math.abs(a)+'/'+den,k),f:x=>x===h?NaN:a/Math.pow(x-h,n)+k,breaks:()=>[{x:h,inDom:false}],windowed:false}}
+  case 'trig':{const kind=pick(['sin','cos','tan']),c=pick([1,2,3]),a=kind==='tan'?pick([-2,-1,1,2]):pick([-4,-3,-2,-1,1,2,3,4]),k=ri(-2,2);
+    const arg=kind==='tan'?'πx/'+(2*c):(c===1?'πx':'πx/'+c);
+    const g=kind==='sin'?x=>Math.sin(Math.PI*x/c):kind==='cos'?x=>Math.cos(Math.PI*x/c):x=>Math.tan(Math.PI*x/(2*c));
+    const br=A=>{if(kind!=='tan')return[];const o=[];for(let n=-20;n<=20;n++){const x=c*(2*n+1);if(Math.abs(x)<A)o.push({x,inDom:false})}return o};
+    return{html:plusK(coef(a)+kind+'('+arg+')',k),f:x=>a*g(x)+k,breaks:br,windowed:true}}
+  case 'inverse trig':{const kind=pick(['atan','asin','acos']),a=pick([-3,-2,-1,1,2,3]),k=ri(-2,2),c=pick([1,2,3]),h=ri(-2,2);
+    const pre='('+(a<0?MINUS:'')+2*Math.abs(a)+'/π)';
+    if(kind==='atan')return{html:plusK(pre+'arctan'+(h===0?' x':xh(h)),k),f:x=>(2*a/Math.PI)*Math.atan(x-h)+k,breaks:()=>[],windowed:false};
+    const g=kind==='asin'?Math.asin:Math.acos;
+    return{html:plusK(pre+(kind==='asin'?'arcsin':'arccos')+'('+(c===1?'x':'x/'+c)+')',k),f:x=>Math.abs(x)>c?NaN:(2*a/Math.PI)*g(x/c)+k,
+      breaks:()=>[{x:-c,inDom:true},{x:c,inDom:true}],windowed:false}}
+  case 'reciprocal trig':{const kind=pick(['csc','sec','cot']),c=pick([1,2,3]),a=pick([-3,-2,-1,1,2,3]),k=ri(-1,1);
+    const arg=kind==='sec'?'πx/'+(2*c):(c===1?'πx':'πx/'+c);
+    const g=kind==='csc'?x=>1/Math.sin(Math.PI*x/c):kind==='sec'?x=>1/Math.cos(Math.PI*x/(2*c)):x=>1/Math.tan(Math.PI*x/c);
+    const br=A=>{const o=[];for(let n=-30;n<=30;n++){const x=kind==='sec'?c*(2*n+1):c*n;if(Math.abs(x)<A)o.push({x,inDom:false})}return o};
+    return{html:plusK(coef(a)+kind+'('+arg+')',k),f:x=>a*g(x)+k,breaks:br,windowed:true}}
+  case 'exponential':{const b=pick([2,3,0.5]),a=nz(),h=ri(-2,2),k=ri(-3,3);
+    return{html:plusK(coef(a)+(b===.5?'(½)':b)+'<sup>'+xhRaw(h)+'</sup>',k),f:x=>a*Math.pow(b,x-h)+k,breaks:()=>[],windowed:false}}
+  case 'logarithmic':{const a=nz(),h=ri(-2,2),k=ri(-3,3);
+    return{html:plusK(coef(a)+'log<sub>2</sub>('+xhRaw(h)+')',k),f:x=>x<=h?NaN:a*Math.log2(x-h)+k,breaks:()=>[{x:h,inDom:false}],windowed:false}}
+  }
+}
+
+/* ---------- analysis: roots, breakpoints, solution components ---------- */
+const contains=(iv,x)=>(x>iv.lo||(iv.loC&&x===iv.lo))&&(x<iv.hi||(iv.hiC&&x===iv.hi));
+function analyse(Lf,Rf,op){
+  const win=Lf.windowed||Rf.windowed,A=win?6:60;
+  const F=x=>Lf.f(x)-Rf.f(x);
+  const cmp=(l,r)=>op==='>'?l>r:op==='<'?l<r:op==='≥'?l>=r:l<=r;
+  const N=6000,step=2*A/N,off=0.00137,xs=[],v=[];
+  for(let i=0;i<=N;i++){const x=-A+off+i*step;xs.push(x);v.push(F(x))}
+  let flat=true;for(let i=0;i<=N;i+=300)if(!(Math.abs(v[i])<1e-9)&&isFinite(v[i])){flat=false;break}
+  if(flat)return{ok:false};
+  const roots=[];
+  for(let i=1;i<=N;i++){const a=v[i-1],b=v[i];
+    if(!isFinite(a)||!isFinite(b))continue;
+    if((a<0&&b>0)||(a>0&&b<0)){let lo=xs[i-1],hi=xs[i],fl=a;
+      for(let j=0;j<70;j++){const m=(lo+hi)/2,fm=F(m);if(!isFinite(fm))break;if((fm<0)===(fl<0)){lo=m;fl=fm}else hi=m}
+      const r=(lo+hi)/2,res=F(r);
+      if(isFinite(res)&&Math.abs(res)<1e-6&&!roots.some(q=>Math.abs(q-r)<1e-6))roots.push(r);
+    }else if(i>=2){const p=v[i-2];
+      if(isFinite(p)&&Math.abs(a)<=Math.abs(p)&&Math.abs(a)<=Math.abs(b)&&Math.abs(a)<.02&&Math.sign(p)===Math.sign(a)&&Math.sign(b)===Math.sign(a))return{ok:false,tangent:true};
+    }}
+  if(roots.length>4)return{ok:false};
+  if(!win&&roots.some(r=>Math.abs(r)>12))return{ok:false};
+  if(win&&roots.some(r=>Math.abs(r)>A-.25))return{ok:false};
+  const pts=roots.map(x=>({x,kind:'root'}));
+  [...Lf.breaks(A),...Rf.breaks(A)].forEach(b=>{const e=pts.find(p=>p.kind==='break'&&Math.abs(p.x-b.x)<1e-9);
+    if(e)e.inDom=e.inDom&&b.inDom;else pts.push({x:b.x,kind:'break',inDom:b.inDom})});
+  pts.sort((p,q)=>p.x-q.x);
+  for(let i=1;i<pts.length;i++)if(pts[i].x-pts[i-1].x<.45)return{ok:false};
+  const bps=pts,b=bps.map(p=>p.x),n=b.length;
+  const direct=x=>{const l=Lf.f(x),r=Rf.f(x);return isFinite(l)&&isFinite(r)&&cmp(l,r)};
+  const seq=[];
+  for(let i=0;i<=n;i++){
+    const lo=i===0?-Infinity:b[i-1],hi=i===n?Infinity:b[i];
+    const m=i===0?(n?b[0]-1:0):i===n?b[n-1]+1:(b[i-1]+b[i])/2;
+    seq.push({k:'p',lo,hi,t:direct(m)});
+    if(i<n){const p=bps[i];
+      const t=p.kind==='root'?(op==='≥'||op==='≤'):p.inDom?direct(p.x):false;
+      seq.push({k:'pt',x:p.x,t})}
+  }
+  const comps=[];let cur=null;
+  seq.forEach(el=>{
+    if(el.t){if(!cur)cur={lo:el.k==='p'?el.lo:el.x,loC:el.k==='pt'};cur.hi=el.k==='p'?el.hi:el.x;cur.hiC=el.k==='pt'}
+    else if(cur){comps.push(cur);cur=null}});
+  if(cur)comps.push(cur);
+  return{ok:true,A,win,roots:roots.sort((p,q)=>p-q),bps,b,comps,Lf,Rf,op}
+}
+
+/* ---------- rendering of regions in each notation ---------- */
+const isInf=v=>!isFinite(v);
+function ivIneq(iv){const{lo,hi,loC,hiC}=iv,L=lo===-Infinity,H=hi===Infinity;
+  if(L&&H)return'x ∈ ℝ';if(!L&&!H&&lo===hi)return'x = '+num(lo);
+  if(L)return'x '+(hiC?'≤':'<')+' '+num(hi);if(H)return'x '+(loC?'≥':'>')+' '+num(lo);
+  return num(lo)+' '+(loC?'≤':'<')+' x '+(hiC?'≤':'<')+' '+num(hi)}
+function ivText(iv){const{lo,hi,loC,hiC}=iv,L=lo===-Infinity,H=hi===Infinity;
+  if(L&&H)return'x is any real number';if(!L&&!H&&lo===hi)return'x equals '+num(lo);
+  if(L)return'x is '+(hiC?'at most':'less than')+' '+num(hi);if(H)return'x is '+(loC?'at least':'more than')+' '+num(lo);
+  return'x is '+(loC?'at least':'more than')+' '+num(lo)+' and '+(hiC?'at most':'less than')+' '+num(hi)}
+function ivInterval(iv){const{lo,hi,loC,hiC}=iv;if(lo===hi)return'{'+num(lo)+'}';
+  return(loC?'[':'(')+(lo===-Infinity?MINUS+'∞':num(lo))+', '+(hi===Infinity?'∞':num(hi))+(hiC?']':')')}
+function notEq(ivs){if(ivs.length!==2)return null;const[a,b]=ivs;
+  return(a.lo===-Infinity&&b.hi===Infinity&&!a.hiC&&!b.loC&&a.hi===b.lo)?a.hi:null}
+function render(o,mode){
+  if(o.all)return mode==='text'?'True for all real numbers':mode==='interval'?'x ∈ ('+MINUS+'∞, ∞)':'x ∈ ℝ';
+  if(o.empty)return mode==='text'?'True for no real numbers':'x ∈ ∅';
+  const ivs=o.ivs,ne=notEq(ivs);
+  if(mode==='interval')return'x ∈ '+ivs.map(ivInterval).join(' ∪ ');
+  if(mode==='text')return ne!==null?'x is not equal to '+num(ne):ivs.map(ivText).join(' or ');
+  const s=ne!==null?'x ≠ '+num(ne):ivs.map(ivIneq).join(' or ');
+  return mode==='set'?'{x : '+s+'}':s}
+
+/* ---------- judging an option against the solution ---------- */
+function judge(an,o){
+  const{comps,b,A}=an;
+  if(o.empty)return comps.length===0;
+  const ivs=o.ivs,inOpt=x=>ivs.some(iv=>contains(iv,x));
+  const S=new Set(b);
+  const edges=[-A,...b,A];
+  for(let i=0;i<edges.length-1;i++)for(let k=1;k<=5;k++)S.add(edges[i]+(edges[i+1]-edges[i])*k/6);
+  ivs.forEach(iv=>[iv.lo,iv.hi].forEach(t=>{if(isFinite(t)&&Math.abs(t)<=A){S.add(t);S.add(t-1e-4);S.add(t+1e-4)}}));
+  const status=comps.map(()=>new Set());
+  for(const x of S){if(Math.abs(x)>A)continue;
+    const c=comps.findIndex(cc=>contains(cc,x)),on=inOpt(x);
+    if(c<0){if(on)return false}else status[c].add(on)}
+  let any=false;
+  for(const s of status){if(s.size>1)return false;if(s.has(true))any=true}
+  return any}
+
+/* ---------- build the 24 options ---------- */
+function buildOptions(an){
+  const{comps,b,roots,Lf}=an,n=b.length,INF=Infinity;
+  const list=[],seen=new Set();
+  const add=(o,cat)=>{o.key=render(o,'inequality');if(seen.has(o.key))return false;seen.add(o.key);o.correct=judge(an,o);o.cat=cat;list.push(o);return true};
+  const iv=(lo,hi,loC,hiC)=>({ivs:[{lo,hi,loC:loC&&lo!==-INF,hiC:hiC&&hi!==INF}]});
+  add({all:true,ivs:[{lo:-INF,hi:INF,loC:false,hiC:false}]},'fixed');
+  add({empty:true,ivs:[]},'fixed');
+  comps.forEach(c=>add({ivs:[c]},'ok'));
+  const pools={flip:[],comp:[],span:[],piece:[],y:[],raw:[]};
+  comps.forEach(c=>{if(c.lo===c.hi)return;
+    [[1,0],[0,1],[1,1]].forEach(([a,z])=>{if((a&&c.lo===-INF)||(z&&c.hi===INF))return;
+      pools.flip.push({ivs:[{lo:c.lo,hi:c.hi,loC:a?!c.loC:c.loC,hiC:z?!c.hiC:c.hiC}]})})});
+  const gaps=[];let pe=-INF,pC=false;
+  comps.forEach(c=>{if(pe<c.lo||(pe===c.lo&&pe!==-INF))gaps.push({lo:pe,hi:c.lo,loC:pe===-INF?false:!pC,hiC:!c.loC});pe=c.hi;pC=c.hiC});
+  if(comps.length&&pe<INF)gaps.push({lo:pe,hi:INF,loC:!pC,hiC:false});
+  gaps.forEach(g=>pools.comp.push({ivs:[g]}));
+  if(comps.length>1){const f=comps[0],l=comps[comps.length-1];pools.span.push(iv(f.lo,l.hi,f.loC,l.hiC));
+    for(let i=0;i<comps.length-1;i++)pools.span.push(iv(comps[i].lo,comps[i+1].hi,comps[i].loC,comps[i+1].hiC))}
+  for(let i=0;i<=n;i++){const lo=i===0?-INF:b[i-1],hi=i===n?INF:b[i];pools.piece.push(iv(lo,hi,false,false));
+    if(lo!==-INF)pools.piece.push(iv(lo,hi,true,true))}
+  b.forEach(x=>[[x,INF,false,false],[x,INF,true,false],[-INF,x,false,false],[-INF,x,false,true]].forEach(a=>pools.piece.push(iv(...a))));
+  const ys=[...new Set(roots.map(r=>Math.round(Lf.f(r)*10)/10))];
+  ys.forEach(y=>[[y,INF,false,false],[y,INF,true,false],[-INF,y,false,false],[-INF,y,false,true]].forEach(a=>pools.y.push(iv(...a))));
+  if(ys.length>1){const s=ys.slice().sort((p,q)=>p-q);pools.y.push(iv(s[0],s[s.length-1],false,false));pools.y.push(iv(s[0],s[s.length-1],true,true))}
+  const vals=[...new Set([...Array(13).keys()].map(i=>i-6).concat(roots.map(r=>Math.round(r)+pick([-1,1]))))];
+  for(let t=0;t<300;t++){const p=pick(vals);
+    if(Math.random()<.5){pools.raw.push(pick([iv(p,INF,false,false),iv(p,INF,true,false),iv(-INF,p,false,false),iv(-INF,p,false,true)]))}
+    else{let q=pick(vals);if(q===p)continue;const lo=Math.min(p,q),hi=Math.max(p,q),c=Math.random()<.5;pools.raw.push(iv(lo,hi,c,c))}}
+  const order=['flip','comp','span','piece','y','raw'];Object.values(pools).forEach(shuffle);
+  let guard=0;
+  while(list.length<24&&guard++<2000){let progressed=false;
+    for(const c of order){while(pools[c].length){const o=pools[c].pop();if(add(o,c)){progressed=true;break}}
+      if(list.length>=24)break}
+    if(!progressed)break}
+  return shuffle(list.slice(0,24))}
+
+/* ---------- top-level problem generator ---------- */
+function generate(lt,rt,op){
+  const wantRoot=Math.random()<.9;let fallback=null;
+  for(let t=0;t<400;t++){
+    const Lf=makeFn(lt),Rf=makeFn(rt),an=analyse(Lf,Rf,op);
+    if(!an.ok)continue;
+    if(wantRoot?an.roots.length>=1:an.roots.length===0)return an;
+    fallback=fallback||an}
+  if(fallback)return fallback;
+  for(;;){const Lf=makeFn(lt),Rf=makeFn(rt),an=analyse(Lf,Rf,op);if(an.ok)return an}}
+if(typeof module!=='undefined')module.exports={makeFn,analyse,buildOptions,render,generate,judge,num,TYPES,contains};
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+const OPS=['>','<','≥','≤'];
+const st={lt:'quadratic',rt:'linear',op:'>',mode:'inequality',an:null,opts:[],checked:false};
+const cap=s=>s[0].toUpperCase()+s.slice(1);
+
+function initControls(){
+  ['lhsType','rhsType'].forEach(id=>{$(id).innerHTML=TYPES.map(t=>'<option value="'+t+'">'+cap(t)+'</option>').join('')});
+  $('lhsType').value=st.lt;$('rhsType').value=st.rt;
+  $('lhsType').onchange=()=>{st.lt=$('lhsType').value;newProblem()};
+  $('rhsType').onchange=()=>{st.rt=$('rhsType').value;newProblem()};
+  const lv={dEasy:['constant','linear','quadratic'],dMed:['constant','linear','quadratic','cubic','quartic','reciprocal'],dHard:TYPES};
+  Object.keys(lv).forEach(id=>{$(id).onclick=()=>{st.lt=pick(lv[id]);st.rt=pick(lv[id]);$('lhsType').value=st.lt;$('rhsType').value=st.rt;newProblem()}});
+  $('notation').onchange=()=>{st.mode=$('notation').value;relabel()};
+  $('newBtn').onclick=newProblem;
+  $('checkBtn').onclick=check;
+  $('clearBtn').onclick=()=>{document.querySelectorAll('#options input').forEach(i=>i.checked=false);clearMarks()};
+}
+function newProblem(){st.op=pick(OPS);st.an=generate(st.lt,st.rt,st.op);show()}
+function show(){
+  const an=st.an;
+  $('ineq').innerHTML='<span class="l">'+an.Lf.html+'</span><span class="o">'+st.op+'</span><span class="r">'+an.Rf.html+'</span>';
+  $('keyL').innerHTML=an.Lf.html;$('keyR').innerHTML=an.Rf.html;
+  $('domainNote').textContent=an.win?'Only consider values of x from '+MINUS+'6 to 6.':'';
+  st.opts=buildOptions(an);st.checked=false;
+  drawOptions();draw(false);
+  $('result').textContent='';$('result').className='';
+}
+function drawOptions(){
+  $('options').innerHTML=st.opts.map((o,i)=>'<label class="opt" id="w'+i+'"><input type="checkbox" id="o'+i+'"><div class="txt"><span class="t"></span><span class="tag"></span></div></label>').join('');
+  st.opts.forEach((o,i)=>{$('o'+i).onchange=clearMarks});
+  relabel();
+}
+function relabel(){st.opts.forEach((o,i)=>{document.querySelector('#w'+i+' .t').textContent=render(o,st.mode)})}
+function clearMarks(){
+  if(!st.checked)return;st.checked=false;
+  st.opts.forEach((o,i)=>{const w=$('w'+i);w.className='opt';w.querySelector('.tag').textContent=''});
+  $('result').textContent='';$('result').className='';draw(false);
+}
+function check(){
+  let wrong=0,missed=0,right=0;
+  st.opts.forEach((o,i)=>{const on=$('o'+i).checked,w=$('w'+i),tag=w.querySelector('.tag');
+    if(on&&o.correct){w.className='opt right';tag.textContent='Correct';right++}
+    else if(on){w.className='opt wrong';tag.textContent='Not true';wrong++}
+    else if(o.correct){w.className='opt missed';tag.textContent='Missed';missed++}
+    else w.className='opt'});
+  st.checked=true;
+  const r=$('result');
+  if(!wrong&&!missed){r.className='good';r.textContent='All correct.'}
+  else{r.className='bad';r.textContent=[wrong?wrong+' selected '+(wrong===1?'option is':'options are')+' not true':'',missed?missed+' true '+(missed===1?'option was':'options were')+' missed':''].filter(Boolean).join(', ')+'.'}
+  draw(true);
+}
+
+/* ---------- graph ---------- */
+const NS='http://www.w3.org/2000/svg';
+function draw(showSol){
+  const an=st.an,W=600,H=460,m={l:46,r:16,t:16,b:32},pw=W-m.l-m.r,ph=H-m.t-m.b;
+  const X=an.win?6:Math.max(6,Math.ceil(Math.max(0,...an.roots.map(Math.abs)))+2);
+  const N=1400,xsamp=i=>-X+0.00137+i*2*X/N,vals=[];
+  for(let i=0;i<=N;i++){const x=xsamp(i);[an.Lf.f(x),an.Rf.f(x)].forEach(y=>{if(isFinite(y)&&Math.abs(y)<=40)vals.push(y)})}
+  vals.sort((a,b)=>a-b);
+  const q=p=>vals.length?vals[Math.min(vals.length-1,Math.floor(p*vals.length))]:0;
+  const rys=an.roots.map(r=>an.Lf.f(r));
+  let y0=Math.min(q(.03),0,...rys),y1=Math.max(q(.97),0,...rys);
+  if(y1-y0<6){const c=(y0+y1)/2;y0=c-3;y1=c+3}
+  const pad=(y1-y0)*.08;y0-=pad;y1+=pad;
+  const px=x=>m.l+(x+X)/(2*X)*pw,py=y=>m.t+(1-(y-y0)/(y1-y0))*ph,span=y1-y0;
+  const ystep=[1,2,5,10,20,50].find(s=>span/s<=10),xstep=X>10?2:1;
+  let s='<defs><clipPath id="clip"><rect x="'+m.l+'" y="'+m.t+'" width="'+pw+'" height="'+ph+'"/></clipPath></defs>';
+  s+='<rect x="'+m.l+'" y="'+m.t+'" width="'+pw+'" height="'+ph+'" style="fill:var(--panel);stroke:var(--line)"/>';
+  const txt=(x,y,t,a,extra)=>'<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" text-anchor="'+a+'" style="font:11px var(--ui);fill:var(--muted);'+(extra||'')+'">'+t+'</text>';
+  for(let x=Math.ceil(-X/xstep)*xstep;x<=X;x+=xstep){
+    s+='<line x1="'+px(x)+'" x2="'+px(x)+'" y1="'+m.t+'" y2="'+(H-m.b)+'" style="stroke:var(--line);stroke-width:'+(x===0?1.6:.6)+'"/>';
+    if(x!==0||true)s+=txt(px(x),H-m.b+15,num(x),'middle')}
+  for(let y=Math.ceil(y0/ystep)*ystep;y<=y1;y+=ystep){
+    s+='<line y1="'+py(y)+'" y2="'+py(y)+'" x1="'+m.l+'" x2="'+(W-m.r)+'" style="stroke:var(--line);stroke-width:'+(Math.abs(y)<1e-9?1.6:.6)+'"/>';
+    s+=txt(m.l-6,py(y)+4,num(y),'end')}
+  s+=txt(W-m.r,H-m.b+28,'x','end','font-style:italic')+txt(m.l+8,m.t+12,'y','start','font-style:italic');
+  s+='<g clip-path="url(#clip)">';
+  an.bps.filter(p=>p.kind==='break'&&!p.inDom&&Math.abs(p.x)<X).forEach(p=>{
+    s+='<line x1="'+px(p.x)+'" x2="'+px(p.x)+'" y1="'+m.t+'" y2="'+(H-m.b)+'" style="stroke:var(--muted);stroke-dasharray:5 4;stroke-width:1"/>'});
+  if(showSol)an.comps.forEach(c=>{const a=px(Math.max(c.lo,-X)),b=px(Math.min(c.hi,X));
+    s+='<rect x="'+a+'" y="'+m.t+'" width="'+Math.max(0,b-a)+'" height="'+ph+'" style="fill:var(--band)"/>'});
+  const curve=(fn,cls)=>{let d='',pen=false,prev=0;
+    for(let i=0;i<=N;i++){const x=xsamp(i),y=fn(x);
+      if(!isFinite(y)||Math.abs(y)>1e4){pen=false;continue}
+      if(pen&&Math.abs(y-prev)>3*span)pen=false;
+      d+=(pen?'L':'M')+px(x).toFixed(1)+' '+py(y).toFixed(1);pen=true;prev=y}
+    return'<path d="'+d+'" style="fill:none;stroke:var(--'+cls+');stroke-width:2.6;stroke-linejoin:round"/>'};
+  s+=curve(an.Rf.f,'blue')+curve(an.Lf.f,'red')+'</g>';
+  if(showSol){const ay=Math.min(H-m.b-6,Math.max(m.t+6,py(0)));
+    an.comps.forEach(c=>{const lo=Math.max(c.lo,-X),hi=Math.min(c.hi,X);
+      s+='<line x1="'+px(lo)+'" x2="'+px(hi)+'" y1="'+ay+'" y2="'+ay+'" style="stroke:var(--ok);stroke-width:5;stroke-linecap:butt"/>';
+      [[c.lo,c.loC],[c.hi,c.hiC]].forEach(([v,cl])=>{if(Math.abs(v)<X)s+='<circle cx="'+px(v)+'" cy="'+ay+'" r="5.5" style="stroke:var(--ok);stroke-width:2.5;fill:'+(cl?'var(--ok)':'var(--panel)')+'"/>'})})}
+  an.roots.forEach(r=>{const y=an.Lf.f(r),cx=px(r),cy=py(y),left=cx>W-110,below=cy<m.t+22;
+    s+='<circle cx="'+cx+'" cy="'+cy+'" r="5" style="fill:var(--panel);stroke:var(--fg);stroke-width:2"/>';
+    s+='<text x="'+(cx+(left?-9:9))+'" y="'+(cy+(below?18:-9))+'" text-anchor="'+(left?'end':'start')+'" style="font:600 12px var(--ui);fill:var(--fg);paint-order:stroke;stroke:var(--panel);stroke-width:4px;stroke-linejoin:round">('+num(r)+', '+num(y)+')</text>'});
+  $('graph').innerHTML=s;
+}
+initControls();newProblem();
+</script>
+
+</body></html>
